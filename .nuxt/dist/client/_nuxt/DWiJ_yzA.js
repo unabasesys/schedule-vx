@@ -1,0 +1,1 @@
+import{_ as s,A as t,B as a,Z as o}from"./BLbpDIng.js";const r={},c={class:"share-layout"};function n(e,_){return t(),a("div",c,[o(e.$slots,"default",{},void 0,!0)])}const f=s(r,[["render",n],["__scopeId","data-v-c72f68fe"]]);export{f as default};
