@@ -3,13 +3,7 @@
     <!-- Brand / Studio -->
     <div class="sb-brand">
       <div class="ub-logo">
-        <svg class="ub-logo-icon" viewBox="0 0 30 28" fill="none">
-          <!-- teal dot -->
-          <circle cx="4" cy="5" r="3.8" fill="#00C9A7"/>
-          <!-- checkmark: left arm shorter, right arm longer & higher -->
-          <path d="M2 15 L10 25 L28 5" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-        </svg>
-        <span class="ub-logo-text">unabase</span>
+        <img src="/images/white-unabase.png" class="ub-logo-img" alt="unabase" />
         <button
           class="sb-collapse-btn"
           :title="globalStore.lang === 'en' ? 'Collapse sidebar' : 'Colapsar menú'"
@@ -210,11 +204,7 @@ function cycleStatus(id) {
   align-items: center; justify-content: center; transition: background .15s, color .15s;
 }
 .sb-collapse-btn:hover { background: rgba(255,255,255,.1); color: rgba(255,255,255,.8); }
-.ub-logo-icon { width: 30px; height: 30px; flex-shrink: 0; }
-.ub-logo-text {
-  font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: -.5px;
-  line-height: 1; font-family: 'Syne', sans-serif;
-}
+.ub-logo-img { height: 22px; width: auto; flex-shrink: 0; }
 
 .studio-row {
   display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.06);
