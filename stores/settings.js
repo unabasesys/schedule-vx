@@ -10,6 +10,8 @@ export const useSettingsStore = defineStore('settings', {
       website: '',
     },
     users: [],
+    orgCities: [],            // default weather cities for new calendars
+    orgDefaultHolidays: [],  // default holiday countries for new calendars
   }),
 
   actions: {
@@ -50,6 +52,14 @@ export const useSettingsStore = defineStore('settings', {
 
     removeUser(id) {
       this.users = this.users.filter(u => u.id !== id)
+    },
+
+    setOrgCities(cities) {
+      this.orgCities = cities
+    },
+
+    setOrgDefaultHolidays(countries) {
+      this.orgDefaultHolidays = countries
     },
   },
 })

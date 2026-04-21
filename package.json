@@ -9,11 +9,13 @@
   },
   "dependencies": {
     "@nuxtjs/i18n": "^10.2.4",
+    "@oxc-parser/binding-linux-arm64-gnu": "^0.125.0",
     "@pinia/nuxt": "^0.5.1",
     "@supabase/supabase-js": "^2.0.0",
     "@vueuse/core": "^10.7.0",
     "@vueuse/nuxt": "^10.7.0",
     "dayjs": "^1.11.13",
+    "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
     "mitt": "^3.0.1",
     "nuxt": "^3.8.1",

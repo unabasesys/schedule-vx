@@ -1,19 +1,58 @@
-# CLAUDE.md — Schedule Nuxt
+# CLAUDE.md — Calendar by unabase
 
 > Guía de colaboración para Claude Code en este proyecto.
 
 ---
 
-## 1. Descripción del Proyecto
+## 1. Descripción del Producto
 
-**Schedule Nuxt** es una aplicación de calendario de producción para agencias y productoras audiovisuales. Permite planificar proyectos de rodaje organizando eventos en 5 etapas (Licitación, Preproducción, Rodaje, Postproducción Video, Postproducción Foto), con fechas automáticas por dependencias, clima, feriados y exportación a PDF.
+**Calendar by unabase** es una aplicación para crear y gestionar calendarios de producción audiovisual y creativa.
 
-**Stack:** Nuxt 3 · Vue 3 · Pinia · Supabase · dayjs · jsPDF · i18n (es/en)  
+El producto busca replicar la familiaridad operativa de herramientas que la industria ya usa —especialmente **Apple Calendar** y **Google Sheets con vista mensual**— pero adaptadas a la lógica real de producción.
+
+La propuesta no es introducir una herramienta completamente nueva, sino una evolución natural del flujo actual de trabajo.
+
+**El problema que resuelve:** Los equipos de producción creativa construyen sus calendarios en herramientas genéricas no diseñadas para producción. Esto genera falta de estructura para eventos de producción, dificultad para manejar dependencias reales, falta de lógica de versionado formal, poca integración de feriados y clima, repetición de procesos, poca consistencia en nombres de eventos y poca colaboración entre equipos.
+
+**Objetivo del producto:** Permitir que usuarios de producción creen, editen, organicen y exporten calendarios de producción de manera rápida, intuitiva, consistente y profesional.
+
+**Stack:** Nuxt 3 · Vue 3 · Pinia · Supabase · dayjs · jsPDF · i18n (es/en)
 **Modo:** Client-only (SSR desactivado) · localStorage-first · Supabase solo para sharing
 
 ---
 
-## 2. Arquitectura General
+## 2. Usuarios Objetivo
+
+**Usuario principal:** Profesionales de producción o coordinación dentro de industrias creativas:
+- Productores y productores ejecutivos
+- Coordinadores de producción y postproducción
+- Asistentes de producción
+- Equipos de agencias de publicidad y diseño
+- Estudios de diseño y estudios fotográficos
+- Productoras audiovisuales y de publicidad/comerciales
+- Casas de postproducción
+
+**Contexto de uso:** Usuarios acostumbrados a trabajar con Apple Calendar, hojas de cálculo, calendarios mensuales hechos manualmente y cronogramas compartidos dentro de equipos de producción.
+
+---
+
+## 3. Principios del Producto
+
+1. **Familiaridad visual inmediata** — debe verse como una herramienta que ya conocen
+2. **Curva de aprendizaje baja** — sin onboarding complejo
+3. **Edición rápida** — doble click para crear/editar
+4. **Terminología de industria** — usar los términos reales del rubro
+5. **Estructura clara para producción real** — etapas, dependencias, feriados, weather
+6. **Flexibilidad sin perder simplicidad** — customizable pero no abrumador
+7. **Versionado formal** — cuando el calendario se convierte en documento compartible
+8. **Consistencia entre calendarios** — templates para reutilizar estructura
+9. **Rapidez de ejecución** — calendarios en minutos, no horas
+10. **Capacidad de colaboración** — compartir con equipos externos
+11. **Posibilidad de aplicar branding de organización** — logo, colores, nombre
+
+---
+
+## 4. Arquitectura General
 
 ```
 schedule-nuxt/
@@ -66,11 +105,26 @@ schedule-nuxt/
 
 **Referencia legacy:** `../calendario-produccion.html` — versión standalone en vanilla JS que sirvió de base. Consultar para entender flujos de negocio.
 
-> Si alguien pregunta por qué el código "no se parece" al original: es intencional. `calendario-produccion.html` es el prototipo de una sola página en HTML/JS puro con el que se diseñó y validó la lógica de negocio. La versión actual en Nuxt es una reescritura estructurada en componentes, stores y composables — misma funcionalidad, distinta arquitectura.
+---
+
+## 5. Modelo Conceptual
+
+### Organización
+Entidad principal del sistema. Define los parámetros globales que todos los calendarios heredan:
+- Defaults globales (idioma, temperatura, inicio de semana, zona horaria, formato de fecha)
+- Templates compartidos
+- Feriados por defecto
+- Branding organizacional (logo, nombre, colores)
+
+### Proyecto
+Entidad con la información general de producción. Contiene: cliente, agencia, nombre del proyecto, director y/o fotógrafo, productor ejecutivo, ciudad principal de producción y estado.
+
+### Calendario
+Representación operativa y versionable del proyecto. Contiene: eventos, feriados asociados, weather asociado, versión, PDF exportable, configuración específica y template de origen.
 
 ---
 
-## 3. Modelos de Datos Clave
+## 6. Modelos de Datos Clave
 
 ### Project
 ```js
@@ -108,28 +162,62 @@ schedule-nuxt/
 
 ---
 
-## 4. Flujos Principales
+## 7. Terminología del Producto
+
+| Término | Significado |
+|---------|-------------|
+| Stages / Etapas | Las 5 fases del proyecto: Licitación, Preproducción, Rodaje, Video Post, Still Post |
+| Key Dates / Fechas clave | Eventos marcados como hitos importantes (estrella visual) |
+| Business Days / Días hábiles | Días que excluyen fines de semana (y feriados activos) |
+| Calendar Days / Días corridos | Todos los días incluyendo fines de semana |
+| Draft | PDF de trabajo con marca DRAFT, no incrementa versión |
+| Official Version | PDF oficial que incrementa la versión del calendario |
+| Template | Estructura reutilizable de eventos para nuevos calendarios |
+| Holiday Calendars / Calendarios de feriados | Calendarios de días festivos por país |
+
+---
+
+## 8. Reglas de Negocio Principales
+
+1. La organización define los defaults; el calendario puede sobrescribir lo heredado.
+2. No hay persistencia propia de usuario por ahora — un solo set de datos por org.
+3. **El gris está reservado para feriados** — ningún proyecto/calendario puede usar gris.
+4. La búsqueda de proyectos funciona solo dentro del estado actual (Activos o Archivados).
+5. Cambios de contenido formal (eventos, datos del proyecto) activan el asterisco de versión.
+6. Cambios de visualización (mostrar/ocultar feriados, temperatura, inicio de semana, **idioma del calendario**) **no** activan el asterisco.
+7. El calendario opera bajo su propia zona horaria.
+8. Weather múltiple significa múltiples ciudades/locaciones.
+9. Las dependencias entre eventos sí afectan fechas automáticamente.
+10. **Nombres de eventos bilingües:** nacen replicados entre idiomas y se independizan cuando se edita el idioma contrario (ver docs/flujos para detalle).
+11. El reordenamiento manual de eventos se permite solo dentro del mismo stage.
+12. La visibilidad de feriados y su impacto en cálculo son cosas separadas — ocultar un feriado no necesariamente desactiva su efecto en Business Days.
+13. El calendario y sus salidas deben poder reflejar branding de la organización.
+
+---
+
+## 9. Flujos Principales
 
 Ver carpeta `/docs/` para documentación detallada de cada flujo.
 
 - **Creación de proyecto** → `docs/flujos/creacion-proyecto.md`
 - **Dependencias y cálculo de fechas** → `docs/flujos/dependencias.md`
 - **Compartir proyectos** → `docs/flujos/compartir.md`
-- **Exportación PDF** → `docs/flujos/exportar-pdf.md`
+- **Exportación PDF y versionado** → `docs/flujos/exportar-pdf.md`
 - **Feriados y clima** → `docs/flujos/feriados-clima.md`
+- **Resumen del PRD** → `docs/prd-resumen.md`
 
 ---
 
-## 5. Estado y Persistencia
+## 10. Estado y Persistencia
 
 - **Todo se guarda en localStorage** mediante `usePersist.js`
-- Claves: `ub_projects`, `ub_templates`, `ub_studio`, `ub_selected`, `ub_lang`, `ub_weekstart`, `ub_tempunit`, `ub_logo`
+- Claves: `ub_projects`, `ub_templates`, `ub_studio`, `ub_selected`, `ub_lang`, `ub_weekstart`, `ub_tempunit`, `ub_dateformat`, `ub_company`, `ub_users`, `ub_logo`, `ub_org_cities`, `ub_org_default_holidays`
 - **Supabase** solo se usa para proyectos compartidos (tabla `shared_projects`)
 - No hay backend propio; la app funciona 100% offline excepto sharing y APIs externas
 
 ---
 
-## 6. APIs Externas
+## 11. APIs Externas
 
 | API | Uso | Clave |
 |-----|-----|-------|
@@ -139,7 +227,7 @@ Ver carpeta `/docs/` para documentación detallada de cada flujo.
 
 ---
 
-## 7. Filosofía del Proyecto
+## 12. Filosofía del Proyecto
 
 **Este proyecto está diseñado para ser embebido como componente dentro de una aplicación mayor**, no para ser una app standalone de producción con toda la infraestructura que eso implicaría.
 
@@ -152,7 +240,32 @@ Por eso:
 
 ---
 
-## 8. Convenciones de Desarrollo
+## 13. Fuera de Alcance (v1)
+
+- Manejo de horarios detallados
+- Vistas horarias o semanales complejas
+- Persistencia personalizada por usuario
+- Múltiples proveedores de weather
+- Lógica avanzada multi-zona entre calendarios
+- Automatizaciones complejas más allá de dependencias base
+- Traducción automática inteligente de nombres de eventos
+
+---
+
+## 14. Riesgos del Producto
+
+- Mezclar Proyecto y Calendario en desarrollo o UX
+- Complejizar demasiado la interfaz y romper la familiaridad
+- Implementar dependencias sin reglas claras de recálculo
+- Generar conflictos de herencia entre organización y calendario
+- Tratar weather o feriados como extras cuando en realidad son parte operativa del sistema
+- Confundir "visibilidad" de feriados con "aplicación lógica" de feriados
+- No definir bien el desacople de nombres bilingües en eventos
+- No dejar claro que el orden manual dentro del stage es un orden de lista y no un cambio de fecha
+
+---
+
+## 15. Convenciones de Desarrollo
 
 - **Sin TypeScript** — JS puro en todo el proyecto
 - **Sin test suite** actualmente
@@ -164,7 +277,7 @@ Por eso:
 
 ---
 
-## 8. Guías por Usuario
+## 16. Guías por Usuario
 
 ---
 
@@ -182,22 +295,21 @@ Por eso:
 
 **Reglas especiales:**
 
-1. **Primera vez que Jorge hable en una nueva sesión:** Pedirle que explique el proyecto detalladamente. Guardar esa información en CLAUDE.md (actualizar la sección de descripción con contexto de negocio que él aporte). Luego, **eliminar esta instrucción de la regla** (punto 1 de esta sección) para que no se repita.
-
-2. **Al iniciar una tarea:** Antes de empezar, preguntarle a Jorge si quiere que se lea alguno de los documentos de referencia y ofrecerle la lista disponible:
+1. **Al iniciar una tarea:** Antes de empezar, preguntar a Jorge si quiere que se lea alguno de los documentos de referencia y ofrecerle la lista disponible:
+   - `docs/prd-resumen.md` — visión del producto, principios y reglas de negocio
    - `docs/arquitectura.md` — cómo está organizada la app
    - `docs/componentes.md` — qué hace cada parte de la pantalla
    - `docs/flujos/creacion-proyecto.md` — cómo se crea un calendario
    - `docs/flujos/dependencias.md` — cómo se calculan las fechas automáticas
    - `docs/flujos/compartir.md` — cómo funciona el link de compartir
-   - `docs/flujos/exportar-pdf.md` — cómo se genera el PDF
+   - `docs/flujos/exportar-pdf.md` — cómo se genera el PDF y el versionado
    - `docs/flujos/feriados-clima.md` — cómo funcionan los feriados y el clima
 
-3. **Al completar una tarea:** Actualizar los archivos `.md` afectados (`CLAUDE.md`, docs de flujos o componentes) para reflejar cualquier cambio en la funcionalidad, nuevos componentes o flujos modificados.
+2. **Al completar una tarea:** Actualizar los archivos `.md` afectados (`CLAUDE.md`, docs de flujos o componentes) para reflejar cualquier cambio en la funcionalidad, nuevos componentes o flujos modificados.
 
-4. **Al terminar una funcionalidad nueva:** Preguntar a Jorge si quiere subir esos cambios a GitHub y crear el PR correspondiente. (El repositorio remoto aún no está conectado — registrar el PR localmente o indicar que está pendiente de conexión remota.)
+3. **Al terminar una funcionalidad nueva:** Preguntar a Jorge si quiere subir esos cambios a GitHub y crear el PR correspondiente.
 
-5. **No dejar que Jorge modifique directamente la estructura de archivos** si no es necesario. Si quiere hacerlo, proponer la estructura correcta y hacerlo por él.
+4. **No dejar que Jorge modifique directamente la estructura de archivos** si no es necesario. Si quiere hacerlo, proponer la estructura correcta y hacerlo por él.
 
 ---
 
@@ -215,9 +327,16 @@ Por eso:
 
 ---
 
-## 9. Puntos de Atención
+## 17. Puntos de Atención
 
 - El motor de dependencias (`useDependencyEngine.js`) hace un sort topológico; cualquier cambio en lógica de fechas debe respetar el orden de resolución.
 - `stores/projects.js` es el archivo más crítico (~480 líneas). Cambios deben ser quirúrgicos.
 - La versión legacy en `calendario-produccion.html` tiene lógica de negocio útil como referencia, pero no se modifica.
 - El campo `dateMode: 'auto'` en eventos indica que la fecha es calculada por dependencia — no sobre-escribir manualmente esos valores sin pasar por el motor.
+- **Feriados:** la visibilidad visual y el impacto en cálculo de Business Days son independientes. No confundirlos al implementar.
+- **Versionado:** Draft no incrementa versión; Official Version sí. Cambios visuales (incluyendo cambio de idioma) no activan asterisco. Usar `setProjectLang()` en vez de `updateProject()` para cambiar idioma.
+- **Colores:** gris siempre reservado para feriados. No ofrecerlo como opción de proyecto.
+- **Logo:** se guarda como base64 en localStorage. Tamaño máximo aceptado: 512 KB. La validación se hace en `handleLogoUpload()` en `SettingsModal.vue` antes de llamar a `FileReader`.
+- **Key Dates:** se renderizan como barra negra con texto blanco tanto en la vista calendario (`CalendarMonth.vue`) como en el PDF (`print/[id].vue`).
+- **`setProjectLang()`** — acción en `projects.js` que guarda el idioma del proyecto sin activar `hasChanges`. Usar siempre este método para cambios de idioma, nunca `updateProject()` con `{ lang }`.
+- **Detección de dependencias circulares:** `hasCircularDep()` de `useDependencyEngine` está conectada en `EventRow.vue → updateDepEvent()`. Se ejecuta antes de guardar cualquier nueva dependencia.

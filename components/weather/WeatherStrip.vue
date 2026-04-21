@@ -1,9 +1,5 @@
 <template>
   <div class="weather-strip" v-if="project.cities?.length">
-    <span class="weather-date-label">
-      {{ lang === 'en' ? 'Today' : 'Hoy' }} · {{ formattedDate }}
-    </span>
-
     <div
       v-for="(city, idx) in project.cities"
       :key="idx"
@@ -19,9 +15,17 @@
           ↑{{ formatTime(getWeather(idx)?.sunrise) }}
           ↓{{ formatTime(getWeather(idx)?.sunset) }}
         </span>
+        <span class="weather-source" :class="{ stats: getWeather(idx)?._isStats }">
+          {{ getWeather(idx)?._isStats
+            ? (lang === 'en' ? 'hist.' : 'hist.')
+            : (lang === 'en' ? 'fcst.' : 'pron.') }}
+        </span>
+      </template>
+      <template v-else-if="weatherStore.loading[weatherStore.cacheKey(project.id, idx)]">
+        <span class="weather-loading">…</span>
       </template>
       <template v-else>
-        <span class="weather-loading">…</span>
+        <span class="weather-loading">–</span>
       </template>
       <button class="weather-del" @click="removeCity(idx)" title="Remove city">✕</button>
     </div>
@@ -31,8 +35,9 @@
     </button>
 
     <!-- Add city input -->
-    <div v-if="showAddCity" class="weather-add-wrap" ref="addWrap">
+    <div v-if="showAddCity" class="weather-add-wrap">
       <input
+        ref="cityInputRef"
         type="text"
         class="weather-add-input"
         v-model="newCitySearch"
@@ -40,18 +45,26 @@
         @input="searchNewCity"
         autofocus
       />
-      <div v-if="newCitySuggestions.length" class="weather-suggestions">
+    </div>
+
+    <!-- Suggestions — teleported to body to escape overflow:auto clipping -->
+    <Teleport to="body">
+      <div
+        v-if="showAddCity && newCitySuggestions.length"
+        class="weather-suggestions-portal"
+        :style="suggestionsStyle"
+      >
         <div
           v-for="s in newCitySuggestions"
           :key="s.id"
           class="weather-suggestion-item"
-          @click="addCity(s)"
+          @mousedown.prevent="addCity(s)"
         >
           <strong>{{ s.name }}</strong>
           <span>{{ s.region }}</span>
         </div>
       </div>
-    </div>
+    </Teleport>
   </div>
 </template>
 
@@ -66,25 +79,71 @@ const props = defineProps({
   dateStr:  { type: String, default: '' },
 })
 
-const showAddCity     = ref(false)
-const newCitySearch   = ref('')
+const showAddCity        = ref(false)
+const newCitySearch      = ref('')
 const newCitySuggestions = ref([])
+const cityInputRef       = ref(null)
+const suggestionsStyle   = ref({})
 let cityTimer = null
 
-const formattedDate = computed(() => {
-  const d = props.dateStr || new Date().toISOString().split('T')[0]
-  const [y, m, day] = d.split('-')
-  return props.lang === 'en'
-    ? `${parseInt(m)}/${parseInt(day)}/${y}`
-    : `${parseInt(day)}/${parseInt(m)}/${y}`
+// Reposition the teleported dropdown whenever suggestions appear or window scrolls/resizes
+function updateSuggestionsPosition() {
+  if (!cityInputRef.value) return
+  const rect = cityInputRef.value.getBoundingClientRect()
+  suggestionsStyle.value = {
+    position: 'fixed',
+    top:      `${rect.bottom + 4}px`,
+    left:     `${rect.left}px`,
+    width:    `${Math.max(rect.width, 220)}px`,
+    zIndex:   1000,
+  }
+}
+
+watch(newCitySuggestions, (list) => {
+  if (list.length) nextTick(updateSuggestionsPosition)
 })
 
-// Fetch weather for all cities on mount
+watch(showAddCity, (open) => {
+  if (!open) {
+    newCitySearch.value      = ''
+    newCitySuggestions.value = []
+  }
+})
+
+function onOutsideClick(e) {
+  if (!showAddCity.value) return
+  const portal = document.querySelector('.weather-suggestions-portal')
+  if (
+    cityInputRef.value && !cityInputRef.value.contains(e.target) &&
+    (!portal || !portal.contains(e.target))
+  ) {
+    showAddCity.value = false
+  }
+}
+
 onMounted(() => {
-  const date = props.dateStr || new Date().toISOString().split('T')[0]
+  document.addEventListener('click', onOutsideClick, true)
+  window.addEventListener('scroll', updateSuggestionsPosition, true)
+  window.addEventListener('resize', updateSuggestionsPosition)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', onOutsideClick, true)
+  window.removeEventListener('scroll', updateSuggestionsPosition, true)
+  window.removeEventListener('resize', updateSuggestionsPosition)
+})
+
+// Load weather for all cities whenever the selected date changes (or on mount)
+function refreshAll(dateStr) {
+  const date = dateStr || new Date().toISOString().split('T')[0]
   ;(props.project.cities || []).forEach((_, i) => {
-    weatherStore.fetchWeather(props.project, i, date)
+    weatherStore.updateForDate(props.project, i, date)
   })
+}
+
+onMounted(() => refreshAll(props.dateStr))
+
+watch(() => props.dateStr, (newDate) => {
+  if (newDate) refreshAll(newDate)
 })
 
 function getWeather(idx) {
@@ -146,8 +205,6 @@ function addCity(s) {
 .weather-strip::-webkit-scrollbar { height: 3px; }
 .weather-strip::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-.weather-date-label { font-size: .65rem; color: var(--muted); font-style: italic; flex-shrink: 0; }
-
 .weather-city {
   display: flex; align-items: center; gap: 9px; padding: 6px 14px;
   border: 1px solid var(--border); border-radius: 8px; background: #f8fbfc;
@@ -158,6 +215,13 @@ function addCity(s) {
 .weather-temp { color: var(--text); font-weight: 700; font-size: .8rem; }
 .weather-sun { font-size: .62rem; color: var(--muted); }
 .weather-loading { font-size: .7rem; color: var(--muted); }
+.weather-source {
+  font-size: .58rem; font-weight: 600; letter-spacing: .02em; text-transform: uppercase;
+  padding: 1px 4px; border-radius: 3px; background: rgba(6,204,180,.12); color: var(--accent);
+}
+.weather-source.stats {
+  background: rgba(148,163,184,.12); color: var(--muted);
+}
 
 .weather-del {
   background: none; border: none; cursor: pointer; color: #ccc; font-size: .65rem;
@@ -172,23 +236,28 @@ function addCity(s) {
 }
 .weather-add-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-.weather-add-wrap { position: relative; flex-shrink: 0; }
+.weather-add-wrap { flex-shrink: 0; }
 .weather-add-input {
   padding: 5px 9px; border: 1.5px solid var(--accent); border-radius: 7px;
   font-size: .76rem; font-family: inherit; outline: none; color: var(--text); width: 160px;
 }
+</style>
 
-.weather-suggestions {
-  position: absolute; top: 100%; left: 0; z-index: 200;
-  background: #fff; border: 1.5px solid var(--accent); border-radius: 7px;
-  box-shadow: 0 4px 18px rgba(0,0,0,.12); overflow: hidden; min-width: 200px;
+<!-- Portal styles — rendered at body level, must not be scoped -->
+<style>
+.weather-suggestions-portal {
+  background: #fff;
+  border: 1.5px solid var(--accent);
+  border-radius: 7px;
+  box-shadow: 0 6px 24px rgba(0,30,45,.13);
+  overflow: hidden;
 }
-.weather-suggestion-item {
+.weather-suggestions-portal .weather-suggestion-item {
   padding: 7px 12px; cursor: pointer; font-size: .76rem;
   border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 1px;
 }
-.weather-suggestion-item:last-child { border-bottom: none; }
-.weather-suggestion-item:hover { background: #f0faf8; }
-.weather-suggestion-item strong { color: var(--navy); font-weight: 700; }
-.weather-suggestion-item span { color: var(--muted); font-size: .66rem; }
+.weather-suggestions-portal .weather-suggestion-item:last-child { border-bottom: none; }
+.weather-suggestions-portal .weather-suggestion-item:hover { background: #f0faf8; }
+.weather-suggestions-portal .weather-suggestion-item strong { color: var(--navy); font-weight: 700; }
+.weather-suggestions-portal .weather-suggestion-item span { color: var(--muted); font-size: .66rem; }
 </style>

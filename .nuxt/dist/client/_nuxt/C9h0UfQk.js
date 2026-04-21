@@ -1,1 +1,0 @@
-import{_ as s,f as o,A as t,B as n,E as c,C as r,Z as _}from"./BLbpDIng.js";const d={},l={class:"app-layout"},p={class:"main-area"};function i(e,f){const a=o("AppSidebar");return t(),n("div",l,[c(a),r("main",p,[_(e.$slots,"default")])])}const u=s(d,[["render",i]]);export{u as default};

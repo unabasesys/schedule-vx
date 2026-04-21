@@ -69,6 +69,91 @@
         </div>
       </div>
 
+      <!-- Operating Cities -->
+      <div style="margin-top:16px;">
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;">
+          {{ lang === 'en' ? 'Operating cities' : 'Ciudades de operación' }}
+        </div>
+        <div style="font-size:.68rem;color:var(--muted);margin-bottom:10px;">
+          {{ lang === 'en' ? 'Default weather locations for new calendars.' : 'Locaciones de clima por defecto para calendarios nuevos.' }}
+        </div>
+
+        <!-- Selected chips -->
+        <div v-if="localOrgCities.length" class="org-cities-chips">
+          <div v-for="c in localOrgCities" :key="c.name" class="org-city-chip">
+            <span>{{ c.name }}</span>
+            <button @click="removeOrgCity(c.name)">✕</button>
+          </div>
+        </div>
+
+        <!-- Search input + suggestions -->
+        <div style="position:relative;margin-top:6px;">
+          <input
+            type="text"
+            v-model="citySearchText"
+            :placeholder="lang === 'en' ? 'Search and add a city…' : 'Buscar y agregar ciudad…'"
+            autocomplete="off"
+            class="org-city-input"
+            @input="onCitySearchInput"
+            @focus="onCitySearchFocus"
+            @blur="hideCitySuggestions"
+          />
+          <div v-if="orgCitySuggestions.length" class="org-city-dropdown">
+            <div
+              v-for="s in orgCitySuggestions"
+              :key="s.name + s.lat"
+              class="org-city-option"
+              @mousedown.prevent="addOrgCity(s)"
+            >
+              <strong>{{ s.name }}</strong>
+              <span v-if="s.region">{{ s.region }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Default Holidays -->
+      <div style="margin-top:16px;">
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;">
+          {{ lang === 'en' ? 'Default holidays' : 'Feriados por defecto' }}
+        </div>
+        <div style="font-size:.68rem;color:var(--muted);margin-bottom:10px;">
+          {{ lang === 'en' ? 'These countries\' holidays will be loaded automatically in every new calendar.' : 'Los feriados de estos países se cargarán automáticamente en cada nuevo calendario.' }}
+        </div>
+
+        <!-- Selected country chips -->
+        <div v-if="localOrgDefaultHolidays.length" class="org-cities-chips" style="margin-bottom:8px;">
+          <div v-for="c in localOrgDefaultHolidays" :key="c.countryCode" class="org-city-chip">
+            <span>{{ c.name }}</span>
+            <button @click="removeDefaultHoliday(c.countryCode)">✕</button>
+          </div>
+        </div>
+
+        <!-- Search input -->
+        <div style="position:relative;">
+          <input
+            type="text"
+            v-model="holidaySearchText"
+            :placeholder="lang === 'en' ? 'Search and add country…' : 'Buscar y agregar país…'"
+            autocomplete="off"
+            class="org-city-input"
+            @input="onHolidaySearchInput"
+            @blur="hideHolidaySuggestions"
+          />
+          <div v-if="holidaySuggestions.length" class="org-city-dropdown">
+            <div
+              v-for="s in holidaySuggestions"
+              :key="s.countryCode"
+              class="org-city-option"
+              @mousedown.prevent="addDefaultHoliday(s)"
+            >
+              <strong>{{ s.name }}</strong>
+              <span style="color:var(--muted);font-size:.65rem;margin-left:4px;">({{ s.countryCode }})</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Users -->
       <div style="margin-top:16px;">
         <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px;">{{ L.usersLabel }}</div>
@@ -163,6 +248,112 @@ const localTempUnit   = ref(globalStore.tempUnit)
 const localDateFormat = ref(globalStore.dateFormat || 'DD/MM/AA')
 const inviteEmail     = ref('')
 
+// ── Operating cities ──────────────────────────────────────────────────────────
+import { DEFAULT_CITIES } from '~/utils/constants'
+
+const localOrgCities     = ref(JSON.parse(JSON.stringify(settingsStore.orgCities || [])))
+const citySearchText     = ref('')
+const orgCitySuggestions = ref([])
+let citySearchTimer      = null
+
+function onCitySearchFocus() {
+  if (!citySearchText.value.trim()) {
+    // Show DEFAULT_CITIES that haven't been added yet
+    const selected = localOrgCities.value.map(c => c.name)
+    orgCitySuggestions.value = DEFAULT_CITIES
+      .filter(c => !selected.includes(c.name))
+      .map(c => ({ name: c.name, lat: c.lat, lon: c.lon, region: '' }))
+  }
+}
+
+function onCitySearchInput() {
+  clearTimeout(citySearchTimer)
+  const val = citySearchText.value.trim()
+  if (!val || val.length < 2) {
+    onCitySearchFocus()
+    return
+  }
+  const selected = localOrgCities.value.map(c => c.name)
+  // First filter DEFAULT_CITIES locally
+  const local = DEFAULT_CITIES
+    .filter(c => !selected.includes(c.name) && c.name.toLowerCase().includes(val.toLowerCase()))
+    .map(c => ({ name: c.name, lat: c.lat, lon: c.lon, region: '' }))
+
+  if (local.length) {
+    orgCitySuggestions.value = local
+  } else {
+    // Fall back to geocoding API
+    citySearchTimer = setTimeout(async () => {
+      try {
+        const res  = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(val)}&count=20&language=${lang.value}`)
+        const data = await res.json()
+        if (!data.results?.length) { orgCitySuggestions.value = []; return }
+        const MAJOR = ['PPLC','PPLA','PPLA2']
+        let filtered = data.results.filter(r => MAJOR.includes(r.feature_code) || (r.population && r.population >= 50000))
+        if (!filtered.length) filtered = data.results
+        orgCitySuggestions.value = filtered.slice(0, 6)
+          .filter(r => !selected.includes(r.name))
+          .map(r => ({
+            name:   r.name,
+            lat:    r.latitude,
+            lon:    r.longitude,
+            region: [r.admin1, r.country].filter(Boolean).join(', '),
+          }))
+      } catch { orgCitySuggestions.value = [] }
+    }, 300)
+  }
+}
+
+function addOrgCity(city) {
+  if (localOrgCities.value.find(c => c.name === city.name)) return
+  localOrgCities.value.push({ name: city.name, lat: city.lat, lon: city.lon })
+  citySearchText.value     = ''
+  orgCitySuggestions.value = []
+}
+
+function removeOrgCity(name) {
+  localOrgCities.value = localOrgCities.value.filter(c => c.name !== name)
+}
+
+function hideCitySuggestions() {
+  setTimeout(() => { orgCitySuggestions.value = [] }, 180)
+}
+
+// ── Default holiday countries ─────────────────────────────────────────────────
+const holidaysStore = useHolidaysStore()
+
+const localOrgDefaultHolidays = ref(JSON.parse(JSON.stringify(settingsStore.orgDefaultHolidays || [])))
+const holidaySearchText = ref('')
+const holidaySuggestions = ref([])
+
+onMounted(() => {
+  holidaysStore.loadAllCountries()
+})
+
+function onHolidaySearchInput() {
+  const val = holidaySearchText.value.trim()
+  if (!val) { holidaySuggestions.value = []; return }
+  const selected = new Set(localOrgDefaultHolidays.value.map(c => c.countryCode))
+  holidaySuggestions.value = holidaysStore.searchCountries(val)
+    .filter(c => !selected.has(c.countryCode))
+    .slice(0, 8)
+}
+
+function addDefaultHoliday(c) {
+  if (localOrgDefaultHolidays.value.find(x => x.countryCode === c.countryCode)) return
+  localOrgDefaultHolidays.value.push({ countryCode: c.countryCode, name: c.name })
+  holidaySearchText.value = ''
+  holidaySuggestions.value = []
+}
+
+function removeDefaultHoliday(code) {
+  localOrgDefaultHolidays.value = localOrgDefaultHolidays.value.filter(c => c.countryCode !== code)
+}
+
+function hideHolidaySuggestions() {
+  setTimeout(() => { holidaySuggestions.value = [] }, 180)
+}
+
 function statusLabel(s) {
   const map = {
     invited:     { es: 'Invitado',    en: 'Invited' },
@@ -175,6 +366,14 @@ function statusLabel(s) {
 function handleLogoUpload(event) {
   const file = event.target.files[0]
   if (!file) return
+  const MAX_SIZE = 512 * 1024 // 512 KB
+  if (file.size > MAX_SIZE) {
+    alert(lang.value === 'en'
+      ? 'Image is too large. Please use an image under 512 KB.'
+      : 'La imagen es demasiado grande. Por favor usá una imagen menor a 512 KB.')
+    event.target.value = ''
+    return
+  }
   const reader = new FileReader()
   reader.onload = (e) => { form.logo = e.target.result }
   reader.readAsDataURL(file)
@@ -198,6 +397,8 @@ function save() {
   settingsStore.setCompany({ name: form.name, website: form.website })
   settingsStore.setStudioName(form.name)
   settingsStore.saveLogo(form.logo)
+  settingsStore.setOrgCities(localOrgCities.value)
+  settingsStore.setOrgDefaultHolidays(localOrgDefaultHolidays.value)
   globalStore.setWeekStart(localWeekStart.value)
   globalStore.setTempUnit(localTempUnit.value)
   globalStore.setDateFormat(localDateFormat.value)
@@ -260,4 +461,41 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 .date-fmt-toggle button + button { border-left: 1.5px solid var(--border); }
 .date-fmt-toggle button.active { background: var(--navy); color: #fff; }
+
+/* Operating cities */
+.org-cities-chips {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 2px;
+}
+.org-city-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(6,204,180,.12); border: 1px solid rgba(6,204,180,.35);
+  border-radius: 20px; padding: 3px 8px 3px 10px;
+  font-size: .7rem; font-weight: 600; color: var(--accent);
+}
+.org-city-chip button {
+  background: none; border: none; cursor: pointer; padding: 0 1px;
+  font-size: .65rem; color: var(--accent); opacity: .6; line-height: 1;
+}
+.org-city-chip button:hover { opacity: 1; }
+.org-city-input {
+  width: 100%; padding: 7px 10px; border: 1.5px solid var(--border);
+  border-radius: 7px; font-size: .78rem; font-family: inherit; outline: none;
+  background: var(--bg-soft, #f5f7fa); color: var(--text);
+  box-sizing: border-box; transition: border-color .15s;
+}
+.org-city-input:focus { border-color: var(--accent); }
+.org-city-dropdown {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 300;
+  background: #fff; border: 1.5px solid var(--accent); border-radius: 7px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.12); overflow: hidden; margin-top: 3px;
+}
+.org-city-option {
+  padding: 7px 12px; cursor: pointer; font-size: .76rem;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: baseline; gap: 7px;
+}
+.org-city-option:last-child { border-bottom: none; }
+.org-city-option:hover { background: #f0faf8; }
+.org-city-option strong { color: var(--navy); font-weight: 700; }
+.org-city-option span { color: var(--muted); font-size: .66rem; }
 </style>

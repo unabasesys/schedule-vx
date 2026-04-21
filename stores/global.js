@@ -9,17 +9,20 @@ export const useGlobalStore = defineStore('global', {
     filterKeyDates: false,
     calYear: new Date().getFullYear(),
     calMonth: new Date().getMonth(),
-    weekStart: 'sun',   // 'sun' | 'mon'
-    tempUnit: 'C',      // 'C' | 'F'
+    weekStart: 'sun',      // 'sun' | 'mon'
+    tempUnit: 'C',         // 'C' | 'F'
+    dateFormat: 'DD/MM/AA', // 'DD/MM/AA' | 'MM/DD/AA'
     sidebarSearch: '',
     holidaysPanelOpen: false,
     // Modal state (global so layout and sidebar can share)
-    projectModalOpen:  false,
-    editingProjectId:  null,
+    projectModalOpen:       false,
+    editingProjectId:       null,
+    projectModalTemplateId: null,
     copyModalOpen:     false,
     copySourceId:      null,
     settingsOpen:      false,
     helpOpen:          false,
+    sidebarCollapsed:  false,
   }),
 
   getters: {
@@ -67,17 +70,22 @@ export const useGlobalStore = defineStore('global', {
     setTempUnit(tu) {
       this.tempUnit = tu
     },
+    setDateFormat(f) {
+      this.dateFormat = f
+    },
     toggleHolidaysPanel() {
       this.holidaysPanelOpen = !this.holidaysPanelOpen
     },
 
-    openProjectModal(id = null) {
-      this.editingProjectId = id
-      this.projectModalOpen = true
+    openProjectModal(id = null, templateId = null) {
+      this.editingProjectId       = id
+      this.projectModalTemplateId = templateId
+      this.projectModalOpen       = true
     },
     closeProjectModal() {
-      this.projectModalOpen = false
-      this.editingProjectId = null
+      this.projectModalOpen       = false
+      this.editingProjectId       = null
+      this.projectModalTemplateId = null
     },
     openCopyModal(id) {
       this.copySourceId = id
@@ -87,6 +95,8 @@ export const useGlobalStore = defineStore('global', {
       this.copyModalOpen = false
       this.copySourceId = null
     },
+    toggleSidebar() { this.sidebarCollapsed = !this.sidebarCollapsed },
+
     openSettings() { this.settingsOpen = true },
     closeSettings() { this.settingsOpen = false },
     openHelp()    { this.helpOpen = true },

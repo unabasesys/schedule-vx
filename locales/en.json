@@ -112,6 +112,7 @@
   "cepDelete": "Delete event",
   "hideAction": "Hide",
   "showAction": "Show",
+  "conflictBadgeTitle": "This calendar has events with broken dependencies",
   "addEventToStage": "Add event",
   "groupsTitle": "Groups",
   "createGroup": "+ Group",
@@ -155,5 +156,10 @@
   "newEvent": "New Event",
   "holidays": "Holidays",
   "poweredBy": "Powered by",
-  "help": "idea →"
+  "help": "idea →",
+  "emptyTitle": "Starting without a template? Perfect.",
+  "emptyBody1": "This calendar is yours to build your own way.\n\nThe first step is to create a Stage, because that's where events live.\nFrom there, you can build your calendar step by step, adding as many stages and events as you need, and changing the order whenever you want.",
+  "emptyBody2": "You can also use Groups to connect events from different stages.\nWhen you turn a group on or off, all linked events follow.",
+  "emptyBody3": "And don't be afraid of Dependencies.\nThey may sound technical, but they're actually very easy to use and can help you adjust your calendar in a much smarter way.",
+  "emptyAction": "Start by creating your first Stage and explore freely."
 }

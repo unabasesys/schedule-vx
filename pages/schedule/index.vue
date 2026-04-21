@@ -10,6 +10,9 @@
             class="hdr-proj-dot"
             :style="{ background: currentProject.color }"
           ></span>
+          <span v-if="isArchived" class="hdr-archived-badge">
+            {{ globalStore.lang === 'en' ? 'Archived · Read only' : 'Archivado · Solo lectura' }}
+          </span>
         </div>
         <div class="hdr-proj-meta">
           <span v-if="currentProject.client">{{ currentProject.client }}</span>
@@ -24,44 +27,72 @@
             class="view-tab"
             :class="{ active: globalStore.currentView === 'cal' }"
             @click="globalStore.setView('cal')"
-          >{{ t('tabCalendar') }}</button>
+          >{{ globalStore.lang === 'en' ? 'Calendar' : 'Calendario' }}</button>
           <button
             class="view-tab"
             :class="{ active: globalStore.currentView === 'list' }"
             @click="globalStore.setView('list')"
-          >{{ t('tabEvents') }}</button>
+          >{{ globalStore.lang === 'en' ? 'Events' : 'Eventos' }}</button>
         </div>
       </div>
 
       <div class="hdr-actions">
         <ShareDropdown :project="currentProject" />
-        <button class="hdr-icon-btn" title="Settings" @click="globalStore.openSettings()">⚙</button>
         <div class="hdr-sep"></div>
-        <div class="lang-toggle">
-          <button
-            class="lang-opt"
-            :class="{ active: globalStore.lang === 'es' }"
-            @click="setLang('es')"
-          >ES</button>
-          <button
-            class="lang-opt"
-            :class="{ active: globalStore.lang === 'en' }"
-            @click="setLang('en')"
-          >EN</button>
-        </div>
-        <div class="hdr-sep"></div>
-        <button class="about-pill-btn" @click="globalStore.openHelp()">
-          <span class="about-pill-dot"></span>
-          <span>{{ t('help') }}</span>
-        </button>
+        <button
+          class="lang-toggle-btn"
+          :class="{ 'is-en': globalStore.lang === 'en' }"
+          :title="globalStore.lang === 'en' ? 'Switch to Spanish' : 'Switch to English'"
+          @click="setLang(globalStore.lang === 'en' ? 'es' : 'en')"
+        >{{ globalStore.lang === 'en' ? 'US' : 'ES' }}</button>
       </div>
     </div>
 
     <!-- No project selected -->
     <div v-if="!currentProject && globalStore.currentView !== 'tmpl'" class="no-proj">
-      <div class="no-proj-icon">📋</div>
-      <div class="no-proj-title">{{ t('noProj') }}</div>
-      <div class="no-proj-sub">{{ t('noProjSub') }}</div>
+      <div class="no-proj-inner">
+
+        <!-- Language selector -->
+        <div class="no-proj-lang">
+          <button
+            class="no-proj-lang-opt"
+            :class="{ active: globalStore.lang === 'es' }"
+            @click="setLang('es')"
+          >Español</button>
+          <button
+            class="no-proj-lang-opt"
+            :class="{ active: globalStore.lang === 'en' }"
+            @click="setLang('en')"
+          >English</button>
+        </div>
+
+        <div class="no-proj-title">
+          {{ globalStore.lang === 'en'
+            ? 'The calendar the creative industry has been waiting for.'
+            : 'El calendario que la industria creativa estaba esperando.' }}
+        </div>
+        <div class="no-proj-body">
+          {{ globalStore.lang === 'en'
+            ? 'Built for production companies, agencies, creative studios, post teams, and professionals who need to plan with speed, structure, and real production logic. Calendar by unabase combines the familiarity of tools you already know with a workflow that is far more useful for everyday production: stages, key dates, business or calendar days, holidays, weather, templates, versioning, and a clear structure to collaborate better with your team and share beautiful PDFs and live links with your clients.'
+            : 'Diseñado para productoras, agencias, estudios creativos, equipos de post y profesionales que necesitan planificar con rapidez, orden y criterio real de producción. Calendar by unabase combina la familiaridad de herramientas que ya conoces con una lógica mucho más útil para el trabajo diario: stages, key dates, días hábiles o corridos, feriados, weather, templates, versionado y una estructura clara para colaborar mejor con tu equipo y compartir con tus clientes PDFs hermosos y links vivos.' }}
+        </div>
+        <div class="no-proj-tagline">
+          {{ globalStore.lang === 'en'
+            ? 'Less time building calendars from scratch. More consistency across projects. More clarity to share, present, and execute.'
+            : 'Menos tiempo armando calendarios desde cero. Más consistencia entre proyectos. Más claridad para compartir, presentar y ejecutar.' }}
+        </div>
+        <a
+          class="no-proj-cta"
+          href="https://www.youtube.com/@unabase"
+          target="_blank"
+          rel="noopener"
+        >
+          <span class="no-proj-cta-play">▶</span>
+          {{ globalStore.lang === 'en'
+            ? 'Watch a short video and see how it works.'
+            : 'Mira un video corto y descubre cómo funciona.' }}
+        </a>
+      </div>
     </div>
 
     <!-- Event List View -->
@@ -69,49 +100,135 @@
       v-if="currentProject && globalStore.currentView === 'list'"
       :project="currentProject"
       :lang="globalStore.lang"
-      :ev-filter="globalStore.evFilter"
-      :filter-key-dates="globalStore.filterKeyDates"
-      @set-filter="globalStore.setEvFilter($event)"
-      @toggle-key-filter="globalStore.toggleKeyFilter()"
-      @toggle-holidays="globalStore.toggleHolidaysPanel()"
+      :read-only="isArchived"
+      @toggle-holidays="!isArchived && globalStore.toggleHolidaysPanel()"
     />
 
     <!-- Calendar View -->
     <CalendarView
       v-if="currentProject && globalStore.currentView === 'cal'"
       :project="currentProject"
+      :projects="visibleProjects"
       :lang="globalStore.lang"
       :cal-year="globalStore.calYear"
       :cal-month="globalStore.calMonth"
       :week-start="globalStore.weekStart"
       :temp-unit="globalStore.tempUnit"
+      :read-only="isArchived"
     />
 
     <!-- Templates View -->
     <div v-if="globalStore.currentView === 'tmpl'" class="tmpl-wrap">
+
+      <!-- Header + filters -->
       <div class="tmpl-header">
-        <div class="tmpl-title">{{ t('tmplTitle') }}</div>
+        <div class="tmpl-title">Templates</div>
+        <div class="tmpl-filters">
+          <button
+            class="tmpl-filter-btn"
+            :class="{ active: tmplFilter === 'active' }"
+            @click="tmplFilter = 'active'"
+          >
+            {{ globalStore.lang === 'en' ? 'Active' : 'Activos' }}
+            <span class="tmpl-filter-count">{{ projectsStore.templates.filter(t => t.active !== false).length }}</span>
+          </button>
+          <button
+            class="tmpl-filter-btn"
+            :class="{ active: tmplFilter === 'inactive' }"
+            @click="tmplFilter = 'inactive'"
+          >
+            {{ globalStore.lang === 'en' ? 'Inactive' : 'Inactivos' }}
+            <span class="tmpl-filter-count">{{ projectsStore.templates.filter(t => t.active === false).length }}</span>
+          </button>
+        </div>
       </div>
-      <div v-if="!projectsStore.templates.length" class="tmpl-empty">
-        {{ t('noTemplates') }}
+
+      <!-- Helper message -->
+      <div class="tmpl-helper">
+        {{ globalStore.lang === 'en'
+          ? 'Keep your templates updated as your projects evolve. Improve them after every job and remove the ones your team no longer uses. The better your templates, the faster and more consistently everyone works.'
+          : 'Mantén tus plantillas actualizadas a medida que tus proyectos evolucionan. Mejóralas después de cada trabajo y elimina las que ya no uses. Cuanto mejores sean, más rápido y consistente trabaja todo el equipo.' }}
       </div>
+
+      <!-- Empty state -->
+      <div v-if="!filteredTemplates.length" class="tmpl-empty">
+        {{ tmplFilter === 'inactive'
+          ? (globalStore.lang === 'en' ? 'No inactive templates.' : 'No hay plantillas inactivas.')
+          : (globalStore.lang === 'en' ? 'No active templates yet.' : 'Aún no hay plantillas activas.') }}
+      </div>
+
+      <!-- Template list -->
       <div v-else class="tmpl-list">
-        <div v-for="tmpl in projectsStore.templates" :key="tmpl.id" class="tmpl-item">
-          <div class="tmpl-item-name">{{ tmpl.name }}</div>
-          <div class="tmpl-item-meta">
-            {{ tmpl.events?.filter(e => e.active).length }} {{ t('tmplActive') }} ·
-            {{ tmpl.events?.length }} {{ t('tmplTotal') }}
-            <span v-if="tmpl.useCount"> · {{ t('tmplUsed') }} {{ tmpl.useCount }} {{ tmpl.useCount === 1 ? t('tmplTime') : t('tmplTimes') }}</span>
+        <div v-for="tmpl in filteredTemplates" :key="tmpl.id" class="tmpl-item">
+
+          <!-- Left: create calendar button -->
+          <button
+            class="tmpl-use-btn"
+            :title="globalStore.lang === 'en' ? 'Create calendar from this template' : 'Crear calendario desde esta plantilla'"
+            @click="createFromTemplate(tmpl.id)"
+          >
+            + {{ globalStore.lang === 'en' ? 'Calendar' : 'Calendario' }}
+          </button>
+
+          <!-- Center: name + meta -->
+          <div class="tmpl-item-body">
+            <div class="tmpl-item-name-row">
+              <span class="tmpl-item-name">{{ tmpl.name }}</span>
+              <span v-if="tmpl.useCount" class="tmpl-item-uses">({{ tmpl.useCount }})</span>
+              <span v-if="tmpl.source === 'unabase'" class="tmpl-item-badge">unabase</span>
+            </div>
+            <div class="tmpl-item-meta">
+              <span>{{ (tmpl.events || []).length }} {{ globalStore.lang === 'en' ? 'events' : 'eventos' }}</span>
+              <span v-if="tmplStages(tmpl)" class="tmpl-meta-sep">·</span>
+              <span v-if="tmplStages(tmpl)">{{ tmplStages(tmpl) }}</span>
+              <span v-if="tmplGroups(tmpl)" class="tmpl-meta-sep">·</span>
+              <span v-if="tmplGroups(tmpl)">{{ tmplGroups(tmpl) }} {{ globalStore.lang === 'en' ? 'groups' : 'grupos' }}</span>
+            </div>
           </div>
+
+          <!-- Right: actions -->
           <div class="tmpl-item-actions">
-            <button class="btn-danger" style="padding:4px 10px;font-size:.7rem;" @click="deleteTemplate(tmpl.id)">{{ t('deleteProjectAction') }}</button>
+            <!-- Unabase templates: deactivate / activate only -->
+            <template v-if="tmpl.source === 'unabase'">
+              <button
+                class="tmpl-action-btn"
+                @click="projectsStore.toggleTemplateActive(tmpl.id)"
+              >
+                {{ tmpl.active !== false
+                  ? (globalStore.lang === 'en' ? 'Deactivate' : 'Desactivar')
+                  : (globalStore.lang === 'en' ? 'Activate' : 'Activar') }}
+              </button>
+            </template>
+            <!-- Org templates: activate/deactivate + delete -->
+            <template v-else>
+              <button
+                class="tmpl-action-btn"
+                @click="projectsStore.toggleTemplateActive(tmpl.id)"
+              >
+                {{ tmpl.active !== false
+                  ? (globalStore.lang === 'en' ? 'Deactivate' : 'Desactivar')
+                  : (globalStore.lang === 'en' ? 'Activate' : 'Activar') }}
+              </button>
+              <button
+                class="tmpl-action-btn tmpl-action-btn--danger"
+                @click="deleteTemplate(tmpl.id)"
+              >
+                {{ globalStore.lang === 'en' ? 'Delete' : 'Eliminar' }}
+              </button>
+            </template>
           </div>
+
         </div>
       </div>
     </div>
 
+    <div
+      v-if="globalStore.holidaysPanelOpen"
+      class="holidays-backdrop"
+      @click="globalStore.holidaysPanelOpen = false"
+    />
     <HolidaysPanel
-      v-if="currentProject"
+      v-if="currentProject && !isArchived"
       :open="globalStore.holidaysPanelOpen"
       :project="currentProject"
       @close="globalStore.holidaysPanelOpen = false"
@@ -141,11 +258,23 @@
 </template>
 
 <script setup>
-const { t, locale } = useI18n()
+const { locale } = useI18n()
 const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()
 
 const { currentProject } = storeToRefs(projectsStore)
+
+const isArchived = computed(() => currentProject.value?.status === 'archived')
+
+// All non-hidden, non-archived active projects — drives the combined Calendar View.
+// Includes the selected project even if it happens to be hidden (it should always show).
+const visibleProjects = computed(() =>
+  projectsStore.projects.filter(p =>
+    p.isActive !== false &&
+    p.status !== 'archived' &&
+    !p.hidden
+  )
+)
 
 // Init stores on mount
 onMounted(() => {
@@ -158,20 +287,64 @@ function setLang(l) {
   globalStore.setLang(l)
   locale.value = l
   if (projectsStore.currentProject) {
-    projectsStore.updateProject(projectsStore.currentProject.id, { lang: l })
+    projectsStore.setProjectLang(projectsStore.currentProject.id, l)
   }
-  projectsStore.save()
 }
 
 function deleteTemplate(id) {
-  if (confirm(t('confirmDelete'))) {
+  const lang = globalStore.lang
+  const msg  = lang === 'en' ? 'Delete this template? This cannot be undone.' : '¿Eliminar esta plantilla? Esta acción no se puede deshacer.'
+  if (confirm(msg)) {
     projectsStore.deleteTemplate(id)
   }
+}
+
+// ── Templates view ──────────────────────────────────────────────────
+const tmplFilter = ref('active')
+
+const filteredTemplates = computed(() => {
+  const list = projectsStore.templates.filter(t =>
+    tmplFilter.value === 'inactive' ? t.active === false : t.active !== false
+  )
+  // Sort most used → least used, then by name as tiebreaker
+  return [...list].sort((a, b) => {
+    const diff = (b.useCount || 0) - (a.useCount || 0)
+    return diff !== 0 ? diff : (a.name || '').localeCompare(b.name || '')
+  })
+})
+
+const STAGE_ORDER_MAP = { bid: 0, pre: 1, sht: 2, vpst: 3, spst: 4 }
+const STAGE_NAMES = {
+  es: { bid: 'Licitación', pre: 'Prepro', sht: 'Rodaje', vpst: 'Post Video', spst: 'Post Foto' },
+  en: { bid: 'Bidding',    pre: 'Pre-Pro', sht: 'Shoot',  vpst: 'Video Post', spst: 'Still Post' },
+}
+
+function tmplStages(tmpl) {
+  const labels = STAGE_NAMES[globalStore.lang] || STAGE_NAMES.es
+  const keys   = [...new Set((tmpl.events || []).map(e => e.stage).filter(Boolean))]
+  keys.sort((a, b) => (STAGE_ORDER_MAP[a] ?? 99) - (STAGE_ORDER_MAP[b] ?? 99))
+  return keys.map(k => labels[k] || k).join(' · ')
+}
+
+function tmplGroups(tmpl) {
+  return new Set((tmpl.events || []).flatMap(e => e.groups || []).filter(Boolean)).size
+}
+
+function createFromTemplate(tmplId) {
+  globalStore.openProjectModal(null, tmplId)
 }
 
 </script>
 
 <style scoped>
+.holidays-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 199; /* justo debajo del panel (z-index: 200) */
+  background: transparent;
+  cursor: default;
+}
+
 .schedule-page {
   display: flex;
   flex-direction: column;
@@ -189,9 +362,10 @@ function deleteTemplate(id) {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   min-height: 54px;
+  position: relative;
 }
 
-.hdr-proj-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.hdr-proj-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 .hdr-proj-name {
   display: flex; align-items: center; gap: 6px;
   font-family: 'Syne', sans-serif;
@@ -201,8 +375,21 @@ function deleteTemplate(id) {
 .hdr-proj-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
 .hdr-proj-meta { font-size: .68rem; color: var(--muted); }
 .meta-sep { margin: 0 4px; }
+.hdr-archived-badge {
+  font-size: .58rem; font-weight: 600; letter-spacing: .03em; text-transform: uppercase;
+  background: rgba(0,0,0,.07); color: var(--muted);
+  padding: 2px 7px; border-radius: 20px; flex-shrink: 0;
+}
 
-.hdr-center { flex: 1; display: flex; justify-content: center; }
+.hdr-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.hdr-center > * { pointer-events: auto; }
 .view-tabs { display: flex; gap: 4px; }
 .view-tab {
   padding: 5px 14px;
@@ -223,15 +410,15 @@ function deleteTemplate(id) {
 .hdr-icon-btn {
   background: none; border: 1.5px solid var(--border); border-radius: 7px;
   padding: 5px 9px; font-size: .8rem; cursor: pointer; color: var(--muted);
-  transition: all .15s;
+  transition: all .15s; display: inline-flex; align-items: center; justify-content: center;
 }
 .hdr-icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+.hdr-icon-btn--settings { padding: 5px 7px; }
 
 .hdr-sep { width: 1px; height: 18px; background: var(--border); }
 
-.lang-toggle { display: flex; gap: 3px; }
-.lang-opt {
-  padding: 3px 8px;
+.lang-toggle-btn {
+  padding: 3px 9px;
   border: 1.5px solid var(--border);
   border-radius: 5px;
   background: transparent;
@@ -241,49 +428,126 @@ function deleteTemplate(id) {
   cursor: pointer;
   font-family: inherit;
   transition: all .15s;
-  letter-spacing: .3px;
+  letter-spacing: .5px;
 }
-.lang-opt.active { background: var(--accent); border-color: var(--accent); color: var(--navy); }
-.lang-opt:hover:not(.active) { background: var(--bg); color: var(--text); }
-
-.about-pill-btn {
-  position: relative; display: flex; align-items: center; gap: 6px;
-  padding: 5px 13px 5px 9px; background: var(--navy); border: none; border-radius: 20px;
-  cursor: pointer; font-family: 'Syne', sans-serif; font-size: .61rem; font-weight: 800;
-  color: #fff; letter-spacing: .5px; flex-shrink: 0; transition: all .22s; overflow: hidden; white-space: nowrap;
-}
-.about-pill-btn::before {
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(120deg,rgba(6,204,180,.55) 0%,transparent 55%);
-  opacity: 0; transition: opacity .22s;
-}
-.about-pill-btn:hover::before { opacity: 1; }
-.about-pill-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(6,204,180,.28); }
-.about-pill-dot {
-  width: 6px; height: 6px; background: var(--accent); border-radius: 50%; flex-shrink: 0;
-  animation: pulso 2.2s ease-in-out infinite;
-}
+.lang-toggle-btn.is-en { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.06); }
+.lang-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ── No project ── */
 .no-proj {
-  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 12px; padding: 40px;
+  flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 60px;
 }
-.no-proj-icon { font-size: 3rem; }
-.no-proj-title { font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--navy); }
-.no-proj-sub { font-size: .8rem; color: var(--muted); text-align: center; line-height: 1.6; white-space: pre-line; }
+.no-proj-inner {
+  max-width: 560px; display: flex; flex-direction: column; gap: 18px; text-align: center;
+}
+.no-proj-title {
+  font-family: 'Syne', sans-serif; font-size: 1.25rem; font-weight: 800;
+  color: var(--navy); line-height: 1.3;
+}
+.no-proj-body {
+  font-size: .8rem; color: var(--muted); line-height: 1.75;
+}
+.no-proj-tagline {
+  font-size: .8rem; font-weight: 700; color: var(--navy); line-height: 1.6;
+}
+.no-proj-cta {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  align-self: center;
+  padding: 9px 20px; background: var(--navy); color: #fff;
+  border-radius: 20px; font-size: .75rem; font-weight: 700;
+  font-family: 'Syne', sans-serif; letter-spacing: .3px;
+  text-decoration: none; transition: all .2s; cursor: pointer;
+}
+.no-proj-cta:hover { background: var(--accent); color: var(--navy); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(6,204,180,.28); }
+.no-proj-cta-play {
+  font-size: .65rem; opacity: .85;
+}
+.no-proj-lang {
+  display: flex; gap: 6px; justify-content: center; margin-bottom: 6px;
+}
+.no-proj-lang-opt {
+  padding: 5px 16px; border: 1.5px solid var(--border); border-radius: 20px;
+  background: transparent; color: var(--muted); font-size: .72rem; font-weight: 700;
+  cursor: pointer; font-family: inherit; letter-spacing: .3px; transition: all .15s;
+}
+.no-proj-lang-opt:hover:not(.active) { border-color: var(--navy); color: var(--navy); }
+.no-proj-lang-opt.active { background: var(--navy); border-color: var(--navy); color: #fff; }
 
 /* ── Templates ── */
-.tmpl-wrap { flex: 1; overflow-y: auto; padding: 20px; }
-.tmpl-header { margin-bottom: 16px; }
-.tmpl-title { font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700; color: var(--navy); }
-.tmpl-empty { font-size: .78rem; color: var(--muted); white-space: pre-line; }
-.tmpl-list { display: flex; flex-direction: column; gap: 10px; }
-.tmpl-item {
-  padding: 14px 16px; border: 1.5px solid var(--border); border-radius: 9px;
-  display: flex; align-items: center; gap: 12px; background: #fff;
+.tmpl-wrap { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+.tmpl-header {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 12px;
 }
-.tmpl-item-name { font-size: .85rem; font-weight: 700; color: var(--navy); flex: 1; }
-.tmpl-item-meta { font-size: .7rem; color: var(--muted); }
-.tmpl-item-actions { flex-shrink: 0; }
+.tmpl-title {
+  font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700; color: var(--navy);
+}
+.tmpl-filters { display: flex; gap: 4px; }
+.tmpl-filter-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 6px;
+  font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+  cursor: pointer; background: transparent; color: var(--muted); font-family: inherit;
+  transition: all .15s;
+}
+.tmpl-filter-btn:hover { border-color: var(--navy); color: var(--navy); }
+.tmpl-filter-btn.active { background: var(--accent); border-color: var(--accent); color: var(--navy); }
+.tmpl-filter-count {
+  font-size: .6rem; font-weight: 700; background: rgba(0,0,0,.08);
+  border-radius: 8px; padding: 0 5px; line-height: 1.6;
+}
+.tmpl-filter-btn.active .tmpl-filter-count { background: rgba(0,44,62,.2); }
+
+.tmpl-helper {
+  font-size: .74rem; color: var(--muted); line-height: 1.6;
+  padding: 10px 14px; background: var(--bg, #f8fbfc);
+  border: 1px solid var(--border); border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.tmpl-empty { font-size: .78rem; color: var(--muted); padding: 20px 0; }
+
+.tmpl-list { display: flex; flex-direction: column; gap: 8px; }
+
+.tmpl-item {
+  padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 9px;
+  display: flex; align-items: center; gap: 12px; background: #fff;
+  transition: border-color .13s;
+}
+.tmpl-item:hover { border-color: rgba(0,44,62,.2); }
+
+.tmpl-use-btn {
+  flex-shrink: 0;
+  padding: 5px 10px; background: rgba(6,204,180,.1);
+  border: 1.5px dashed rgba(6,204,180,.45); border-radius: 7px;
+  color: var(--accent); font-size: .7rem; font-weight: 700;
+  cursor: pointer; font-family: inherit; white-space: nowrap;
+  transition: all .15s;
+}
+.tmpl-use-btn:hover { background: rgba(6,204,180,.2); border-color: var(--accent); }
+
+.tmpl-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+
+.tmpl-item-name-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.tmpl-item-name { font-size: .84rem; font-weight: 700; color: var(--navy); }
+.tmpl-item-uses { font-size: .75rem; color: var(--muted); font-weight: 500; }
+.tmpl-item-badge {
+  font-size: .58rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  padding: 1px 6px; border-radius: 4px; background: rgba(6,204,180,.12); color: var(--accent);
+}
+
+.tmpl-item-meta {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+  font-size: .7rem; color: var(--muted);
+}
+.tmpl-meta-sep { opacity: .4; }
+
+.tmpl-item-actions { flex-shrink: 0; display: flex; gap: 5px; }
+.tmpl-action-btn {
+  padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 6px;
+  font-size: .68rem; font-weight: 600; cursor: pointer; background: transparent;
+  color: var(--muted); font-family: inherit; transition: all .15s; white-space: nowrap;
+}
+.tmpl-action-btn:hover { border-color: var(--navy); color: var(--navy); }
+.tmpl-action-btn--danger:hover { border-color: var(--danger); color: var(--danger); }
 </style>

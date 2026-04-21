@@ -16,9 +16,12 @@
         <div class="share-view-name">{{ project.name || project.client }}</div>
         <div class="sv-meta-line" v-if="clientAgency">{{ clientAgency }}</div>
         <div class="sv-meta-line" v-if="dirEp">{{ dirEp }}</div>
-        <div>
+        <div style="display:flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap;">
           <span class="sv-version-badge" :class="{ changed: project.hasChanges }">
-            v{{ project.version || 1 }}
+            v{{ project.version ?? 0 }}
+          </span>
+          <span v-if="lastUpdatedStr" class="sv-last-updated">
+            {{ svLang === 'en' ? 'Last updated:' : 'Última actualización:' }} {{ lastUpdatedStr }}
           </span>
         </div>
       </div>
@@ -37,14 +40,14 @@
     <!-- Loading -->
     <div v-if="loading" class="sv-loading">
       <div class="sv-loading-spinner">⏳</div>
-      <div>Loading…</div>
+      <div>{{ svLang === 'en' ? 'Loading…' : 'Cargando…' }}</div>
     </div>
 
     <!-- Error -->
     <div v-else-if="error" class="sv-error">
       <div class="sv-error-icon">🔒</div>
       <div class="sv-error-title">{{ error }}</div>
-      <div class="sv-error-sub">This link may be inactive or expired.</div>
+      <div class="sv-error-sub">{{ svLang === 'en' ? 'This link may be inactive or expired.' : 'Este link puede estar inactivo o haber expirado.' }}</div>
     </div>
 
     <!-- Calendar -->
@@ -63,6 +66,7 @@
                 :year="svCalYear"
                 :month="svCalMonth"
                 :events="calEvents"
+                :holidays="activeHolidays"
                 :week-start="project.weekStart || 'sun'"
                 :lang="svLang"
                 :read-only="true"
@@ -74,6 +78,7 @@
                 :year="svNextYear"
                 :month="svNextMonth"
                 :events="calEvents"
+                :holidays="activeHolidays"
                 :week-start="project.weekStart || 'sun'"
                 :lang="svLang"
                 :read-only="true"
@@ -101,16 +106,18 @@ const svCalMonth = ref(new Date().getMonth())
 
 const { sbGetProject, sbRecordView } = useSupabase()
 
+function t(en, es) { return svLang.value === 'en' ? en : es }
+
 onMounted(async () => {
   if (!token) {
-    error.value = 'No share token provided'
+    error.value = t('No share token provided', 'No se proporcionó un token de acceso')
     loading.value = false
     return
   }
   try {
     const data = await sbGetProject(token)
     if (!data) {
-      error.value = 'This calendar is not available'
+      error.value = t('This calendar is not available', 'Este calendario no está disponible')
     } else {
       project.value = data
       svLang.value  = data.lang || 'es'
@@ -124,7 +131,7 @@ onMounted(async () => {
       await sbRecordView(token)
     }
   } catch (e) {
-    error.value = 'Failed to load calendar'
+    error.value = t('Failed to load calendar', 'No se pudo cargar el calendario')
   } finally {
     loading.value = false
   }
@@ -134,7 +141,7 @@ const calEvents = computed(() => {
   if (!project.value) return []
   const color = project.value.color || '#06CCB4'
   return (project.value.events || [])
-    .filter(e => e.active && e.date)
+    .filter(e => e.active && e.date && !e.internal)
     .map(e => ({ ...e, _projColor: color }))
 })
 
@@ -157,17 +164,41 @@ const dirEp = computed(() => {
 const companyLogo = computed(() => project.value?.company?.logo || '')
 const companyName = computed(() => project.value?.company?.name || '')
 
+// ── Last updated ───────────────────────────────────────────────────────────────
+// dateFormat was injected into the shared snapshot via orgDateFormat at push time
+const svDateFormat = computed(() => project.value?.orgDateFormat || 'DD/MM/AA')
+
+function fmtSharedDate(iso) {
+  if (!iso) return ''
+  try {
+    const [y, m, d] = iso.split('T')[0].split('-')
+    const dd = d.padStart(2, '0')
+    const mm = m.padStart(2, '0')
+    const yy = y.slice(2)
+    return svDateFormat.value === 'MM/DD/AA' ? `${mm}/${dd}/${yy}` : `${dd}/${mm}/${yy}`
+  } catch { return '' }
+}
+
+const lastUpdatedStr = computed(() => fmtSharedDate(project.value?.updatedAt))
+
+// Holidays stored in the shared project snapshot, minus any the org disabled
+const activeHolidays = computed(() => {
+  if (!project.value) return []
+  const disabled = new Set(project.value.disabledHolidays || [])
+  return (project.value.holidays || []).filter(h => !disabled.has(h.date))
+})
+
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 function monthTitle(y, m) {
   const months = svLang.value === 'en' ? MONTHS_EN : MONTHS_ES
-  return `${months[m]} ${y}`
+  return `${months[m]} ${String(y).slice(-2)}`
 }
 
 const calTitle = computed(() => {
   const months = svLang.value === 'en' ? MONTHS_EN : MONTHS_ES
-  return `${months[svCalMonth.value]} – ${months[svNextMonth.value]} ${svCalYear.value}`
+  return `${months[svCalMonth.value]} – ${months[svNextMonth.value]} ${String(svCalYear.value).slice(-2)}`
 })
 
 function svCalPrev() {
@@ -231,6 +262,12 @@ function svCalNext() {
   background: rgba(255,255,255,.08); color: rgba(255,255,255,.5);
 }
 .sv-version-badge.changed { background: rgba(245,158,11,.18); color: var(--warning); }
+
+.sv-last-updated {
+  font-size: .55rem; color: rgba(255,255,255,.32); letter-spacing: .3px;
+  white-space: nowrap; margin-top: 4px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
 
 .sv-company-side {
   display: flex; flex-direction: column; align-items: flex-end; justify-content: center;

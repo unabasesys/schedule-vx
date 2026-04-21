@@ -206,14 +206,20 @@ export function usePdfExport() {
       if (pageIdx > 0) doc.addPage()
 
       // ┌─ ZONE A — INSTITUTIONAL HEADER ──────────────────────────────────────┐
-      // Logo (left)
-      const LOGO_SZ = 9
+      // Logo (left) — preserve aspect ratio, max height 9mm, max width 30mm
+      const LOGO_MAX_H = 9
+      const LOGO_MAX_W = 30
       let orgNameX = M
       if (settingsStore.logo) {
         try {
           const fmt = settingsStore.logo.startsWith('data:image/png') ? 'PNG' : 'JPEG'
-          doc.addImage(settingsStore.logo, fmt, M, ZONE_A_Y + 1, LOGO_SZ, LOGO_SZ)
-          orgNameX = M + LOGO_SZ + 3
+          const imgProps = doc.getImageProperties(settingsStore.logo)
+          const ratio = imgProps.width / imgProps.height
+          let logoW = LOGO_MAX_H * ratio
+          let logoH = LOGO_MAX_H
+          if (logoW > LOGO_MAX_W) { logoW = LOGO_MAX_W; logoH = logoW / ratio }
+          doc.addImage(settingsStore.logo, fmt, M, ZONE_A_Y + (LOGO_MAX_H - logoH) / 2 + 1, logoW, logoH)
+          orgNameX = M + logoW + 3
         } catch (_) {}
       }
 

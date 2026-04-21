@@ -1,31 +1,31 @@
 <template>
   <div class="modal-backdrop" @click.self="$emit('close')">
     <div class="modal">
-      <h2>{{ isEdit ? t('modalEditTitle') : t('modalNewTitle') }}</h2>
+      <h2>{{ isEdit ? (lang === 'en' ? 'Edit project' : 'Editar proyecto') : (lang === 'en' ? 'New calendar' : 'Nuevo Calendario') }}</h2>
 
       <div class="modal-grid">
         <div class="field">
-          <label>{{ t('fClient') }}</label>
+          <label>{{ lang === 'en' ? 'Client' : 'Cliente' }}</label>
           <input type="text" v-model="form.client" placeholder="Coca-Cola" />
         </div>
         <div class="field">
-          <label>{{ t('fAgency') }}</label>
+          <label>{{ lang === 'en' ? 'Agency' : 'Agencia' }}</label>
           <input type="text" v-model="form.agency" placeholder="McCann" />
         </div>
         <div class="field" style="grid-column:1/-1">
-          <label>{{ t('fProject') }}</label>
+          <label>{{ lang === 'en' ? 'Project name' : 'Proyecto' }}</label>
           <input type="text" v-model="form.name" placeholder="Summer Campaign 2026" />
         </div>
         <div class="field">
-          <label>{{ t('fDirector') }}</label>
+          <label>{{ lang === 'en' ? 'Director' : 'Director/a' }}</label>
           <input type="text" v-model="form.director" placeholder="Director name" />
         </div>
         <div class="field">
-          <label>{{ t('fPhotographer') }}</label>
+          <label>{{ lang === 'en' ? 'Photographer' : 'Fotógrafo/a' }}</label>
           <input type="text" v-model="form.photographer" placeholder="Photographer name" />
         </div>
         <div class="field">
-          <label>{{ t('fEP') }}</label>
+          <label>{{ lang === 'en' ? 'Executive producer' : 'Productor/a Ejecutivo/a' }}</label>
           <input type="text" v-model="form.ep" placeholder="EP name" />
         </div>
       </div>
@@ -33,7 +33,7 @@
       <!-- Location (new project only) -->
       <div v-if="!isEdit" style="margin-top:10px;position:relative;">
         <div class="field">
-          <label>{{ t('locationLabel') }} <span style="font-weight:400;color:var(--muted)">{{ t('locationOpt') }}</span></label>
+          <label>{{ lang === 'en' ? 'Location' : 'Locación' }} <span style="font-weight:400;color:var(--muted)">{{ lang === 'en' ? '(optional)' : '(opcional)' }}</span></label>
           <div v-if="selectedCity" class="pm-loc-selected">
             <span>📍</span>
             <span>{{ selectedCity.name }}<span v-if="selectedCity.region"> · {{ selectedCity.region }}</span></span>
@@ -65,7 +65,7 @@
       <!-- Color -->
       <div style="margin-top:12px;">
         <div class="field">
-          <label>{{ t('fColor') }}</label>
+          <label>{{ lang === 'en' ? 'Project color' : 'Color' }}</label>
           <div class="color-row">
             <div
               v-for="c in PALETTE"
@@ -82,20 +82,33 @@
       <!-- Status -->
       <div style="margin-top:10px;">
         <div class="field">
-          <label>{{ t('fStatus') }}</label>
-          <select v-model="form.status">
-            <option value="competing">{{ t('sCompeting') }}</option>
-            <option value="awarded">{{ t('sAwarded') }}</option>
-          </select>
+          <label>{{ lang === 'en' ? 'Status' : 'Estado' }}</label>
+          <div class="status-btn-row">
+            <button
+              class="status-btn"
+              :class="{ active: form.status === 'competing', 'status-competing': true }"
+              @click="form.status = 'competing'"
+            >{{ lang === 'en' ? 'Competing' : 'Compitiendo' }}</button>
+            <button
+              class="status-btn"
+              :class="{ active: form.status === 'awarded', 'status-awarded': true }"
+              @click="form.status = 'awarded'"
+            >{{ lang === 'en' ? 'Won' : 'Ganado' }}</button>
+            <button
+              class="status-btn"
+              :class="{ active: form.status === 'lost', 'status-lost': true }"
+              @click="form.status = 'lost'"
+            >{{ lang === 'en' ? 'Lost' : 'Perdido' }}</button>
+          </div>
         </div>
       </div>
 
       <!-- Template (new project only) -->
       <div v-if="!isEdit" style="margin-top:10px;">
         <div class="field">
-          <label>{{ t('fTemplate') }}</label>
+          <label>{{ lang === 'en' ? 'Use template (optional)' : 'Usar template (opcional)' }}</label>
           <select v-model="form.templateId">
-            <option value="">{{ t('fTemplateEmpty') }}</option>
+            <option value="">{{ lang === 'en' ? '— Start from blank template —' : '— Partir desde plantilla vacía —' }}</option>
             <option v-for="tmpl in templates" :key="tmpl.id" :value="tmpl.id">
               {{ tmpl.name }}
             </option>
@@ -104,9 +117,9 @@
       </div>
 
       <div class="modal-actions">
-        <button class="btn-ghost" @click="$emit('close')">{{ t('btnCancel') }}</button>
+        <button class="btn-ghost" @click="$emit('close')">{{ lang === 'en' ? 'Cancel' : 'Cancelar' }}</button>
         <button class="btn-primary" @click="save">
-          {{ isEdit ? t('modalSaveEdit') : t('modalSaveNew') }}
+          {{ isEdit ? (lang === 'en' ? 'Save changes' : 'Guardar cambios') : (lang === 'en' ? 'Create calendar' : 'Crear calendario') }}
         </button>
       </div>
     </div>
@@ -114,9 +127,9 @@
 </template>
 
 <script setup>
+import { onMounted, onUnmounted } from 'vue'
 import { PALETTE } from '~/utils/constants'
 
-const { t } = useI18n()
 const projectsStore = useProjectsStore()
 const globalStore   = useGlobalStore()
 const { $toast }    = useNuxtApp()
@@ -201,16 +214,26 @@ function save() {
       director: form.director, photographer: form.photographer, ep: form.ep,
       status: form.status, color: form.color,
     })
-    $toast?.(t('toastUpdated'), { type: 'success' })
+    $toast?.(lang.value === 'en' ? '✓ Project updated' : '✓ Proyecto actualizado', { type: 'success' })
   } else {
     projectsStore.createProject({
       ...form,
       city: selectedCity.value,
     })
-    $toast?.(t('toastCreated'), { type: 'success' })
+    $toast?.(lang.value === 'en' ? '✓ Calendar created' : '✓ Calendario creado', { type: 'success' })
   }
   emit('saved')
 }
+
+function onKeydown(e) {
+  if (e.key === 'Escape') { e.stopPropagation(); emit('close') }
+  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+    e.preventDefault(); save()
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>
@@ -238,4 +261,27 @@ function save() {
 .pm-loc-item:hover { background: #f0faf8; }
 .pm-loc-item strong { color: var(--navy); font-weight: 700; }
 .pm-loc-item span { color: var(--muted); font-size: .66rem; }
+
+.status-btn-row {
+  display: flex; gap: 6px;
+}
+.status-btn {
+  flex: 1; padding: 7px 10px; border-radius: 7px; border: 1.5px solid var(--border);
+  font-size: .72rem; font-weight: 700; cursor: pointer; font-family: inherit;
+  background: none; color: var(--muted); transition: all .12s; letter-spacing: .2px;
+}
+.status-btn:hover { opacity: .8; }
+
+/* Competing — amber */
+.status-btn.status-competing.active {
+  background: rgba(245,158,11,.15); border-color: #f59e0b; color: #b45309;
+}
+/* Won — emerald */
+.status-btn.status-awarded.active {
+  background: rgba(16,185,129,.15); border-color: #10b981; color: #047857;
+}
+/* Lost — rose */
+.status-btn.status-lost.active {
+  background: rgba(244,63,94,.12); border-color: #f43f5e; color: #be123c;
+}
 </style>

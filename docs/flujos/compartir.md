@@ -19,6 +19,7 @@ Un usuario interno genera un link público para que un cliente externo (agencia,
 ### 1. Trigger
 - Usuario hace clic en **"Share"** en el header del proyecto
 - Se abre `ShareDropdown.vue` como dropdown flotante
+- **El botón Share está desactivado** si el calendario no tiene al menos un evento activo con fecha asignada
 
 ### 2. Activar el toggle
 ```
@@ -50,7 +51,7 @@ useSupabase().sbGetProject(token)
   └── SELECT * FROM shared_projects WHERE token = ? AND is_active = true
 ```
 
-Si `is_active = false` o token inválido → mensaje de error.
+Si `is_active = false` o token inválido → mensaje de error. Los mensajes de error respetan el idioma seleccionado en la vista (ES/EN).
 
 ### 3. Registro de visita
 ```
