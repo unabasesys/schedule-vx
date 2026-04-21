@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "@nuxtjs/i18n": "^10.2.4",
-    "@oxc-parser/binding-linux-arm64-gnu": "^0.125.0",
     "@pinia/nuxt": "^0.5.1",
     "@supabase/supabase-js": "^2.0.0",
     "@vueuse/core": "^10.7.0",
