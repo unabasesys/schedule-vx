@@ -181,9 +181,13 @@
         </div>
       </div>
 
+      <div v-if="orgError" class="org-error">{{ orgError }}</div>
+
       <div class="modal-actions">
-        <button class="btn-ghost" @click="$emit('close')">{{ L.btnCancel }}</button>
-        <button class="btn-primary" @click="save">{{ lang === 'en' ? 'Save' : 'Guardar' }}</button>
+        <button class="btn-ghost" @click="$emit('close')" :disabled="saving">{{ L.btnCancel }}</button>
+        <button class="btn-primary" @click="save" :disabled="saving">
+          {{ saving ? (lang === 'en' ? 'Saving...' : 'Guardando...') : (lang === 'en' ? 'Save' : 'Guardar') }}
+        </button>
       </div>
     </div>
   </div>
@@ -193,8 +197,11 @@
 const settingsStore = useSettingsStore()
 const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()
+const authStore     = useAuthStore()
 
-const emit = defineEmits(['close'])
+const emit    = defineEmits(['close'])
+const saving  = ref(false)
+const orgError = ref(null)
 
 // ── Inline translations (avoids @nuxtjs/i18n runtime bug in v-if modals) ──────
 const LABELS = {
@@ -383,26 +390,57 @@ function removeLogo() {
   form.logo = ''
 }
 
-function inviteUser() {
+async function inviteUser() {
   if (!inviteEmail.value.trim()) return
-  settingsStore.inviteUser(inviteEmail.value.trim())
+  const email = inviteEmail.value.trim()
+  if (authStore.isLoggedIn) {
+    await settingsStore.inviteUserToApi(email)
+  }
+  settingsStore.inviteUser(email)
   inviteEmail.value = ''
 }
 
-function removeUser(id) {
+async function removeUser(id) {
+  const user = settingsStore.users.find(u => u.id === id)
+  if (authStore.isLoggedIn && user?._userId) {
+    await settingsStore.removeUserFromApi(user._userId)
+  }
   settingsStore.removeUser(id)
 }
 
-function save() {
+async function save() {
+  saving.value  = true
+  orgError.value = null
+
+  // Local preferences first (always saved)
   settingsStore.setCompany({ name: form.name, website: form.website })
   settingsStore.setStudioName(form.name)
-  settingsStore.saveLogo(form.logo)
   settingsStore.setOrgCities(localOrgCities.value)
   settingsStore.setOrgDefaultHolidays(localOrgDefaultHolidays.value)
   globalStore.setWeekStart(localWeekStart.value)
   globalStore.setTempUnit(localTempUnit.value)
   globalStore.setDateFormat(localDateFormat.value)
   projectsStore.save()
+
+  if (authStore.isLoggedIn) {
+    // Upload logo if it's a new data URL (base64)
+    if (form.logo && form.logo.startsWith('data:')) {
+      const url = await settingsStore.uploadLogoToApi(form.logo)
+      if (url) form.logo = url
+    }
+
+    await settingsStore.saveOrgToApi({
+      name:     form.name,
+      website:  form.website,
+      scheduleSettings: {
+        cities:          localOrgCities.value,
+        defaultHolidays: localOrgDefaultHolidays.value,
+      },
+    })
+  }
+
+  settingsStore.saveLogo(form.logo)
+  saving.value = false
   emit('close')
 }
 
@@ -411,7 +449,22 @@ function onKeydown(e) {
   if (e.key === 'Escape') { emit('close') }
   if (e.key === 'Enter' && e.target.tagName !== 'INPUT') { save() }
 }
-onMounted(()   => window.addEventListener('keydown', onKeydown))
+onMounted(async () => {
+  window.addEventListener('keydown', onKeydown)
+  // Load org from API if logged in
+  if (authStore.isLoggedIn) {
+    const org = await settingsStore.fetchOrg()
+    if (org) {
+      form.name    = org.name || ''
+      form.website = org.contact?.webSite || ''
+      form.logo    = org.imgUrl || settingsStore.logo || ''
+      if (org.scheduleSettings?.cities?.length)
+        localOrgCities.value = JSON.parse(JSON.stringify(org.scheduleSettings.cities))
+      if (org.scheduleSettings?.defaultHolidays?.length)
+        localOrgDefaultHolidays.value = JSON.parse(JSON.stringify(org.scheduleSettings.defaultHolidays))
+    }
+  }
+})
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
@@ -448,6 +501,16 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 .btn-remove-logo { font-size: .72rem; color: var(--danger, #e05252); }
 .btn-remove-logo:hover { color: var(--danger, #c0392b); }
+
+.org-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--danger);
+  margin-top: 8px;
+}
 .logo-hint { font-size: .67rem; color: var(--muted); margin-top: 5px; }
 
 .date-fmt-toggle {

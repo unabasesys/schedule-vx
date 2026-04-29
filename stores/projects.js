@@ -121,6 +121,17 @@ function eventsFromTemplate(tmpl) {
   return events
 }
 
+// ── API helpers (module-level) ────────────────────────────────────────────────
+const _syncTimers = new Map()
+
+const isMongoId = (id) => /^[0-9a-f]{24}$/i.test(id || '')
+
+const normalizeDoc = (doc) => {
+  if (!doc) return doc
+  const id = doc._id?.toString?.() || doc._id || doc.id
+  return { ...doc, id }
+}
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 export const useProjectsStore = defineStore('projects', {
   state: () => ({
@@ -128,10 +139,13 @@ export const useProjectsStore = defineStore('projects', {
     templates:  [],
     selectedId: null,
     loadings: { create: false, copy: false },
+    migrationPending: false,
   }),
 
   getters: {
     currentProject: (s) => s.projects.find(p => p.id === s.selectedId) || null,
+
+    localOnlyProjects: (s) => s.projects.filter(p => !isMongoId(p.id)),
 
     filteredProjects: (s) => (filter, search = '') => {
       let list = s.projects.filter(p => p.isActive !== false)
@@ -151,7 +165,6 @@ export const useProjectsStore = defineStore('projects', {
           (p.ep           || '').toLowerCase().includes(q)
         )
       }
-      // Orden: último editado arriba
       list.sort((a, b) => {
         const ta = a.updatedAt || a.createdAt || ''
         const tb = b.updatedAt || b.createdAt || ''
@@ -162,7 +175,6 @@ export const useProjectsStore = defineStore('projects', {
 
     sortedEvents: () => (proj, filter = 'all', filterKey = false, _lang = 'es') => {
       if (!proj) return []
-      // Build order map from the project's own stages (respects custom order + new stages)
       const stageOrderMap = {}
       ;(proj.stages || []).forEach(s => { stageOrderMap[s.key] = s.order ?? STAGE_ORDER[s.key] ?? 99 })
       let evs = [...proj.events]
@@ -186,7 +198,6 @@ export const useProjectsStore = defineStore('projects', {
       this.templates  = data.templates
       this.selectedId = data.selectedId
 
-      // Sync global and settings stores
       const globalStore   = useGlobalStore()
       const settingsStore = useSettingsStore()
 
@@ -202,57 +213,100 @@ export const useProjectsStore = defineStore('projects', {
       const logo = loadLogo()
       if (logo) settingsStore.logo = logo
 
-      // Validate selectedId
       if (this.selectedId && !this.projects.find(p => p.id === this.selectedId)) {
         this.selectedId = null
       }
 
       migrateProjects(this.projects, this.templates, globalStore.lang)
 
-      // Seed built-in IPS template
       try { this.seedInitialData() } catch(e) { console.warn('seedInitialData error', e) }
 
-      // Auto-select first active project if none selected
       if (!this.selectedId) {
         const first = this.projects.find(p => p.status !== 'archived' && p.isActive !== false)
         if (first) this.selectedId = first.id
       }
-    },
 
-    seedInitialData() {
-      const ipsId = 'builtin-ips'
-      const existing = this.templates.find(t => t.id === ipsId)
-      if (!existing) {
-        const master = MASTER_TEMPLATE.map((te, i) => ({
-          id: uid(), templateId: te.id, fromTemplateId: te.id,
-          name: te.name, nameEN: te.nameEN || te.name,
-          stage: te.stage, active: true,
-          date: '', dateMode: 'manual',
-          duration: te.days || 1, durDayType: 'calendar',
-          dep: { active: false, eventId: '', relation: 'after', days: 1, dayType: 'calendar', broken: false },
-          locked: false, notes: '', order: i,
-          completed: false, keyDate: false,
-          whenToUse: te.whenToUse || '', whenToUseEN: te.whenToUseEN || '',
-          groups: te.groups || [],
-        }))
-        const tmpl = {
-          id: ipsId,
-          source: 'unabase',
-          active: true,
-          name: 'Integrated Production Schedule',
-          client: '',
-          events: master,
-          stages: DEFAULT_STAGES.map(s => ({ id: 's-' + s.key, key: s.key, name: s.name, active: true })),
-          groups: DEFAULT_GROUPS.map(g => ({ id: 'g-' + g.key, key: g.key, name: g.name, active: true })),
-          useCount: 0,
-          createdAt: new Date().toISOString().split('T')[0],
-        }
-        this.templates.unshift(tmpl)
-        this.save()
+      this.migrationPending = this.projects.some(p => !isMongoId(p.id))
+
+      // Refresh from API in background
+      const authStore = useAuthStore()
+      if (authStore?.isLoggedIn) {
+        this.loadFromApi()
       }
     },
 
-    save() {
+    async loadFromApi() {
+      const authStore = useAuthStore()
+      if (!authStore?.isLoggedIn) return
+      try {
+        const api = useApi()
+        const [apiProjects, apiTemplates] = await Promise.all([
+          api.get('/projects'),
+          api.get('/schedule-templates'),
+        ])
+
+        const normProjects  = apiProjects.map(normalizeDoc)
+        const normTemplates = apiTemplates.map(normalizeDoc)
+        const globalStore   = useGlobalStore()
+        migrateProjects(normProjects, normTemplates, globalStore.lang)
+
+        // Preserve local-only projects not yet in the API
+        const apiUids = new Set(normProjects.map(p => p.uid).filter(Boolean))
+        const localOnly = this.projects.filter(p =>
+          !isMongoId(p.id) && !apiUids.has(p.id) && !apiUids.has(p.uid)
+        )
+
+        this.projects  = [...normProjects, ...localOnly]
+
+        // Built-in IPS template is always local — never stored per-org in the API
+        const ipsTemplate = this.templates.find(t => t.source === 'unabase')
+        this.templates = [
+          ...(ipsTemplate ? [ipsTemplate] : []),
+          ...normTemplates,
+          // Preserve local-only org templates not yet in the API
+          ...this.templates.filter(t =>
+            t.source !== 'unabase' &&
+            !isMongoId(t.id) &&
+            !normTemplates.some(nt => nt.uid === t.id || nt.uid === t.uid)
+          ),
+        ]
+
+        // Fix selectedId if its UUID maps to a now-synced MongoDB project
+        if (this.selectedId && !isMongoId(this.selectedId)) {
+          const migrated = normProjects.find(p => p.uid === this.selectedId)
+          if (migrated) this.selectedId = migrated.id
+        }
+        if (this.selectedId && !this.projects.find(p => p.id === this.selectedId)) {
+          const first = this.projects.find(p => p.status !== 'archived' && p.isActive !== false)
+          this.selectedId = first?.id || null
+        }
+
+        this.migrationPending = localOnly.length > 0
+
+        this._saveToLocalStorage()
+      } catch (err) {
+        console.warn('loadFromApi failed:', err)
+      }
+    },
+
+    // Debounced PUT for a single project to the API
+    _scheduleSyncProject(projId) {
+      if (!isMongoId(projId)) return
+      if (_syncTimers.has(projId)) clearTimeout(_syncTimers.get(projId))
+      _syncTimers.set(projId, setTimeout(async () => {
+        _syncTimers.delete(projId)
+        const proj = this.projects.find(p => p.id === projId)
+        if (!proj) return
+        try {
+          await useApi().put(`/projects/${projId}`, proj)
+        } catch (e) {
+          console.warn('Project sync failed:', projId, e.message)
+        }
+      }, 1500))
+    },
+
+    // Write localStorage only (no API — used internally after API load)
+    _saveToLocalStorage() {
       const { persist } = usePersist()
       const globalStore   = useGlobalStore()
       const settingsStore = useSettingsStore()
@@ -270,6 +324,53 @@ export const useProjectsStore = defineStore('projects', {
         orgCities:           settingsStore.orgCities,
         orgDefaultHolidays:  settingsStore.orgDefaultHolidays,
       })
+    },
+
+    seedInitialData() {
+      const ipsId = 'builtin-ips'
+      const existing = this.templates.find(t => t.id === ipsId || t.uid === ipsId || t.source === 'unabase')
+      if (!existing) {
+        const master = MASTER_TEMPLATE.map((te, i) => ({
+          id: uid(), templateId: te.id, fromTemplateId: te.id,
+          name: te.name, nameEN: te.nameEN || te.name,
+          stage: te.stage, active: true,
+          date: '', dateMode: 'manual',
+          duration: te.days || 1, durDayType: 'calendar',
+          dep: { active: false, eventId: '', relation: 'after', days: 1, dayType: 'calendar', broken: false },
+          locked: false, notes: '', order: i,
+          completed: false, keyDate: false,
+          whenToUse: te.whenToUse || '', whenToUseEN: te.whenToUseEN || '',
+          groups: te.groups || [],
+        }))
+        const tmpl = {
+          id: ipsId,
+          uid: ipsId,
+          source: 'unabase',
+          active: true,
+          name: 'Integrated Production Schedule',
+          client: '',
+          events: master,
+          stages: DEFAULT_STAGES.map(s => ({ id: 's-' + s.key, key: s.key, name: s.name, active: true })),
+          groups: DEFAULT_GROUPS.map(g => ({ id: 'g-' + g.key, key: g.key, name: g.name, active: true })),
+          useCount: 0,
+          createdAt: new Date().toISOString().split('T')[0],
+        }
+        this.templates.unshift(tmpl)
+        this.save()
+      }
+    },
+
+    save() {
+      this._saveToLocalStorage()
+      // Schedule API sync for any project with unsaved changes
+      try {
+        const authStore = useAuthStore()
+        if (authStore?.isLoggedIn) {
+          this.projects
+            .filter(p => p.hasChanges && isMongoId(p.id))
+            .forEach(p => this._scheduleSyncProject(p.id))
+        }
+      } catch { /* auth store may not be available during init */ }
     },
 
     selectProject(id) {
@@ -298,7 +399,6 @@ export const useProjectsStore = defineStore('projects', {
       if (tmpl) {
         tmpl.useCount = (tmpl.useCount || 0) + 1
         events = eventsFromTemplate(tmpl)
-        // Inherit stages and groups from template if available
         if (tmpl.stages?.length) {
           stages.push(...tmpl.stages.map(s => ({ ...s, id: uid() })))
         }
@@ -306,18 +406,25 @@ export const useProjectsStore = defineStore('projects', {
           groups.length = 0
           groups.push(...tmpl.groups.map(g => ({ ...g, id: uid() })))
         }
+        // Notify API of template use (fire-and-forget)
+        const authStore = useAuthStore()
+        if (authStore?.isLoggedIn && isMongoId(tmpl.id)) {
+          useApi().patch(`/schedule-templates/${tmpl.id}/used`).catch(() => {})
+        }
       }
 
+      const localId = uid()
       const proj = {
-        id: uid(),
-        client:       data.client      || '',
-        agency:       data.agency      || '',
-        name:         data.name        || '',
-        director:     data.director    || '',
-        photographer: data.photographer|| '',
-        ep:           data.ep          || '',
-        status:       data.status      || 'competing',
-        color:        data.color       || '#06CCB4',
+        id: localId,
+        uid: localId,
+        client:       data.client       || '',
+        agency:       data.agency       || '',
+        name:         data.name         || '',
+        director:     data.director     || '',
+        photographer: data.photographer || '',
+        ep:           data.ep           || '',
+        status:       data.status       || 'competing',
+        color:        data.color        || '#06CCB4',
         lang,
         createdAt:    new Date().toISOString().split('T')[0],
         updatedAt:    new Date().toISOString(),
@@ -347,7 +454,27 @@ export const useProjectsStore = defineStore('projects', {
       this.selectedId = proj.id
       globalStore.currentView = 'list'
       this.save()
+
+      // Sync to API in background
+      this._apiCreateProject(proj)
+
       return proj
+    },
+
+    async _apiCreateProject(proj) {
+      const authStore = useAuthStore()
+      if (!authStore?.isLoggedIn) return
+      try {
+        const created = normalizeDoc(await useApi().post('/projects', proj))
+        const idx = this.projects.findIndex(p => p.id === proj.id)
+        if (idx !== -1) {
+          Object.assign(this.projects[idx], created, { id: created.id })
+        }
+        if (this.selectedId === proj.id) this.selectedId = created.id
+        this._saveToLocalStorage()
+      } catch (e) {
+        console.warn('Failed to create project on API:', e.message)
+      }
     },
 
     updateProject(id, data) {
@@ -365,18 +492,23 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       proj.lang = lang
       this.save()
+      this._scheduleSyncProject(id)
     },
 
     deleteProject(id) {
       this.projects = this.projects.filter(p => p.id !== id)
       if (this.selectedId === id) {
-        // Select the most recently edited active calendar, or null if none left
         const remaining = this.projects
           .filter(p => p.status !== 'archived')
           .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
         this.selectedId = remaining.length ? remaining[0].id : null
       }
       this.save()
+
+      const authStore = useAuthStore()
+      if (authStore?.isLoggedIn && isMongoId(id)) {
+        useApi().delete(`/projects/${id}`).catch(e => console.warn('delete project API failed:', e.message))
+      }
     },
 
     archiveProject(id) {
@@ -384,12 +516,11 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       if (proj.status === 'archived') {
         proj.status = 'competing'
-        proj.updatedAt = new Date().toISOString()   // float to top of active list
+        proj.updatedAt = new Date().toISOString()
         this.selectedId = id
       } else {
         proj.status = 'archived'
         if (this.selectedId === id) {
-          // Auto-select the most recently edited active project
           const next = this.projects
             .filter(p => p.id !== id && p.status !== 'archived' && p.isActive !== false)
             .sort((a, b) => {
@@ -401,6 +532,11 @@ export const useProjectsStore = defineStore('projects', {
         }
       }
       this.save()
+
+      const authStore = useAuthStore()
+      if (authStore?.isLoggedIn && isMongoId(id)) {
+        useApi().patch(`/projects/${id}/archive`).catch(e => console.warn('archive API failed:', e.message))
+      }
     },
 
     toggleVisible(id) {
@@ -408,6 +544,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       proj.hidden = !proj.hidden
       this.save()
+      this._scheduleSyncProject(id)
     },
 
     cycleStatus(id) {
@@ -415,6 +552,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj || proj.status === 'archived') return
       const cycle = { competing: 'awarded', awarded: 'lost', lost: 'competing' }
       proj.status = cycle[proj.status] || 'competing'
+      proj.hasChanges = true
       proj.updatedAt = new Date().toISOString()
       this.save()
     },
@@ -437,9 +575,11 @@ export const useProjectsStore = defineStore('projects', {
         if (e.dep?.eventId && idMap[e.dep.eventId]) e.dep.eventId = idMap[e.dep.eventId]
       })
 
+      const localId = uid()
       const proj = {
         ...JSON.parse(JSON.stringify(src)),
-        id:          uid(),
+        id:          localId,
+        uid:         localId,
         client:      opts.client       ?? src.client,
         agency:      opts.agency       ?? src.agency,
         name:        opts.name         ?? (src.name + ' (copia)'),
@@ -455,6 +595,10 @@ export const useProjectsStore = defineStore('projects', {
       this.projects.unshift(proj)
       this.selectedId = proj.id
       this.save()
+
+      // Sync copy to API in background
+      this._apiCreateProject(proj)
+
       return proj
     },
 
@@ -489,9 +633,6 @@ export const useProjectsStore = defineStore('projects', {
       this.save()
     },
 
-    // Move an event in the list view:
-    // - Change its stage to targetStageKey
-    // - Insert it above/below targetEvId (or at end of stage if targetEvId is null)
     moveEventInList(projId, evId, targetEvId, position, targetStageKey) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
@@ -501,11 +642,9 @@ export const useProjectsStore = defineStore('projects', {
       ev.stage = targetStageKey
 
       if (!targetEvId) {
-        // Dropped on stage header → append at end
         const others = proj.events.filter(e => e.stage === targetStageKey && e.id !== evId)
         ev.order = others.reduce((max, e) => Math.max(max, e.order ?? 0), -1) + 1
       } else {
-        // Dropped on a specific row → insert before or after
         const stageEvs = proj.events
           .filter(e => e.stage === targetStageKey && e.id !== evId)
           .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
@@ -559,7 +698,6 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       const stage = proj.stages.find(s => s.id === stageId)
       if (!stage) return
-      // Remove all events belonging to this stage
       proj.events = proj.events.filter(e => e.stage !== stage.key)
       proj.stages = proj.stages.filter(s => s.id !== stageId)
       proj.hasChanges = true
@@ -600,8 +738,6 @@ export const useProjectsStore = defineStore('projects', {
       if (!stage) return
       const wasVisible = stage.visible !== false
       stage.visible = !wasVisible
-      // Regla 1: al apagar una etapa, desactivar por defecto todos sus eventos.
-      // One-way — al reactivar la etapa, los eventos NO se vuelven a prender automáticamente.
       if (wasVisible) {
         ;(proj.events || []).forEach(ev => {
           if (ev.stage === stage.key) ev.active = false
@@ -609,7 +745,6 @@ export const useProjectsStore = defineStore('projects', {
       }
       proj.hasChanges = true
       proj.updatedAt = new Date().toISOString()
-      // recalcAndSave marca como broken cualquier dep que apunte a un evento recién desactivado.
       this.recalcAndSave(projId)
     },
 
@@ -617,7 +752,6 @@ export const useProjectsStore = defineStore('projects', {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
       proj.groups = proj.groups.filter(g => g.id !== groupId)
-      // Remove groupId from all events so no orphan references remain
       proj.events.forEach(ev => {
         if (ev.groups) ev.groups = ev.groups.filter(gId => gId !== groupId)
       })
@@ -626,7 +760,6 @@ export const useProjectsStore = defineStore('projects', {
       this.save()
     },
 
-    // Swap the order values of two events (used for drag-and-drop reordering in calendar)
     reorderEvents(projId, evId1, evId2) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
@@ -646,8 +779,6 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       const { recalcProject } = useDependencyEngine()
 
-      // Build the set of active (non-disabled) holiday dates so the dependency
-      // engine can treat them as non-working days in Business Days calculations.
       const holidaysStore  = useHolidaysStore()
       const disabled       = new Set(proj.disabledHolidays || [])
       const years          = new Set(
@@ -666,7 +797,6 @@ export const useProjectsStore = defineStore('projects', {
       this.save()
     },
 
-    // Toggle individual holidays on/off (non-visual: affects business-day calculation)
     updateDisabledHolidays(projId, disabledDates) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
@@ -681,8 +811,10 @@ export const useProjectsStore = defineStore('projects', {
     saveAsTemplate(projId, name) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
+      const localId = uid()
       const tmpl = {
-        id:       uid(),
+        id:       localId,
+        uid:      localId,
         source:   'org',
         active:   true,
         name:     name || proj.name || proj.client || 'Template',
@@ -696,6 +828,20 @@ export const useProjectsStore = defineStore('projects', {
       tmpl.events.forEach(e => { e.date = ''; e.completed = false })
       this.templates.unshift(tmpl)
       this.save()
+
+      // Sync to API in background
+      const authStore = useAuthStore()
+      if (authStore?.isLoggedIn) {
+        useApi().post('/schedule-templates', tmpl)
+          .then(created => {
+            const normalized = normalizeDoc(created)
+            const idx = this.templates.findIndex(t => t.id === localId)
+            if (idx !== -1) Object.assign(this.templates[idx], normalized, { id: normalized.id })
+            this._saveToLocalStorage()
+          })
+          .catch(e => console.warn('saveAsTemplate API failed:', e.message))
+      }
+
       return tmpl
     },
 
@@ -704,13 +850,25 @@ export const useProjectsStore = defineStore('projects', {
       if (!tmpl) return
       tmpl.active = !tmpl.active
       this.save()
+
+      const authStore = useAuthStore()
+      if (authStore?.isLoggedIn && isMongoId(id)) {
+        useApi().put(`/schedule-templates/${id}`, { active: tmpl.active })
+          .catch(e => console.warn('toggleTemplateActive API failed:', e.message))
+      }
     },
 
     deleteTemplate(id) {
       const tmpl = this.templates.find(t => t.id === id)
-      if (!tmpl || tmpl.source === 'unabase') return   // builtin templates cannot be deleted
+      if (!tmpl || tmpl.source === 'unabase') return
       this.templates = this.templates.filter(t => t.id !== id)
       this.save()
+
+      const authStore = useAuthStore()
+      if (authStore?.isLoggedIn && isMongoId(id)) {
+        useApi().delete(`/schedule-templates/${id}`)
+          .catch(e => console.warn('deleteTemplate API failed:', e.message))
+      }
     },
 
     // ── Share ─────────────────────────────────────────────────────────────────
@@ -718,22 +876,52 @@ export const useProjectsStore = defineStore('projects', {
     async toggleShare(id) {
       const proj = this.projects.find(p => p.id === id)
       if (!proj) return
-      if (!proj.shareToken) proj.shareToken = uid() + uid()
-      proj.shareActive = !proj.shareActive
+      const newActive = !proj.shareActive
+      proj.shareActive = newActive
+      if (newActive && !proj.shareToken) proj.shareToken = uid() + uid()
       this.save()
-      try {
-        const { useSupabase } = await import('~/composables/useSupabase')
-        const { sbPushShare } = useSupabase()
-        // Embed org date-format so the share view can format dates correctly
-        const globalStore = useGlobalStore()
-        const snapshot = { ...proj, orgDateFormat: globalStore.dateFormat || 'DD/MM/AA' }
-        await sbPushShare(snapshot)
-      } catch (e) {
-        // Supabase may not be configured
+
+      const authStore = useAuthStore()
+      if (authStore?.isLoggedIn && isMongoId(id)) {
+        try {
+          const result = await useApi().patch(`/projects/${id}/share`, { active: newActive })
+          proj.shareToken  = result.shareToken
+          proj.shareActive = result.shareActive
+          proj.shareViews  = result.shareViews
+          this._saveToLocalStorage()
+        } catch (e) {
+          console.warn('toggleShare API failed:', e.message)
+        }
       }
     },
 
-    // Shift all event dates by N calendar days (positive = forward, negative = backward)
+    // ── Migration (Fase 1c) ───────────────────────────────────────────────────
+
+    async importLocalProjects() {
+      const localOnly = this.projects.filter(p => !isMongoId(p.id))
+      if (!localOnly.length) { this.migrationPending = false; return { imported: 0 } }
+      const api = useApi()
+      const result = await api.post('/projects/import', {
+        projects: localOnly.map(p => ({ ...p, uid: p.id })),
+      })
+      await this.loadFromApi()
+      this.migrationPending = false
+      return result
+    },
+
+    async importLocalTemplates() {
+      const localOnly = this.templates.filter(t => !isMongoId(t.id) && t.source !== 'unabase')
+      if (!localOnly.length) return { imported: 0 }
+      const api = useApi()
+      const result = await api.post('/schedule-templates/import', {
+        templates: localOnly.map(t => ({ ...t, uid: t.id })),
+      })
+      await this.loadFromApi()
+      return result
+    },
+
+    // ── Calendar helpers ──────────────────────────────────────────────────────
+
     moveCalendar(projId, days) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
@@ -776,6 +964,8 @@ export const useProjectsStore = defineStore('projects', {
       proj.hasChanges = false
       proj.updatedAt = new Date().toISOString()
       this.save()
+      // Explicitly sync since hasChanges is now false (save() won't pick it up)
+      this._scheduleSyncProject(projId)
     },
   },
 })

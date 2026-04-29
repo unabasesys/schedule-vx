@@ -1,3 +1,5 @@
 <script setup>
-navigateTo('/schedule')
+const authStore = useAuthStore()
+authStore.init()
+navigateTo(authStore.isLoggedIn ? '/schedule' : '/login')
 </script>

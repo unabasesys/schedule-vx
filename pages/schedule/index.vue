@@ -1,5 +1,8 @@
 <template>
   <div class="schedule-page">
+    <!-- Migration banner for local-only projects -->
+    <MigrationBanner v-if="projectsStore.migrationPending" :lang="globalStore.lang" />
+
     <!-- Header (only when a project is selected) -->
     <div v-if="currentProject" class="main-hdr">
       <div class="hdr-proj-info">
@@ -258,6 +261,7 @@
 </template>
 
 <script setup>
+definePageMeta({ middleware: 'auth' })
 const { locale } = useI18n()
 const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()

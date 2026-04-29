@@ -1,6 +1,6 @@
 <template>
   <aside class="sidebar">
-    <!-- Brand / Studio -->
+    <!-- Brand -->
     <div class="sb-brand">
       <div class="ub-logo">
         <img src="/images/white-unabase.png" class="ub-logo-img" alt="unabase" />
@@ -14,13 +14,27 @@
           </svg>
         </button>
       </div>
+
+      <!-- User row -->
+      <div v-if="authStore.isLoggedIn" class="sb-user-row">
+        <div class="sb-user-avatar">
+          <img v-if="userAvatar" :src="userAvatar" :alt="userName" />
+          <span v-else class="sb-user-initials">{{ userInitials }}</span>
+        </div>
+        <div class="sb-user-info">
+          <div class="sb-user-name">{{ userName }}</div>
+          <div class="sb-user-email">{{ authStore.user?.email }}</div>
+        </div>
+      </div>
+
+      <!-- Org row -->
       <div class="studio-row">
         <div class="studio-logo-wrap">
-          <img v-if="settingsStore.logo" :src="settingsStore.logo" alt="studio logo" />
+          <img v-if="orgLogo" :src="orgLogo" alt="org logo" />
           <span v-else class="studio-logo-ph">🎬</span>
         </div>
         <div class="studio-info">
-          <div class="studio-name-d">{{ settingsStore.studioName }}</div>
+          <div class="studio-name-d">{{ orgName }}</div>
         </div>
         <button
           class="sb-org-settings-btn"
@@ -115,6 +129,15 @@
       @click="globalStore.setView('tmpl')"
     >Templates</button>
 
+    <button class="sb-logout-btn" @click="logout">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      {{ globalStore.lang === 'en' ? 'Sign out' : 'Cerrar sesión' }}
+    </button>
+
   </aside>
 </template>
 
@@ -122,6 +145,38 @@
 const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()
 const settingsStore = useSettingsStore()
+const authStore     = useAuthStore()
+
+// ── User computed ─────────────────────────────────────────────────────────────
+const userName = computed(() => {
+  const u = authStore.user
+  if (!u) return ''
+  const first = u.data?.name?.first || ''
+  const last  = u.data?.name?.last  || ''
+  return `${first} ${last}`.trim() || u.email || ''
+})
+
+const userInitials = computed(() => {
+  const u = authStore.user
+  if (!u) return '?'
+  const first = u.data?.name?.first?.[0] || ''
+  const last  = u.data?.name?.last?.[0]  || ''
+  return (first + last).toUpperCase() || (u.email?.[0] || '?').toUpperCase()
+})
+
+const userAvatar = computed(() => authStore.user?.imgUrl || null)
+
+// ── Org computed ──────────────────────────────────────────────────────────────
+const orgName = computed(() =>
+  authStore.organization?.name || settingsStore.studioName || 'Mi Productora'
+)
+const orgLogo = computed(() =>
+  authStore.organization?.imgUrl || settingsStore.logo || null
+)
+
+function logout() {
+  authStore.logout()
+}
 
 const filteredProjects = computed(() =>
   projectsStore.filteredProjects(globalStore.sidebarFilter, globalStore.sidebarSearch)
@@ -205,6 +260,32 @@ function cycleStatus(id) {
 }
 .sb-collapse-btn:hover { background: rgba(255,255,255,.1); color: rgba(255,255,255,.8); }
 .ub-logo-img { height: 22px; width: auto; flex-shrink: 0; }
+
+/* User row */
+.sb-user-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px 8px;
+}
+.sb-user-avatar {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  overflow: hidden; background: rgba(6,204,180,.25);
+  display: flex; align-items: center; justify-content: center;
+}
+.sb-user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.sb-user-initials {
+  font-size: .65rem; font-weight: 700; color: var(--accent);
+}
+.sb-user-info { flex: 1; min-width: 0; }
+.sb-user-name {
+  font-size: .74rem; font-weight: 600; color: rgba(255,255,255,.85);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sb-user-email {
+  font-size: .62rem; color: rgba(255,255,255,.3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 .studio-row {
   display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.06);
@@ -293,4 +374,23 @@ function cycleStatus(id) {
   color: var(--accent) !important;
   border-color: rgba(6,204,180,.5) !important;
 }
+
+.sb-logout-btn {
+  margin: 0 12px 10px;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  color: rgba(255,255,255,.25);
+  font-size: .68rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+  transition: color .15s, background .15s;
+  flex-shrink: 0;
+}
+.sb-logout-btn:hover { color: rgba(255,255,255,.6); background: rgba(255,255,255,.06); }
 </style>
