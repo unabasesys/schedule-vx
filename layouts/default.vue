@@ -5,6 +5,9 @@
       <slot />
     </main>
 
+    <DialogModal />
+    <SnapNoticeModal />
+
     <!-- Reopen button — only shown when sidebar is fully collapsed -->
     <Transition name="sb-reopen">
       <button
@@ -67,7 +70,7 @@ html, body, #__nuxt {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--navy, #002C3E);
+  background: var(--navy, #1e272e);
   color: rgba(255,255,255,.55);
   border: none;
   border-radius: 0 8px 8px 0;
@@ -77,8 +80,8 @@ html, body, #__nuxt {
 }
 .sb-reopen-btn:hover {
   width: 34px;
-  background: var(--accent, #06CCB4);
-  color: #002C3E;
+  background: var(--accent, #20a789);
+  color: #1e272e;
 }
 
 /* Fade-in transition for the reopen button */

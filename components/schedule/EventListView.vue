@@ -693,8 +693,13 @@ function onStageDrop(stageKey) {
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
-function saveAsTemplate() {
-  const name = prompt(L.value.promptTemplate, props.project.name || props.project.client || 'Template')
+async function saveAsTemplate() {
+  const name = await useDialog().prompt({
+    title:        L.value.promptTemplate,
+    defaultValue: props.project.name || props.project.client || 'Template',
+    confirmLabel: 'OK',
+    cancelLabel:  props.lang === 'en' ? 'Cancel' : 'Cancelar',
+  })
   if (name === null) return
   projectsStore.saveAsTemplate(props.project.id, name)
   $toast?.(L.value.toastSaved, { type: 'success' })
@@ -816,26 +821,26 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 /* ── Toolbar ── */
 .ev-list-toolbar {
   display: flex; align-items: center; gap: 6px; padding: 8px 16px;
-  background: #fff; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  background: var(--header-bg); border-bottom: 1px solid rgba(255,255,255,.06); flex-shrink: 0;
 }
 
 .ev-new-event-btn {
   padding: 4px 12px; border: none; border-radius: 6px;
   font-size: .68rem; font-weight: 700; cursor: pointer;
-  background: var(--accent); color: var(--navy); font-family: inherit;
+  background: var(--accent); color: var(--text); font-family: inherit;
   white-space: nowrap;
 }
 .ev-new-event-btn:hover { background: var(--accent-dark); }
 
 .ev-move-btn {
   padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 6px;
-  font-size: .68rem; font-weight: 600; cursor: pointer; background: #fff; color: var(--muted);
+  font-size: .68rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s; white-space: nowrap;
 }
-.ev-move-btn:hover { border-color: var(--navy); color: var(--navy); }
+.ev-move-btn:hover { border-color: var(--text); color: var(--text); }
 .ev-deps-toggle-btn.deps-active,
 .ev-deps-enable-btn.deps-active {
-  background: var(--navy); color: #fff; border-color: var(--navy);
+  background: var(--accent); color: #fff; border-color: var(--accent);
 }
 .ev-deps-toggle-btn.deps-active:hover,
 .ev-deps-enable-btn.deps-active:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
@@ -844,42 +849,42 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 .ev-filter-btn {
   padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 6px;
-  font-size: .68rem; font-weight: 600; cursor: pointer; background: #fff; color: var(--muted);
+  font-size: .68rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s; white-space: nowrap;
 }
-.ev-filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.06); }
+.ev-filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
 .ev-filter-btn:hover:not(.active) { border-color: var(--muted); }
 .ev-filter-btn.keydates-btn.active { border-color: var(--warning); color: var(--warning); background: rgba(245,158,11,.08); }
 
 .ev-save-tmpl-btn {
   padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 6px;
-  font-size: .68rem; font-weight: 600; cursor: pointer; background: #fff; color: var(--muted);
+  font-size: .68rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s;
 }
-.ev-save-tmpl-btn:hover:not(:disabled) { border-color: var(--navy); color: var(--navy); }
+.ev-save-tmpl-btn:hover:not(:disabled) { border-color: var(--text); color: var(--text); }
 .ev-save-tmpl-btn--active {
   border-color: var(--accent) !important;
   color: var(--accent) !important;
-  background: rgba(6,204,180,.08) !important;
+  background: rgba(32,167,137,.08) !important;
 }
 .ev-save-tmpl-btn:disabled { opacity: .35; cursor: not-allowed; }
 
 /* ── Groups panel ── */
 .groups-panel {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 16px; border-bottom: 1px solid var(--border);
-  background: #fafcfd; flex-shrink: 0; overflow-x: auto;
+  padding: 6px 16px; border-bottom: 1px solid rgba(255,255,255,.06);
+  background: var(--bg); flex-shrink: 0; overflow-x: auto;
 }
 .groups-panel-title { font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); flex-shrink: 0; }
 .groups-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .group-chip {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 3px 8px 3px 11px; border: 1.5px solid var(--border); border-radius: 20px;
-  font-size: .64rem; font-weight: 600; cursor: pointer; background: #fff; color: var(--muted);
+  font-size: .64rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s;
 }
-.group-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.06); }
-.group-chip:hover:not(.active) { border-color: var(--navy); color: var(--navy); }
+.group-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
+.group-chip:hover:not(.active) { border-color: var(--text); color: var(--text); }
 .group-chip-name { line-height: 1; }
 .group-chip-x {
   display: inline-flex; align-items: center; justify-content: center;
@@ -892,16 +897,16 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .group-add-input {
   height: 24px; padding: 0 8px; border: 1.5px solid var(--accent); border-radius: 20px;
   font-size: .64rem; font-family: inherit; outline: none; color: var(--text);
-  width: 120px; background: #fff;
+  width: 120px; background: var(--surface);
 }
 .group-add-confirm, .group-add-cancel {
   width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border);
-  font-size: .70rem; line-height: 1; cursor: pointer; background: #fff;
+  font-size: .70rem; line-height: 1; cursor: pointer; background: var(--surface);
   color: var(--muted); font-family: inherit; display: flex; align-items: center;
   justify-content: center; transition: all .15s; padding: 0;
 }
-.group-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.08); }
-.group-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: #fff5f5; }
+.group-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.08); }
+.group-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: rgba(234,78,73,.12); }
 
 .group-add-btn {
   width: 22px; height: 22px; border-radius: 50%; border: 1.5px dashed var(--border);
@@ -913,7 +918,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 /* ── Conflicts bar ── */
 .conflicts-bar {
-  background: #fff5f5; border-bottom: 1px solid #fee2e2;
+  background: rgba(234,78,73,.12); border-bottom: 1px solid #fee2e2;
   padding: 6px 20px; font-size: .72rem; color: var(--danger);
   display: flex; align-items: center; gap: 6px; flex-shrink: 0;
 }
@@ -921,7 +926,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 /* ── Column header bar ── */
 .ev-col-header {
   display: flex; align-items: center; gap: 0;
-  background: #fff; border-bottom: 2px solid var(--border);
+  background: var(--bg); border-bottom: 1px solid rgba(255,255,255,.06);
   flex-shrink: 0; overflow: hidden;
 }
 .ev-col-header > div {
@@ -950,10 +955,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 .move-dir-btn {
   flex: 1; padding: 8px 14px; border: 1.5px solid var(--border); border-radius: 7px;
-  font-size: .76rem; font-weight: 600; cursor: pointer; background: #fff; color: var(--muted);
+  font-size: .76rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s;
 }
-.move-dir-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.06); }
+.move-dir-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
 .move-dir-btn:hover:not(.active) { border-color: var(--muted); }
 
 .move-amount-row {
@@ -968,10 +973,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 .move-unit-btn {
   padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 7px;
-  font-size: .76rem; font-weight: 600; cursor: pointer; background: #fff; color: var(--muted);
+  font-size: .76rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s;
 }
-.move-unit-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.06); }
+.move-unit-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
 .move-unit-btn:hover:not(.active) { border-color: var(--muted); }
 
 /* ── Stage header management ── */
@@ -991,26 +996,26 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 .stage-move-btn {
   width: 20px; height: 20px; border-radius: 4px; border: 1.5px solid var(--border);
-  font-size: .72rem; line-height: 1; cursor: pointer; background: #fff; color: var(--muted);
+  font-size: .72rem; line-height: 1; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; display: flex; align-items: center; justify-content: center;
   padding: 0; transition: all .13s;
 }
-.stage-move-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.06); }
+.stage-move-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
 .stage-move-btn:disabled { opacity: .25; cursor: default; }
 
 .stage-del-btn {
   width: 20px; height: 20px; border-radius: 4px; border: 1.5px solid var(--border);
-  font-size: .80rem; line-height: 1; cursor: pointer; background: #fff; color: var(--muted);
+  font-size: .80rem; line-height: 1; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; display: flex; align-items: center; justify-content: center;
   padding: 0; transition: all .13s;
 }
-.stage-del-btn:hover { border-color: var(--danger); color: var(--danger); background: #fff5f5; }
+.stage-del-btn:hover { border-color: var(--danger); color: var(--danger); background: rgba(234,78,73,.12); }
 
 .stage-name-input {
   font-size: .7rem; font-weight: 700; font-family: inherit;
   border: 1.5px solid var(--accent); border-radius: 5px;
-  padding: 1px 6px; outline: none; background: #fff;
-  color: var(--navy); min-width: 80px; max-width: 220px;
+  padding: 1px 6px; outline: none; background: var(--surface);
+  color: var(--text); min-width: 80px; max-width: 220px;
 }
 
 .stage-collapse-arrow {
@@ -1024,7 +1029,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .stage-visibility-btn {
   height: 20px; padding: 0 6px; border-radius: 4px; border: 1.5px solid var(--border);
   font-size: .62rem; font-weight: 700; letter-spacing: .03em;
-  cursor: pointer; background: #fff; color: var(--accent);
+  cursor: pointer; background: var(--surface); color: var(--accent);
   font-family: inherit; display: flex; align-items: center; justify-content: center;
   transition: all .13s;
 }
@@ -1042,16 +1047,16 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .stage-add-input {
   height: 28px; padding: 0 10px; border: 1.5px solid var(--accent); border-radius: 6px;
   font-size: .72rem; font-family: inherit; outline: none; color: var(--text);
-  width: 180px; background: #fff;
+  width: 180px; background: var(--surface);
 }
 .stage-add-confirm, .stage-add-cancel {
   width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--border);
-  font-size: .72rem; line-height: 1; cursor: pointer; background: #fff;
+  font-size: .72rem; line-height: 1; cursor: pointer; background: var(--surface);
   color: var(--muted); font-family: inherit; display: flex; align-items: center;
   justify-content: center; transition: all .15s; padding: 0;
 }
-.stage-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.08); }
-.stage-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: #fff5f5; }
+.stage-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.08); }
+.stage-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: rgba(234,78,73,.12); }
 
 /* No-stages nudge modal */
 .no-stage-modal { max-width: 380px; }
@@ -1067,11 +1072,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .stage-picker-list { display: flex; flex-direction: column; gap: 7px; margin-bottom: 20px; }
 .stage-picker-btn {
   padding: 9px 14px; border: 1.5px solid var(--border); border-radius: 7px;
-  font-size: .78rem; font-weight: 600; cursor: pointer; background: #fff;
+  font-size: .78rem; font-weight: 600; cursor: pointer; background: var(--surface);
   color: var(--text); font-family: inherit; text-align: left;
   transition: all .13s;
 }
-.stage-picker-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.05); }
+.stage-picker-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.05); }
 
 /* Delete Stage modal */
 .delete-stage-modal { max-width: 380px; }
@@ -1097,7 +1102,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .ev-empty-title {
   font-size: .95rem;
   font-weight: 700;
-  color: #002C3E;
+  color: var(--text);
   margin: 0;
 }
 .ev-empty-body {
@@ -1136,7 +1141,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .ev-row-dnd-wrap.ev-drop-below { border-bottom: 2px solid var(--accent); }
 
 .ev-stage-hdr.stage-drop-target {
-  background: rgba(6,204,180,.08);
+  background: rgba(32,167,137,.08);
   outline: 1.5px solid var(--accent);
   outline-offset: -1px;
 }

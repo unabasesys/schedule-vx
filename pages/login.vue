@@ -1,55 +1,91 @@
 <template>
   <div class="auth-page">
     <div class="auth-card">
-      <div class="auth-brand">
-        <span class="brand-name">Schedule</span>
-        <span class="brand-by">by Unabase</span>
+
+      <!-- Left panel -->
+      <div class="auth-panel-left">
+        <div class="panel-logo">
+          <img src="/images/white-unabase.png" alt="unabase" class="logo-img" />
+        </div>
+        <div class="panel-content">
+          <h2 class="panel-product">Calendar</h2>
+          <p class="panel-tagline">Crea y gestiona calendarios de producción audiovisual de forma profesional.</p>
+        </div>
+        <div class="panel-dots">
+          <span class="dot active"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
       </div>
 
-      <h1 class="auth-title">Iniciar sesión</h1>
+      <!-- Right panel -->
+      <div class="auth-panel-right">
+        <h1 class="auth-title">Sign In</h1>
+        <p class="auth-subtitle">Sign in to Calendar by unabase</p>
 
-      <!-- Google sign-in -->
-      <div id="google-btn" class="google-btn-wrap"></div>
-      <div class="divider"><span>o</span></div>
+        <!-- Google sign-in -->
+        <div id="google-btn" class="google-btn-wrap"></div>
+        <div class="divider"><span>o</span></div>
 
-      <form class="auth-form" @submit.prevent="handleSubmit">
-        <div class="field">
-          <label for="email">Email</label>
-          <input
-            id="email"
-            v-model="form.email"
-            type="email"
-            placeholder="tu@email.com"
-            autocomplete="email"
-            required
-          />
-        </div>
+        <form class="auth-form" @submit.prevent="handleSubmit">
+          <div class="field">
+            <label for="email">Email Address</label>
+            <input
+              id="email"
+              v-model="form.email"
+              type="email"
+              placeholder="tu@email.com"
+              autocomplete="email"
+              required
+            />
+          </div>
 
-        <div class="field">
-          <label for="password">Contraseña</label>
-          <input
-            id="password"
-            v-model="form.password"
-            type="password"
-            placeholder="••••••••"
-            autocomplete="current-password"
-            required
-          />
-        </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <div class="input-wrap">
+              <input
+                id="password"
+                v-model="form.password"
+                :type="showPassword ? 'text' : 'password'"
+                placeholder="••••••••"
+                autocomplete="current-password"
+                required
+              />
+              <button type="button" class="toggle-pw" @click="showPassword = !showPassword" tabindex="-1">
+                <svg v-if="!showPassword" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+                <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
 
-        <div v-if="authStore.error" class="auth-error">{{ authStore.error }}</div>
+          <div class="form-row">
+            <label class="remember-me">
+              <input type="checkbox" v-model="rememberMe" />
+              <span>Keep me signed in</span>
+            </label>
+            <NuxtLink to="/forgot-password" class="link-accent">Forgot your password?</NuxtLink>
+          </div>
 
-        <button type="submit" class="btn-primary" :disabled="authStore.loading">
-          <span v-if="authStore.loading">Ingresando...</span>
-          <span v-else>Ingresar</span>
-        </button>
-      </form>
+          <div v-if="authStore.error" class="auth-error">{{ authStore.error }}</div>
 
-      <div class="auth-footer">
-        <NuxtLink to="/forgot-password" class="link-muted">¿Olvidaste tu contraseña?</NuxtLink>
-        <span class="separator">·</span>
-        <NuxtLink to="/register" class="link-muted">Crear cuenta</NuxtLink>
+          <button type="submit" class="btn-primary" :disabled="authStore.loading">
+            <span v-if="authStore.loading">Signing in...</span>
+            <span v-else>Sign In</span>
+          </button>
+        </form>
+
+        <p class="auth-footer">
+          Don't have an account yet?
+          <NuxtLink to="/register" class="link-accent">Create an account here</NuxtLink>
+        </p>
       </div>
+
     </div>
   </div>
 </template>
@@ -59,17 +95,24 @@ definePageMeta({ layout: false })
 
 const authStore = useAuthStore()
 const config    = useRuntimeConfig()
+const route     = useRoute()
 authStore.init()
 
 if (authStore.isLoggedIn) {
   await navigateTo('/schedule')
 }
 
-const form = reactive({ email: '', password: '' })
+const form         = reactive({ email: '', password: '' })
+const showPassword = ref(false)
+const rememberMe   = ref(false)
 
 const handleSubmit = async () => {
   const ok = await authStore.login(form)
-  if (ok) navigateTo('/schedule')
+  if (ok) {
+    const inviteToken = route.query.inviteToken
+    if (inviteToken) await authStore.acceptInvitation(inviteToken)
+    navigateTo('/schedule')
+  }
 }
 
 // ── Google Identity Services ───────────────────────────────────────────────
@@ -86,12 +129,16 @@ onMounted(() => {
       client_id: clientId,
       callback: async ({ credential }) => {
         const ok = await authStore.loginWithGoogle(credential)
-        if (ok) navigateTo('/schedule')
+        if (ok) {
+          const inviteToken = route.query.inviteToken
+          if (inviteToken) await authStore.acceptInvitation(inviteToken)
+          navigateTo('/schedule')
+        }
       },
     })
     window.google.accounts.id.renderButton(
       document.getElementById('google-btn'),
-      { theme: 'outline', size: 'large', width: 340, text: 'signin_with', locale: 'es' }
+      { theme: 'outline', size: 'large', width: '100%', text: 'continue_with', locale: 'en' }
     )
   }
   document.head.appendChild(script)
@@ -105,29 +152,118 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   background: var(--bg);
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Nunito', sans-serif;
   padding: 24px;
 }
-.auth-card {
-  background: var(--white);
-  border-radius: 16px;
-  padding: 48px 40px;
-  width: 100%;
-  max-width: 420px;
-  box-shadow: 0 4px 32px rgba(0,44,62,.10);
-}
-.auth-brand { display: flex; align-items: baseline; gap: 8px; margin-bottom: 32px; }
-.brand-name { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; color: var(--navy); }
-.brand-by   { font-size: 13px; color: var(--muted); }
-.auth-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--navy); margin: 0 0 20px; }
 
+/* Card container */
+.auth-card {
+  display: flex;
+  width: 100%;
+  max-width: 860px;
+  min-height: 520px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-m);
+}
+
+/* ── Left panel ─────────────────────────────────────────────────────────── */
+.auth-panel-left {
+  flex: 0 0 42%;
+  background: var(--navy);
+  display: flex;
+  flex-direction: column;
+  padding: 36px 32px;
+  position: relative;
+  background-image: linear-gradient(160deg, #1e272e 0%, #253035 60%, #1a3040 100%);
+}
+
+.panel-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-img {
+  height: 28px;
+  object-fit: contain;
+}
+
+.panel-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: 8px;
+}
+
+.panel-product {
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 10px;
+  letter-spacing: -0.3px;
+}
+
+.panel-tagline {
+  font-size: 14px;
+  color: rgba(255,255,255,.55);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.panel-dots {
+  display: flex;
+  gap: 6px;
+  margin-top: 24px;
+}
+
+.dot {
+  width: 20px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255,255,255,.25);
+}
+
+.dot.active {
+  background: var(--accent);
+  width: 28px;
+}
+
+/* ── Right panel ────────────────────────────────────────────────────────── */
+.auth-panel-right {
+  flex: 1;
+  background: var(--surface);
+  padding: 44px 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-title);
+  margin: 0 0 6px;
+  letter-spacing: -0.4px;
+}
+
+.auth-subtitle {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+/* Google button */
 .google-btn-wrap {
   display: flex;
   justify-content: center;
   min-height: 44px;
   margin-bottom: 4px;
+  width: 100%;
 }
 
+/* Divider */
 .divider {
   display: flex;
   align-items: center;
@@ -144,52 +280,136 @@ onMounted(() => {
   background: var(--border);
 }
 
+/* Form */
 .auth-form { display: flex; flex-direction: column; gap: 16px; }
+
 .field { display: flex; flex-direction: column; gap: 6px; }
-.field label { font-size: 13px; font-weight: 600; color: var(--navy); }
-.field input {
-  padding: 10px 14px;
+.field label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.1px;
+}
+
+.field input,
+.input-wrap input {
+  padding: 11px 14px;
   border: 1.5px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
-  color: var(--navy);
-  background: var(--white);
+  color: var(--text);
+  background: var(--surface-2);
   outline: none;
   transition: border-color .15s;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Nunito', sans-serif;
+  width: 100%;
+  box-sizing: border-box;
 }
-.field input:focus { border-color: var(--accent); }
+.field input:focus,
+.input-wrap input:focus { border-color: var(--accent); }
+.field input::placeholder,
+.input-wrap input::placeholder { color: var(--muted); opacity: .7; }
+
+.input-wrap {
+  position: relative;
+}
+.input-wrap input { padding-right: 44px; }
+
+.toggle-pw {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  padding: 0;
+  transition: color .15s;
+}
+.toggle-pw:hover { color: var(--text); }
+
+/* Remember me row */
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: -4px;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  user-select: none;
+}
+.remember-me input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.link-accent {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  transition: color .15s;
+}
+.link-accent:hover { color: var(--accent-dark); }
+
+/* Error */
 .auth-error {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: rgba(234, 78, 73, .12);
+  border: 1px solid rgba(234, 78, 73, .3);
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 13px;
   color: var(--danger);
 }
+
+/* Submit button */
 .btn-primary {
-  padding: 12px;
-  background: var(--navy);
+  padding: 13px;
+  background: var(--accent);
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: background .15s;
-  font-family: 'Montserrat', sans-serif;
+  transition: background .15s, transform .1s;
+  font-family: 'Nunito', sans-serif;
   margin-top: 4px;
+  letter-spacing: 0.2px;
 }
-.btn-primary:hover:not(:disabled) { background: var(--accent); color: var(--navy); }
-.btn-primary:disabled { opacity: .6; cursor: not-allowed; }
+.btn-primary:hover:not(:disabled) { background: var(--accent-dark); }
+.btn-primary:active:not(:disabled) { transform: scale(.99); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Footer */
 .auth-footer {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 24px;
+  text-align: center;
+  margin-top: 20px;
   font-size: 13px;
+  color: var(--muted);
 }
-.separator { color: var(--muted); }
-.link-muted { color: var(--muted); text-decoration: none; transition: color .15s; }
-.link-muted:hover { color: var(--accent); }
+.auth-footer .link-accent { margin-left: 4px; }
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .auth-card { flex-direction: column; max-width: 420px; }
+  .auth-panel-left { flex: none; padding: 28px 28px 24px; min-height: 140px; }
+  .panel-content { padding-bottom: 0; }
+  .panel-product { font-size: 20px; }
+  .panel-tagline { display: none; }
+  .auth-panel-right { padding: 32px 28px; }
+}
 </style>

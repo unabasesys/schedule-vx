@@ -61,6 +61,7 @@ definePageMeta({ layout: false })
 
 const authStore  = useAuthStore()
 const config     = useRuntimeConfig()
+const route      = useRoute()
 authStore.init()
 
 if (authStore.isLoggedIn) {
@@ -86,7 +87,11 @@ const handleSubmit = async () => {
     email:     form.email,
     password:  form.password,
   })
-  if (ok) navigateTo('/schedule')
+  if (ok) {
+    const inviteToken = route.query.inviteToken
+    if (inviteToken) await authStore.acceptInvitation(inviteToken)
+    navigateTo('/schedule')
+  }
 }
 
 // ── Google Identity Services ───────────────────────────────────────────────
@@ -103,7 +108,11 @@ onMounted(() => {
       client_id: clientId,
       callback: async ({ credential }) => {
         const ok = await authStore.loginWithGoogle(credential)
-        if (ok) navigateTo('/schedule')
+        if (ok) {
+          const inviteToken = route.query.inviteToken
+          if (inviteToken) await authStore.acceptInvitation(inviteToken)
+          navigateTo('/schedule')
+        }
       },
     })
     window.google.accounts.id.renderButton(
@@ -122,7 +131,7 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   background: var(--bg);
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Nunito', sans-serif;
   padding: 24px;
 }
 .auth-card {
@@ -134,9 +143,9 @@ onMounted(() => {
   box-shadow: 0 4px 32px rgba(0,44,62,.10);
 }
 .auth-brand { display: flex; align-items: baseline; gap: 8px; margin-bottom: 32px; }
-.brand-name { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; color: var(--navy); }
+.brand-name { font-family: 'Nunito', sans-serif; font-size: 22px; font-weight: 700; color: var(--navy); }
 .brand-by   { font-size: 13px; color: var(--muted); }
-.auth-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--navy); margin: 0 0 20px; }
+.auth-title { font-family: 'Nunito', sans-serif; font-size: 20px; font-weight: 700; color: var(--navy); margin: 0 0 20px; }
 
 .google-btn-wrap {
   display: flex;
@@ -173,7 +182,7 @@ onMounted(() => {
   background: var(--white);
   outline: none;
   transition: border-color .15s;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Nunito', sans-serif;
 }
 .field input:focus { border-color: var(--accent); }
 .auth-error {
@@ -194,7 +203,7 @@ onMounted(() => {
   font-weight: 600;
   cursor: pointer;
   transition: background .15s;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Nunito', sans-serif;
   margin-top: 4px;
 }
 .btn-primary:hover:not(:disabled) { background: var(--accent); color: var(--navy); }

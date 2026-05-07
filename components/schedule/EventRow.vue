@@ -93,6 +93,7 @@
         ]"
         @change="!readOnly && updateName($event.target.value)"
         @blur="!readOnly && updateName($event.target.value)"
+        @keydown.enter.prevent="!readOnly && ($event.target.blur())"
       />
 
       <!-- Group assignment button — sits after the event name -->
@@ -262,6 +263,9 @@
 
 <script setup>
 import { useDependencyEngine } from '~/composables/useDependencyEngine'
+import { useSnapNotice } from '~/composables/useSnapNotice'
+
+const snapNotice = useSnapNotice()
 
 // ── Inline translations ───────────────────────────────────────────────────────
 const LABELS = {
@@ -587,15 +591,13 @@ function updateDuration(val) {
   update({ duration: val, days: val })
 }
 
-function updateDurDayType(dt) {
+async function updateDurDayType(dt) {
   // Switching to Business Days: if the current start date is not a business day,
   // auto-move it to the nearest valid business day and notify the user.
   if (dt === 'business' && props.event.date && !isBusinessDay(props.event.date, activeHolidayDates.value)) {
     const adjusted = nearestBusinessDay(props.event.date, activeHolidayDates.value)
     update({ durDayType: dt, date: adjusted, dateMode: 'manual' })
-    alert(props.lang === 'en'
-      ? 'This event was changed to Business Days, so its start date was moved to the nearest business day.'
-      : 'Este evento fue configurado como Días Hábiles, por lo tanto su fecha de inicio fue ajustada al día hábil más cercano.')
+    await snapNotice(props.event.date, adjusted, props.lang)
     return
   }
   update({ durDayType: dt })
@@ -611,9 +613,9 @@ function toggleDep() {
   })
 }
 
-function updateDepEvent(evId) {
+async function updateDepEvent(evId) {
   if (evId && hasCircularDep(props.project, props.event.id, evId)) {
-    alert(L.value.toastCircular)
+    await useDialog().alert({ title: L.value.toastCircular })
     return
   }
   update({ dep: { ...props.event.dep, eventId: evId }, dateMode: 'auto' })
@@ -687,7 +689,7 @@ function updateDepAnchor(anchor) {
 .ev-toggle-slider::after {
   content: ''; position: absolute;
   width: 14px; height: 14px; border-radius: 50%;
-  background: #fff; top: 2px; left: 2px;
+  background: var(--surface); top: 2px; left: 2px;
   transition: transform .2s cubic-bezier(.4,0,.2,1);
   box-shadow: 0 1px 3px rgba(0,0,0,.22), 0 1px 1px rgba(0,0,0,.1);
 }
@@ -708,8 +710,8 @@ function updateDepAnchor(anchor) {
   color: var(--muted); flex-shrink: 0; border-radius: 3px; transition: all .13s;
   display: inline-flex; align-items: center; justify-content: center; opacity: .45;
 }
-.ev-internal-btn:hover          { color: var(--navy); opacity: 1; }
-.ev-internal-btn.active         { color: var(--navy); opacity: 1; }
+.ev-internal-btn:hover          { color: var(--text); opacity: 1; }
+.ev-internal-btn.active         { color: var(--text); opacity: 1; }
 /* internal row — lock icon in actions is the sole indicator, no overlay */
 
 /* Done checkbox */
@@ -742,7 +744,7 @@ function updateDepAnchor(anchor) {
   border: none; outline: none; font-size: .76rem; font-family: inherit;
   color: var(--text); background: transparent; width: 100%; min-width: 80px;
 }
-.ev-name-input:focus { background: #f8fbfc; border-radius: 4px; padding: 1px 4px; }
+.ev-name-input:focus { background: var(--surface-2); border-radius: 4px; padding: 1px 4px; }
 
 .ev-info-btn {
   background: none; border: none; cursor: pointer; color: var(--muted);
@@ -773,10 +775,10 @@ function updateDepAnchor(anchor) {
 /* Duration day-type — shows only the active mode */
 .ev-dur-type-btn {
   padding: 2px 7px; border: 1.5px solid var(--border); border-radius: 5px;
-  font-size: .62rem; font-weight: 700; background: #fff; cursor: pointer; font-family: inherit;
+  font-size: .62rem; font-weight: 700; background: var(--surface); cursor: pointer; font-family: inherit;
   transition: all .13s; white-space: nowrap; line-height: 1; color: var(--muted);
 }
-.ev-dur-type-btn.is-business { border-color: var(--accent); color: var(--navy); background: rgba(6,204,180,.08); }
+.ev-dur-type-btn.is-business { border-color: var(--accent); color: var(--text); background: rgba(32,167,137,.08); }
 .ev-dur-type-btn.is-calendar { border-color: var(--accent); color: var(--accent); }
 .ev-dur-type-btn:hover { border-color: var(--accent); }
 
@@ -802,7 +804,7 @@ function updateDepAnchor(anchor) {
 /* Dependency single-button toggles (day type + anchor) */
 .ev-dep-toggle-btn {
   padding: 3px 7px; border: 1.5px solid var(--border); border-radius: 5px;
-  font-size: .62rem; font-weight: 700; background: #fff; cursor: pointer; font-family: inherit;
+  font-size: .62rem; font-weight: 700; background: var(--surface); cursor: pointer; font-family: inherit;
   transition: all .13s; white-space: nowrap; line-height: 1; color: var(--muted); flex-shrink: 0;
 }
 .ev-dep-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -836,7 +838,7 @@ function updateDepAnchor(anchor) {
 }
 .ev-dep-section.ev-dep-on {
   border-left-color: var(--accent);
-  background: rgba(6,204,180,.04);
+  background: rgba(32,167,137,.04);
 }
 .ev-dep-section.ev-dep-paused {
   border-left-color: var(--border);
@@ -864,20 +866,20 @@ function updateDepAnchor(anchor) {
   cursor: pointer; font-size: .8rem; padding: 3px 6px; color: var(--muted);
   line-height: 1; flex-shrink: 0; transition: all .13s;
 }
-.ev-dep-play.active { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.08); }
+.ev-dep-play.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.08); }
 .ev-dep-play:hover:not(.active) { border-color: var(--muted); color: var(--text); }
 
 .ev-dep-rel {
   border: 1.5px solid var(--border); border-radius: 5px;
   padding: 3px 5px; font-size: .70rem; font-family: inherit; color: var(--text);
-  background: #fff; cursor: pointer; outline: none;
+  background: var(--surface); cursor: pointer; outline: none;
 }
 .ev-dep-rel:focus { border-color: var(--accent); }
 
 .ev-dep-event {
   border: 1.5px solid var(--border); border-radius: 5px;
   padding: 3px 5px; font-size: .70rem; font-family: inherit; color: var(--text);
-  background: #fff; cursor: pointer; outline: none;
+  background: var(--surface); cursor: pointer; outline: none;
   /* constrained so the dep zone stays within its fixed width */
   flex: 1 1 0; min-width: 0; max-width: 140px;
 }
@@ -902,14 +904,14 @@ function updateDepAnchor(anchor) {
   cursor: pointer; color: var(--muted); font-family: inherit;
   flex-shrink: 0; transition: all .13s; white-space: nowrap;
 }
-.ev-group-btn:hover { border-color: var(--navy); color: var(--navy); }
-.ev-group-btn.has-groups { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.07); }
-.ev-group-btn.has-groups:hover { background: rgba(6,204,180,.14); }
+.ev-group-btn:hover { border-color: var(--text); color: var(--text); }
+.ev-group-btn.has-groups { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.07); }
+.ev-group-btn.has-groups:hover { background: rgba(32,167,137,.14); }
 
 .ev-group-icon { font-size: .72rem; }
 .ev-group-count {
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent); color: var(--navy);
+  background: var(--accent); color: var(--text);
   border-radius: 3px; font-size: .58rem; font-weight: 800;
   min-width: 14px; height: 14px; padding: 0 3px; line-height: 1;
 }
@@ -919,7 +921,7 @@ function updateDepAnchor(anchor) {
 <style>
 .ev-group-menu-portal {
   position: fixed; z-index: 500;
-  background: #fff; border: 1.5px solid var(--border);
+  background: var(--surface); border: 1.5px solid var(--border);
   border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.13);
   padding: 6px; min-width: 180px; max-width: 260px;
 }
@@ -953,13 +955,13 @@ function updateDepAnchor(anchor) {
 }
 
 .ev-delete-modal {
-  background: #fff; border-radius: 10px;
+  background: var(--surface); border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0,0,0,.18);
   padding: 24px 28px; width: 340px; max-width: 90vw;
 }
 
 .ev-delete-modal-title {
-  font-size: .95rem; font-weight: 700; color: var(--navy);
+  font-size: .95rem; font-weight: 700; color: var(--text);
   margin-bottom: 10px;
 }
 
@@ -974,7 +976,7 @@ function updateDepAnchor(anchor) {
 
 .ev-delete-cancel {
   padding: 7px 16px; border: 1.5px solid var(--border); border-radius: 7px;
-  background: #fff; color: var(--muted); font-size: .76rem; font-weight: 600;
+  background: var(--surface); color: var(--muted); font-size: .76rem; font-weight: 600;
   cursor: pointer; font-family: inherit; transition: all .13s;
 }
 .ev-delete-cancel:hover { border-color: var(--muted); color: var(--text); }

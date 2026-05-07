@@ -44,7 +44,7 @@ export const useSettingsStore = defineStore('settings', {
     inviteUser(email) {
       if (!email) return
       if (this.users.find(u => u.email === email)) return
-      this.users.push({ email, status: 'invited', id: Math.random().toString(36).slice(2) })
+      this.users.push({ email, status: 'pending', id: Math.random().toString(36).slice(2) })
     },
 
     removeUser(id) {
@@ -170,8 +170,10 @@ export const useSettingsStore = defineStore('settings', {
       const authStore = useAuthStore()
       if (!authStore.isLoggedIn || !authStore.organization?._id) return false
       try {
+        // userId can be a MongoDB ObjectId or an email (for pending users without account)
+        const encodedId = encodeURIComponent(userId)
         const res = await fetch(
-          `${API()}/organizations/${authStore.organization._id}/users/${userId}`,
+          `${API()}/organizations/${authStore.organization._id}/users/${encodedId}`,
           {
             method:  'DELETE',
             headers: {

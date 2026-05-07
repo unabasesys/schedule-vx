@@ -142,7 +142,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .copy-tab {
   flex: 1; padding: 7px; border: 1.5px solid var(--border); border-radius: 7px;
   font-size: .72rem; font-weight: 600; cursor: pointer; text-align: center;
-  background: #fff; color: var(--muted); font-family: inherit;
+  background: var(--surface); color: var(--muted); font-family: inherit;
 }
-.copy-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.06); }
+.copy-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
 </style>

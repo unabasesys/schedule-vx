@@ -58,10 +58,14 @@
             @day-select="onDaySelect"
             @day-click="onDayClick"
             @event-click="onEventClick"
+            @holiday-click="onHolidayClick"
             @reorder-events="onReorderEvents"
             @reschedule-event="onRescheduleEvent"
           />
         </div>
+      </div>
+      <div v-if="showAddMonth" class="add-month-wrap">
+        <button class="add-month-btn" @click="addNextMonth" :title="lang === 'en' ? 'Add next month' : 'Agregar mes siguiente'">+</button>
       </div>
     </div>
 
@@ -200,6 +204,10 @@ const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()
 const holidaysStore = useHolidaysStore()
 
+// Shared drag state — all CalendarMonth instances read/write this to enable cross-month drag
+const activeDrag = reactive({ evId: null, evStart: null, isBusiness: false })
+provide('calDrag', activeDrag)
+
 const props = defineProps({
   project:   { type: Object,  required: true },           // selected project (weather, new events)
   projects:  { type: Array,   default: () => [] },        // all visible projects for combined view
@@ -293,8 +301,8 @@ const calTitle = computed(() => {
   return `${months[m1 - 1]} ${yy(y1)} – ${months[m2 - 1]} ${yy(y2)}${spanSuffix}`
 })
 
-// Every month from first event start to last event end
-const visibleMonths = computed(() => {
+// Auto-derived months from event range (0-indexed months for CalendarMonth)
+const autoVisibleMonths = computed(() => {
   const range = eventDateRange.value
   if (!range) return [{ year: props.calYear, month: props.calMonth }]
   const [y1, m1] = range.minDate.split('-').map(Number)
@@ -308,6 +316,32 @@ const visibleMonths = computed(() => {
   }
   return list
 })
+
+// Manually added months beyond the auto range
+const extraMonthCount = ref(0)
+watch(() => props.project.id, () => { extraMonthCount.value = 0 })
+
+// Always show "+" so the user can extend the view by one month at any time
+const showAddMonth = true
+
+// Full visible range = auto months + manually added extras
+const visibleMonths = computed(() => {
+  const base = autoVisibleMonths.value
+  if (extraMonthCount.value === 0) return base
+  const last = base[base.length - 1]
+  const extra = []
+  let y = last.year, m = last.month // 0-indexed
+  for (let i = 0; i < extraMonthCount.value; i++) {
+    m++
+    if (m > 11) { m = 0; y++ }
+    extra.push({ year: y, month: m })
+  }
+  return [...base, ...extra]
+})
+
+function addNextMonth() {
+  extraMonthCount.value++
+}
 
 function monthTitle(y, m) {
   const months = props.lang === 'en' ? MONTHS_EN : MONTHS_ES
@@ -333,7 +367,7 @@ const coloredEvents = computed(() => {
       .forEach(e => merged.push({
         ...e,
         _projId:    proj.id,
-        _projColor: proj.color || '#06CCB4',
+        _projColor: proj.color || '#20a789',
       }))
   })
   return merged
@@ -514,15 +548,18 @@ function onDaysChange() {
   evModalTo.value = calcTo(evModalFrom.value, evModalDays.value, evModalDayType.value)
 }
 
-function onDayTypeChange(type) {
+async function onDayTypeChange(type) {
   evModalDayType.value  = type
   evModalToManual.value = false
   // Switching to Business Days: auto-adjust start date if it falls on a non-business day
   if (type === 'business' && evModalFrom.value && !isModalStartDateBusinessDay()) {
     evModalFrom.value = nearestBusinessDay(evModalFrom.value, activeHolidayDatesForProject.value)
-    alert(props.lang === 'en'
-      ? 'This event was changed to Business Days, so its start date was moved to the nearest business day.'
-      : 'Este evento fue configurado como Días Hábiles, por lo tanto su fecha de inicio fue ajustada al día hábil más cercano.')
+    await useDialog().alert({
+      title: props.lang === 'en' ? 'Start date adjusted' : 'Fecha de inicio ajustada',
+      body:  props.lang === 'en'
+        ? 'This event was changed to Business Days, so its start date was moved to the nearest business day.'
+        : 'Este evento fue configurado como Días Hábiles, por lo tanto su fecha de inicio fue ajustada al día hábil más cercano.',
+    })
   }
   evModalTo.value = calcTo(evModalFrom.value, evModalDays.value, evModalDayType.value)
 }
@@ -540,12 +577,15 @@ function projIdFor(eventOrId) {
   return eventOrId._projId || props.project.id
 }
 
-function confirmEvModal() {
+async function confirmEvModal() {
   // Validate: Business Days events must start on a valid business day
   if (evModalDayType.value === 'business' && evModalFrom.value && !isModalStartDateBusinessDay()) {
-    alert(props.lang === 'en'
-      ? 'This event is set as Business Days, so it must start on a business day. Please select a valid business day to continue.'
-      : 'Este evento está configurado como Días Hábiles, por lo tanto debe comenzar en un día hábil. Selecciona un día hábil válido para poder continuar.')
+    await useDialog().alert({
+      title: props.lang === 'en' ? 'Invalid start date' : 'Fecha de inicio inválida',
+      body:  props.lang === 'en'
+        ? 'This event is set as Business Days, so it must start on a business day. Please select a valid business day to continue.'
+        : 'Este evento está configurado como Días Hábiles, por lo tanto debe comenzar en un día hábil. Selecciona un día hábil válido para poder continuar.',
+    })
     return
   }
   const name    = evModalName.value.trim() || (props.lang === 'en' ? 'New event' : 'Nuevo evento')
@@ -598,7 +638,7 @@ function snapWeekend(dateStr) {
   return d.toISOString().split('T')[0]
 }
 
-function onRescheduleEvent({ evId, newDate }) {
+async function onRescheduleEvent({ evId, newDate }) {
   const projId = projIdFor(evId)
   const proj   = projectsStore.projects.find(p => p.id === projId)
   const ev     = proj?.events.find(e => e.id === evId)
@@ -633,21 +673,49 @@ function onRescheduleEvent({ evId, newDate }) {
   if (ev.dep?.active && dateChanged) {
     const refEv = ev.dep.eventId ? (proj.events.find(e => e.id === ev.dep.eventId) || null) : null
     const depLine = describeDependency(ev, refEv, props.lang)
-    const msg = props.lang === 'en'
-      ? `This event has an active dependency:\n\n"${depLine}"\n\nMoving it manually will pause the dependency. You can resume it at any time from the event settings.\n\nMove anyway?`
-      : `Este evento tiene una dependencia activa:\n\n"${depLine}"\n\nMoverlo manualmente pausará la dependencia. Podés reanudarla cuando quieras desde la configuración del evento.\n\n¿Mover de todas formas?`
-    if (!confirm(msg)) return
+    const ok = await useDialog().confirm({
+      title:        props.lang === 'en' ? 'Move event?'           : '¿Mover evento?',
+      body:         props.lang === 'en'
+        ? `This event has an active dependency: "${depLine}"\n\nMoving it manually will pause the dependency. You can resume it at any time from the event settings.`
+        : `Este evento tiene una dependencia activa: "${depLine}"\n\nMoverlo manualmente pausará la dependencia. Podés reanudarla cuando quieras desde la configuración del evento.`,
+      confirmLabel: props.lang === 'en' ? 'Move anyway'          : 'Mover de todas formas',
+      cancelLabel:  props.lang === 'en' ? 'Cancel'               : 'Cancelar',
+    })
+    if (!ok) return
     body.dep = { ...ev.dep, active: false }
   }
   projectsStore.updateEvent(projId, evId, body)
   projectsStore.recalcAndSave(projId)
 }
 
-function deleteEvModal() {
-  if (confirm(props.lang === 'en' ? 'Delete this event?' : '¿Eliminar este evento?')) {
-    projectsStore.deleteEvent(evModalProjId.value || props.project.id, evModalId.value)
-    evModalOpen.value = false
-  }
+async function onHolidayClick({ date, name }) {
+  if (props.readOnly) return
+  const ok = await useDialog().confirm({
+    title:        props.lang === 'en' ? 'Disable holiday?' : '¿Desactivar feriado?',
+    body:         props.lang === 'en'
+      ? `Do you want to hide "${name}" from this calendar?`
+      : `¿Querés ocultar "${name}" de este calendario?`,
+    confirmLabel: props.lang === 'en' ? 'Disable' : 'Desactivar',
+    cancelLabel:  props.lang === 'en' ? 'Cancel'  : 'Cancelar',
+  })
+  if (!ok) return
+  const current = [...(props.project.disabledHolidays || [])]
+  if (!current.includes(date)) current.push(date)
+  projectsStore.updateDisabledHolidays(props.project.id, current)
+}
+
+async function deleteEvModal() {
+  const ok = await useDialog().confirm({
+    title:        props.lang === 'en' ? 'Delete event?'  : '¿Eliminar evento?',
+    body:         props.lang === 'en'
+      ? 'This action cannot be undone.'
+      : 'Esta acción no se puede deshacer.',
+    confirmLabel: props.lang === 'en' ? 'Delete'         : 'Eliminar',
+    cancelLabel:  props.lang === 'en' ? 'Cancel'         : 'Cancelar',
+  })
+  if (!ok) return
+  projectsStore.deleteEvent(evModalProjId.value || props.project.id, evModalId.value)
+  evModalOpen.value = false
 }
 
 // Pause / resume the event's dependency from the edit card.
@@ -674,13 +742,18 @@ function toggleEvModalDep() {
 
 // Remove the dependency entirely (reset to default empty config).
 // The event keeps its current date and becomes fully manual.
-function removeEvModalDep() {
+async function removeEvModalDep() {
   const ev = evModalEvent.value
   if (!ev?.dep?.eventId) return
-  const msg = props.lang === 'en'
-    ? 'Remove this dependency? The event will keep its current date but will no longer recalculate automatically.'
-    : '¿Eliminar esta dependencia? El evento conserva su fecha actual pero no se recalculará automáticamente.'
-  if (!confirm(msg)) return
+  const ok = await useDialog().confirm({
+    title:        props.lang === 'en' ? 'Remove dependency?'   : '¿Eliminar dependencia?',
+    body:         props.lang === 'en'
+      ? 'The event will keep its current date but will no longer recalculate automatically.'
+      : 'El evento conserva su fecha actual pero no se recalculará automáticamente.',
+    confirmLabel: props.lang === 'en' ? 'Remove'               : 'Eliminar',
+    cancelLabel:  props.lang === 'en' ? 'Cancel'               : 'Cancelar',
+  })
+  if (!ok) return
   const projId = evModalProjId.value || props.project.id
   projectsStore.updateEvent(projId, ev.id, {
     dep: { active: false, eventId: '', relation: 'after', days: 1, dayType: 'calendar', broken: false },
@@ -723,7 +796,7 @@ onUnmounted(() => {
 
 .cal-nav {
   display: flex; align-items: center; gap: 8px; padding: 8px 16px;
-  background: #fff; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  background: var(--header-bg); border-bottom: 1px solid rgba(255,255,255,.06); flex-shrink: 0;
   position: relative;
 }
 .cal-nav-btn {
@@ -732,7 +805,7 @@ onUnmounted(() => {
 }
 .cal-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
 .cal-month-title {
-  font-family: 'Syne', sans-serif; font-size: .92rem; font-weight: 700; color: var(--navy);
+  font-family: 'Nunito', sans-serif; font-size: .92rem; font-weight: 700; color: var(--text);
 }
 
 .hdr-icon-btn {
@@ -747,9 +820,21 @@ onUnmounted(() => {
 }
 .cal-month-col { display: flex; flex-direction: column; gap: 10px; }
 .cal-month-label {
-  font-family: 'Syne', sans-serif; font-size: 1.1rem; font-weight: 800;
-  color: var(--navy); padding: 0 2px; letter-spacing: -.2px;
+  font-family: 'Nunito', sans-serif; font-size: 1.1rem; font-weight: 800;
+  color: var(--text); padding: 0 2px; letter-spacing: -.2px;
 }
+
+.add-month-wrap {
+  display: flex; justify-content: center; padding: 20px 0 8px;
+}
+.add-month-btn {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 1.5px solid var(--border); background: none;
+  color: var(--muted); font-size: 1.25rem; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: border-color .15s, color .15s;
+}
+.add-month-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 
 /* Event modal */
@@ -782,7 +867,7 @@ onUnmounted(() => {
   font-size: .66rem; font-weight: 600; cursor: pointer; color: var(--muted);
   font-family: inherit; white-space: nowrap; transition: all .12s;
 }
-.qa-daytype-toggle button.active { background: var(--navy); color: #fff; }
+.qa-daytype-toggle button.active { background: var(--accent); color: #fff; }
 
 .key-date-star {
   background: none; border: 1.5px solid var(--border); border-radius: 6px;
@@ -796,8 +881,8 @@ onUnmounted(() => {
   width: 30px; height: 30px; cursor: pointer; color: var(--muted);
   display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0;
 }
-.modal-internal-btn:hover { border-color: var(--navy); color: var(--navy); }
-.modal-internal-btn.active { background: rgba(30,41,59,.08); border-color: var(--navy); color: var(--navy); }
+.modal-internal-btn:hover { border-color: var(--text); color: var(--text); }
+.modal-internal-btn.active { background: rgba(30,41,59,.08); border-color: var(--text); color: var(--text); }
 
 .modal-completed-btn {
   background: none; border: 1.5px solid var(--border); border-radius: 6px;
@@ -805,7 +890,7 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0;
 }
 .modal-completed-btn:hover { border-color: var(--accent); color: var(--accent); }
-.modal-completed-btn.active { background: rgba(6,204,180,.12); border-color: var(--accent); color: var(--accent); }
+.modal-completed-btn.active { background: rgba(32,167,137,.12); border-color: var(--accent); color: var(--accent); }
 
 /* ── Event edit card: status & dependency panel ─────────────────────────────── */
 .ev-dep-panel {
@@ -826,11 +911,11 @@ onUnmounted(() => {
   display: inline-flex; align-items: center; gap: 4px;
   font-size: .66rem; font-weight: 600;
   padding: 3px 8px; border-radius: 12px;
-  border: 1px solid var(--border); background: #fff; color: var(--text);
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
 }
-.ev-chip-active   { border-color: rgba(6,204,180,.35); background: rgba(6,204,180,.08); color: #057a6b; }
+.ev-chip-active   { border-color: rgba(32,167,137,.35); background: rgba(32,167,137,.08); color: #057a6b; }
 .ev-chip-paused   { border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.08); color: #a05a04; }
-.ev-chip-dep-on   { border-color: rgba(6,204,180,.35); background: rgba(6,204,180,.08); color: #057a6b; }
+.ev-chip-dep-on   { border-color: rgba(32,167,137,.35); background: rgba(32,167,137,.08); color: #057a6b; }
 .ev-chip-dep-off  { border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.08); color: #a05a04; }
 .ev-chip-none     { color: var(--muted); }
 

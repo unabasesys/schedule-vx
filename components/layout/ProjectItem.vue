@@ -3,10 +3,11 @@
     class="proj-item"
     :class="{ selected }"
     @click="$emit('select')"
+    @dblclick.stop="$emit('edit')"
   >
     <div
       class="proj-dot"
-      :style="{ background: project.color || '#06CCB4' }"
+      :style="{ background: project.color || '#20a789' }"
     ></div>
 
     <div class="proj-info">
@@ -48,6 +49,7 @@
       <!-- Toggle visible -->
       <button
         class="proj-act-btn"
+        :class="{ 'proj-act-btn--eye-shown': !project.hidden }"
         :title="project.hidden ? (lang === 'en' ? 'Show' : 'Mostrar') : (lang === 'en' ? 'Hide' : 'Ocultar')"
         @click.stop="$emit('toggle-visible')"
       >
@@ -140,7 +142,7 @@ const hasConflicts = computed(() =>
 }
 .proj-item:hover { background: rgba(255,255,255,.07); }
 .proj-item.selected {
-  background: rgba(6,204,180,.12);
+  background: rgba(32,167,137,.12);
   border-left: 2px solid var(--accent);
   padding-left: 6px;
 }
@@ -191,15 +193,17 @@ const hasConflicts = computed(() =>
 .proj-conflict svg { width: 12px; height: 12px; }
 
 .proj-actions {
-  display: flex; flex-direction: column; gap: 1px; opacity: 0;
-  transition: opacity .12s; flex-shrink: 0; align-items: center;
+  display: flex; flex-direction: column; gap: 1px;
+  flex-shrink: 0; align-items: center;
 }
-.proj-item:hover .proj-actions { opacity: 1; }
 .proj-act-btn {
   background: none; border: none; cursor: pointer; padding: 3px;
   border-radius: 4px; color: rgba(255,255,255,.4);
   display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity .12s;
 }
+.proj-item:hover .proj-act-btn { opacity: 1; }
+.proj-act-btn--eye-shown { opacity: 1; }
 .proj-act-btn svg { width: 13px; height: 13px; }
 .proj-act-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
 .proj-act-btn--danger { color: rgba(239,68,68,.6); }

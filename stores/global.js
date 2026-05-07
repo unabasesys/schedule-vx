@@ -95,7 +95,10 @@ export const useGlobalStore = defineStore('global', {
       this.copyModalOpen = false
       this.copySourceId = null
     },
-    toggleSidebar() { this.sidebarCollapsed = !this.sidebarCollapsed },
+    toggleSidebar() {
+      this.sidebarCollapsed = !this.sidebarCollapsed
+      try { localStorage.setItem('ub_sidebar_collapsed', this.sidebarCollapsed ? '1' : '0') } catch {}
+    },
 
     openSettings() { this.settingsOpen = true },
     closeSettings() { this.settingsOpen = false },

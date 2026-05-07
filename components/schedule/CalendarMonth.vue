@@ -28,7 +28,7 @@
           @drop="onDayCellDrop($event, cell)"
         >
           <div class="cal-day-num" :class="{ today: cell.isToday }">{{ cell.day }}</div>
-          <span v-if="cell.isHoliday" class="cal-holiday-dot" :title="cell.holidayName"></span>
+
         </div>
       </div>
 
@@ -62,7 +62,7 @@
           }"
           :title="bar.isHoliday ? bar.name : barTooltip(bar)"
           :draggable="!readOnly && !bar.isHoliday && !bar.outOfMonth"
-          @click.stop="!readOnly && !bar.isHoliday && !bar.outOfMonth && emit('event-click', bar.event)"
+          @click.stop="onBarClick(bar)"
           @dragstart="onBarDragStart($event, bar)"
           @dragover="onBarDragOver($event, bar)"
           @dragleave="onBarDragLeave(bar)"
@@ -91,9 +91,51 @@
           <span class="bar-label">{{ bar.name }}</span>
           <span v-if="bar.continuesRight" class="bar-arrow bar-arrow-right">→</span>
         </div>
+
+        <!-- +more badges — one per day column that exceeds MAX_LANES -->
+        <div
+          v-for="ov in week.overflows"
+          :key="'more-' + ov.col"
+          class="cal-more-badge"
+          :style="{
+            left:  `calc(${ov.col * COL_W}% + 3px)`,
+            width: `calc(${COL_W}% - 6px)`,
+            top:   (BASE_TOP + MAX_LANES * LANE_H) + 'px',
+          }"
+          @click.stop="openOverflow(week.cells[ov.col], ov)"
+        >+{{ ov.count }} {{ lang === 'en' ? 'more' : 'más' }}</div>
       </div>
     </div>
   </div>
+
+  <!-- Day overflow modal -->
+  <Teleport to="body">
+    <div v-if="overflowModal.open" class="cal-overflow-backdrop" @click.self="closeOverflow">
+      <div class="cal-overflow-modal">
+        <div class="cal-overflow-header">
+          <span class="cal-overflow-title">{{ formatOverflowDate(overflowModal.dateStr) }}</span>
+          <button class="cal-overflow-close" @click="closeOverflow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="cal-overflow-list">
+          <div
+            v-for="bar in overflowModal.bars"
+            :key="bar.evId"
+            class="cal-overflow-item"
+            :class="{ 'cal-overflow-done': bar.event?.completed }"
+            :style="{ borderLeftColor: bar.isKey ? '#111' : bar.color }"
+            @click="!readOnly && onOverflowEventClick(bar.event)"
+          >
+            <span v-if="bar.isKey" class="cal-overflow-key">★</span>
+            {{ bar.name }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -109,19 +151,34 @@ const props = defineProps({
   holidays:  { type: Array,  default: () => [] },
 })
 
-const emit = defineEmits(['day-click', 'day-select', 'event-click', 'reorder-events', 'reschedule-event'])
+const emit = defineEmits(['day-click', 'day-select', 'event-click', 'holiday-click', 'reorder-events', 'reschedule-event'])
+
+function onBarClick(bar) {
+  if (props.readOnly) return
+  if (bar.isHoliday) {
+    emit('holiday-click', { date: bar.evStart, name: bar.name })
+  } else if (!bar.outOfMonth) {
+    emit('event-click', bar.event)
+  }
+}
+
+// Shared drag state injected from CalendarView — enables cross-month drag
+const activeDrag = inject('calDrag', null)
 
 // ── Drag-and-drop: reorder within same day OR reschedule to a different day ────
-const dragEvId     = ref(null)  // id of the event bar being dragged
-const dragEvDate   = ref(null)  // start date of the event being dragged
+const dragEvId     = ref(null)  // id of the event bar being dragged (local month only)
+const dragEvDate   = ref(null)  // start date of the event being dragged (local month only)
 const dragoverEvId = ref(null)  // id of the bar under the cursor (same-day highlight)
 const dragoverDate = ref(null)  // date string of the day cell under the cursor (cross-day highlight)
 
 // Is the event currently being dragged a Business Days event?
 const isDragBusinessDay = computed(() => {
-  if (!dragEvId.value) return false
-  const ev = props.events.find(e => e.id === dragEvId.value)
-  return ev?.durDayType === 'business'
+  if (dragEvId.value) {
+    const ev = props.events.find(e => e.id === dragEvId.value)
+    return ev?.durDayType === 'business'
+  }
+  if (activeDrag?.evId) return activeDrag.isBusiness
+  return false
 })
 
 // Is the current hover target an invalid drop zone for the dragged event?
@@ -140,6 +197,11 @@ function clearDrag() {
   dragEvDate.value   = null
   dragoverEvId.value = null
   dragoverDate.value = null
+  if (activeDrag) {
+    activeDrag.evId       = null
+    activeDrag.evStart    = null
+    activeDrag.isBusiness = false
+  }
 }
 
 function onBarDragStart(e, bar) {
@@ -147,13 +209,28 @@ function onBarDragStart(e, bar) {
   dragEvId.value   = bar.evId
   dragEvDate.value = bar.evStart
   e.dataTransfer.effectAllowed = 'move'
+  if (activeDrag) {
+    const ev = props.events.find(ev => ev.id === bar.evId)
+    activeDrag.evId       = bar.evId
+    activeDrag.evStart    = bar.evStart
+    activeDrag.isBusiness = ev?.durDayType === 'business'
+  }
+}
+
+// When a drag that started in another month ends, clear local hover state
+if (activeDrag) {
+  watch(() => activeDrag.evId, (newId) => {
+    if (!newId) { dragoverEvId.value = null; dragoverDate.value = null }
+  })
 }
 
 function onBarDragOver(e, bar) {
-  if (props.readOnly || bar.evId === dragEvId.value) return
+  const sourceEvId    = dragEvId.value    || activeDrag?.evId
+  const sourceEvStart = dragEvDate.value  || activeDrag?.evStart
+  if (props.readOnly || !sourceEvId || bar.evId === sourceEvId) return
   e.preventDefault()
   e.dataTransfer.dropEffect = 'move'
-  if (bar.evStart === dragEvDate.value) {
+  if (bar.evStart === sourceEvStart) {
     // Same day → show bar-level highlight for reorder
     dragoverEvId.value = bar.evId
     dragoverDate.value = null
@@ -171,13 +248,13 @@ function onBarDragLeave(bar) {
 
 function onBarDrop(e, bar) {
   e.preventDefault()
-  if (!dragEvId.value || bar.evId === dragEvId.value) { clearDrag(); return }
-  if (bar.evStart === dragEvDate.value) {
-    // Same day: swap order (reorder lanes)
-    emit('reorder-events', { evId1: dragEvId.value, evId2: bar.evId })
+  const evId    = dragEvId.value   || activeDrag?.evId
+  const evStart = dragEvDate.value || activeDrag?.evStart
+  if (!evId || bar.evId === evId) { clearDrag(); return }
+  if (bar.evStart === evStart) {
+    emit('reorder-events', { evId1: evId, evId2: bar.evId })
   } else {
-    // Different day: reschedule event to the bar's start date
-    emit('reschedule-event', { evId: dragEvId.value, newDate: bar.evStart })
+    emit('reschedule-event', { evId, newDate: bar.evStart })
   }
   clearDrag()
 }
@@ -186,7 +263,8 @@ function onBarDragEnd() { clearDrag() }
 
 // ── Day cell drop target (empty area between/below bars) ──────────────────────
 function onDayCellDragOver(e, cell) {
-  if (!dragEvId.value || props.readOnly) return
+  if (props.readOnly) return
+  if (!dragEvId.value && !activeDrag?.evId) return
   e.preventDefault()
   e.dataTransfer.dropEffect = 'move'
   dragoverEvId.value = null
@@ -199,9 +277,9 @@ function onDayCellDragLeave(cell) {
 
 function onDayCellDrop(e, cell) {
   e.preventDefault()
-  if (!dragEvId.value) { clearDrag(); return }
-  // Emit also when same day — CalendarView will reorder to lane 0
-  emit('reschedule-event', { evId: dragEvId.value, newDate: cell.dateStr })
+  const evId = dragEvId.value || activeDrag?.evId
+  if (!evId) { clearDrag(); return }
+  emit('reschedule-event', { evId, newDate: cell.dateStr })
   clearDrag()
 }
 
@@ -213,7 +291,8 @@ function getBarsLayerDate(e, week) {
 }
 
 function onBarsLayerDragOver(e, week) {
-  if (!dragEvId.value || props.readOnly) return
+  if (props.readOnly) return
+  if (!dragEvId.value && !activeDrag?.evId) return
   const dateStr = getBarsLayerDate(e, week)
   if (!dateStr) return
   e.preventDefault()
@@ -223,19 +302,22 @@ function onBarsLayerDragOver(e, week) {
 }
 
 function onBarsLayerDrop(e, week) {
-  if (!dragEvId.value) { clearDrag(); return }
+  const evId = dragEvId.value || activeDrag?.evId
+  if (!evId) { clearDrag(); return }
   const dateStr = getBarsLayerDate(e, week)
   if (dateStr) {
     e.preventDefault()
-    emit('reschedule-event', { evId: dragEvId.value, newDate: dateStr })
+    emit('reschedule-event', { evId, newDate: dateStr })
   }
   clearDrag()
 }
 
-const BASE_TOP = 6   // px from top of events layer to first lane
-const LANE_H   = 23  // px per lane
-const COL_W    = 100 / 7  // % width per day column
-const MIN_H    = 110 // min height of events layer when no bars
+const BASE_TOP  = 6          // px from top of events layer to first lane
+const LANE_H    = 23         // px per lane
+const COL_W     = 100 / 7   // % width per day column
+const MIN_H     = 110        // min height of events layer when no bars
+const MAX_LANES = 6          // visible lanes before +more overflow
+const MORE_ROW  = 20         // height reserved for the +more badge row
 
 const DAYS_ES = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb']
 const DAYS_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
@@ -259,7 +341,8 @@ function addDays(dateStr, n) {
 }
 
 function weekEventsHeight(week) {
-  const rawHeight = BASE_TOP + week.laneCount * LANE_H + 8
+  const extra    = week.hasOverflow ? MORE_ROW : 0
+  const rawHeight = BASE_TOP + week.laneCount * LANE_H + extra + 8
   return Math.max(rawHeight, MIN_H)
 }
 
@@ -309,7 +392,6 @@ const weeks = computed(() => {
       d = dayOffset + 1; m = month; y = year
     }
     const dateStr = ds(y, m, d)
-    const dow     = (startDow + i) % 7  // 0 = first day of week
     const realDow = new Date(y, m, d).getDay()
     const holiday = props.holidays.find(h => h.date === dateStr)
     allCells.push({
@@ -345,7 +427,7 @@ const weeks = computed(() => {
       if (evEnd < weekStart || evStart > weekEnd) continue
 
       const name  = props.lang === 'en' ? (ev.nameEN || ev.name) : ev.name
-      const color = ev._projColor || '#06CCB4'
+      const color = ev._projColor || '#20a789'
 
       if (isBusinessEv) {
         // Business-day events: render only on actual business days,
@@ -436,8 +518,27 @@ const weeks = computed(() => {
       for (const bar of ev.bars) bar.lane = assignedLane
     }
 
-    const laneCount = bars.length > 0 ? Math.max(...bars.map(b => b.lane)) + 1 : 0
-    result.push({ cells, bars, laneCount })
+    // ── Overflow: cap visible bars at MAX_LANES, collect per-column +more data ──
+    const overflows = []
+    for (let ci = 0; ci < 7; ci++) {
+      if (!cells[ci].inMonth) continue
+      const hiddenSet = new Set(), allSet = new Set()
+      const hiddenBars = [], allBarsForDay = []
+      for (const b of bars) {
+        if (b.isHoliday) continue
+        if (b.col > ci || b.col + b.span - 1 < ci) continue
+        if (!allSet.has(b.evId)) { allSet.add(b.evId); allBarsForDay.push(b) }
+        if (b.lane >= MAX_LANES && !hiddenSet.has(b.evId)) { hiddenSet.add(b.evId); hiddenBars.push(b) }
+      }
+      if (hiddenBars.length > 0) {
+        overflows.push({ col: ci, count: hiddenBars.length, allBars: allBarsForDay })
+      }
+    }
+
+    const visibleBars = bars.filter(b => b.isHoliday || b.lane < MAX_LANES)
+    const laneCount   = visibleBars.length > 0 ? Math.max(...visibleBars.map(b => b.lane)) + 1 : 0
+    const hasOverflow = overflows.length > 0
+    result.push({ cells, bars: visibleBars, laneCount, overflows, hasOverflow })
   }
 
   return result
@@ -450,6 +551,36 @@ function barTooltip(bar) {
   if (!dep?.eventId) return describeDependency(ev, null, props.lang)
   const refEvent = props.events.find(e => e.id === dep.eventId)
   return describeDependency(ev, refEvent || null, props.lang)
+}
+
+// ── Day overflow modal ────────────────────────────────────────────────────────
+const overflowModal = reactive({ open: false, dateStr: '', bars: [] })
+
+function openOverflow(cell, ov) {
+  overflowModal.dateStr = cell.dateStr
+  overflowModal.bars    = ov.allBars
+  overflowModal.open    = true
+}
+
+function closeOverflow() { overflowModal.open = false }
+
+function onOverflowEventClick(ev) {
+  closeOverflow()
+  if (ev) emit('event-click', ev)
+}
+
+const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre']
+const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December']
+const DOW_ES    = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
+const DOW_EN    = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+
+function formatOverflowDate(dateStr) {
+  if (!dateStr) return ''
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dow = new Date(y, m - 1, d).getDay()
+  return props.lang === 'en'
+    ? `${DOW_EN[dow]}, ${MONTHS_EN[m - 1]} ${d}`
+    : `${DOW_ES[dow]} ${d} de ${MONTHS_ES[m - 1]}`
 }
 </script>
 
@@ -473,13 +604,13 @@ function barTooltip(bar) {
 .cal-week-row {
   display: flex; flex-direction: column;
   border-bottom: 1px solid var(--border);
-  background: #fff;
+  background: var(--surface);
 }
 .cal-week-row:last-child { border-bottom: none; }
 
 .cal-week-days {
   display: grid; grid-template-columns: repeat(7, 1fr);
-  border-bottom: 1px solid rgba(0,0,0,.05);
+  border-bottom: 1px solid rgba(255,255,255,.04);
 }
 
 .cal-day {
@@ -490,10 +621,10 @@ function barTooltip(bar) {
   min-height: 32px;
 }
 .cal-day:last-child { border-right: none; }
-.cal-day:hover:not(.cal-day-other) { background: rgba(6,204,180,.05); }
+.cal-day:hover:not(.cal-day-other) { background: rgba(32,167,137,.05); }
 .cal-day-other { opacity: .3; cursor: default; }
-.cal-day-today { background: rgba(6,204,180,.07) !important; }
-.cal-day-weekend { background: rgba(0,0,0,.015); }
+.cal-day-today { background: rgba(32,167,137,.07) !important; }
+.cal-day-weekend { background: rgba(0,0,0,.08); }
 .cal-day-holiday { background: rgba(245,158,11,.04); }
 
 .cal-day-num {
@@ -502,7 +633,7 @@ function barTooltip(bar) {
   width: 20px; height: 20px;
 }
 .cal-day-num.today {
-  background: var(--accent); color: var(--navy); border-radius: 50%;
+  background: var(--accent); color: #fff; border-radius: 50%;
   font-weight: 800;
 }
 
@@ -518,9 +649,9 @@ function barTooltip(bar) {
 
 .cal-ev-bar {
   position: absolute;
-  min-height: 20px; height: auto; border-radius: 4px;
+  min-height: 20px; border-radius: 4px;
   display: flex; align-items: flex-start; padding: 3px 7px;
-  cursor: pointer;
+  cursor: pointer; overflow: hidden;
   transition: opacity .12s; box-sizing: border-box;
 }
 .cal-ev-bar:hover { opacity: .8; }
@@ -535,13 +666,15 @@ function barTooltip(bar) {
 .bar-arrow-right { margin-left: auto; }
 .cal-ev-bar.bar-dragging  { opacity: .4; cursor: grabbing; }
 .cal-ev-bar.bar-dragover  { outline: 2px solid rgba(0,0,0,.5); outline-offset: -1px; filter: brightness(1.15); }
-.cal-day.cal-day-droptarget         { background: rgba(6,204,180,.13)  !important; outline: 2px solid var(--accent); outline-offset: -2px; }
+.cal-day.cal-day-droptarget         { background: rgba(32,167,137,.13)  !important; outline: 2px solid var(--accent); outline-offset: -2px; }
 .cal-day.cal-day-droptarget-invalid { background: rgba(239,68,68,.08)   !important; outline: 2px solid #ef4444;      outline-offset: -2px; }
 
 .bar-label {
   font-size: .62rem; font-weight: 700; color: inherit;
-  white-space: normal; word-break: break-word; line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.3;
   pointer-events: none;
+  flex: 1; min-width: 0;
 }
 .bar-internal-icon {
   display: inline-flex; align-items: center; flex-shrink: 0;
@@ -574,12 +707,78 @@ function barTooltip(bar) {
 }
 
 .cal-ev-bar.bar-holiday {
-  cursor: default;
+  cursor: pointer;
   border-left: 2px solid #bbb;
 }
 .cal-ev-bar.bar-holiday .bar-label {
   font-style: italic;
-  color: #999;
+  color: #555;
   font-weight: 500;
 }
+
+/* ── +more overflow badge ── */
+.cal-more-badge {
+  position: absolute;
+  font-size: .58rem; font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--surface-2, rgba(255,255,255,.06));
+  border: 1px solid var(--border);
+  line-height: 1.4; white-space: nowrap;
+  box-sizing: border-box;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.cal-more-badge:hover {
+  color: var(--text);
+  background: rgba(32,167,137,.12);
+  border-color: var(--accent);
+}
+
+/* ── Day overflow modal ── */
+.cal-overflow-backdrop {
+  position: fixed; inset: 0; z-index: 400;
+  background: rgba(0,0,0,.28);
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-overflow-modal {
+  background: var(--surface); border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.22);
+  width: 320px; max-width: 92vw;
+  max-height: 70vh; display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.cal-overflow-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.cal-overflow-title {
+  font-size: .84rem; font-weight: 700; color: var(--text);
+}
+.cal-overflow-close {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border: none;
+  background: transparent; color: var(--muted);
+  cursor: pointer; border-radius: 6px;
+  transition: background .12s, color .12s;
+}
+.cal-overflow-close:hover { background: rgba(255,255,255,.08); color: var(--text); }
+.cal-overflow-list {
+  overflow-y: auto; padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.cal-overflow-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px; border-radius: 6px;
+  border-left: 3px solid transparent;
+  font-size: .76rem; font-weight: 600; color: var(--text);
+  cursor: pointer; background: var(--surface-2, rgba(255,255,255,.04));
+  transition: background .1s;
+}
+.cal-overflow-item:hover { background: rgba(32,167,137,.1); }
+.cal-overflow-done { opacity: .55; text-decoration: line-through; }
+.cal-overflow-key  { font-size: .52rem; flex-shrink: 0; }
 </style>

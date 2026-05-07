@@ -139,7 +139,7 @@ onMounted(async () => {
 
 const calEvents = computed(() => {
   if (!project.value) return []
-  const color = project.value.color || '#06CCB4'
+  const color = project.value.color || '#20a789'
   return (project.value.events || [])
     .filter(e => e.active && e.date && !e.internal)
     .map(e => ({ ...e, _projColor: color }))
@@ -252,7 +252,7 @@ function svCalNext() {
   pointer-events: none; padding: 0 260px;
 }
 .share-view-name {
-  font-size: 1rem; font-weight: 800; color: #fff; font-family: 'Syne', sans-serif;
+  font-size: 1rem; font-weight: 800; color: #fff; font-family: 'Nunito', sans-serif;
   letter-spacing: -.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .sv-meta-line { font-size: .66rem; color: rgba(255,255,255,.45); margin-top: 3px; white-space: nowrap; }
@@ -285,7 +285,7 @@ function svCalNext() {
 }
 .sv-month-col { display: flex; flex-direction: column; gap: 8px; }
 .sv-month-label {
-  font-family: 'Syne', sans-serif; font-size: .82rem; font-weight: 700;
+  font-family: 'Nunito', sans-serif; font-size: .82rem; font-weight: 700;
   color: var(--navy); padding: 0 2px;
 }
 
@@ -298,7 +298,7 @@ function svCalNext() {
   padding: 4px 10px; font-size: 1rem; cursor: pointer; color: var(--muted); line-height: 1;
 }
 .cal-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
-.cal-month-title { font-family: 'Syne', sans-serif; font-size: .95rem; font-weight: 700; color: var(--navy); }
+.cal-month-title { font-family: 'Nunito', sans-serif; font-size: .95rem; font-weight: 700; color: var(--navy); }
 
 /* Loading / Error */
 .sv-loading, .sv-error {

@@ -39,7 +39,10 @@ async function migrate() {
     await projectsStore.importLocalTemplates()
     show.value = false
   } catch (e) {
-    alert(props.lang === 'en' ? 'Sync failed. Please try again.' : 'Error al sincronizar. Intentá de nuevo.')
+    useDialog().alert({
+      title: props.lang === 'en' ? 'Sync failed'       : 'Error al sincronizar',
+      body:  props.lang === 'en' ? 'Please try again.' : 'Intentá de nuevo.',
+    })
   } finally {
     loading.value = false
   }
@@ -65,7 +68,7 @@ async function migrate() {
 .migration-icon { font-size: 18px; }
 .migration-text { flex: 1; font-size: 13px; }
 .migration-btn {
-  background: #06CCB4;
+  background: #20a789;
   color: #111;
   border: none;
   border-radius: 6px;

@@ -67,7 +67,7 @@ const handleSubmit = async () => {
   align-items: center;
   justify-content: center;
   background: var(--bg);
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Nunito', sans-serif;
   padding: 24px;
 }
 .auth-card {
@@ -79,9 +79,9 @@ const handleSubmit = async () => {
   box-shadow: 0 4px 32px rgba(0,44,62,.10);
 }
 .auth-brand { display: flex; align-items: baseline; gap: 8px; margin-bottom: 32px; }
-.brand-name { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; color: var(--navy); }
+.brand-name { font-family: 'Nunito', sans-serif; font-size: 22px; font-weight: 700; color: var(--navy); }
 .brand-by { font-size: 13px; color: var(--muted); }
-.auth-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; color: var(--navy); margin: 0 0 8px; }
+.auth-title { font-family: 'Nunito', sans-serif; font-size: 20px; font-weight: 700; color: var(--navy); margin: 0 0 8px; }
 .auth-subtitle { font-size: 14px; color: var(--muted); margin: 0 0 24px; line-height: 1.5; }
 .auth-form { display: flex; flex-direction: column; gap: 16px; }
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -94,7 +94,7 @@ const handleSubmit = async () => {
   color: var(--navy);
   outline: none;
   transition: border-color .15s;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Nunito', sans-serif;
 }
 .field input:focus { border-color: var(--accent); }
 .auth-error {
@@ -125,7 +125,7 @@ const handleSubmit = async () => {
   font-weight: 600;
   cursor: pointer;
   transition: background .15s;
-  font-family: 'Montserrat', sans-serif;
+  font-family: 'Nunito', sans-serif;
 }
 .btn-primary:hover:not(:disabled) { background: var(--accent); color: var(--navy); }
 .btn-primary:disabled { opacity: .6; cursor: not-allowed; }

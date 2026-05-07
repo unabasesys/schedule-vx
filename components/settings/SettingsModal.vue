@@ -363,7 +363,7 @@ function hideHolidaySuggestions() {
 
 function statusLabel(s) {
   const map = {
-    invited:     { es: 'Invitado',    en: 'Invited' },
+    pending:     { es: 'Pendiente',   en: 'Pending' },
     active:      { es: 'Activo',      en: 'Active' },
     deactivated: { es: 'Desactivado', en: 'Deactivated' },
   }
@@ -375,9 +375,10 @@ function handleLogoUpload(event) {
   if (!file) return
   const MAX_SIZE = 512 * 1024 // 512 KB
   if (file.size > MAX_SIZE) {
-    alert(lang.value === 'en'
-      ? 'Image is too large. Please use an image under 512 KB.'
-      : 'La imagen es demasiado grande. Por favor usá una imagen menor a 512 KB.')
+    useDialog().alert({
+      title: lang.value === 'en' ? 'Image too large'                              : 'Imagen demasiado grande',
+      body:  lang.value === 'en' ? 'Please use an image under 512 KB.'           : 'Por favor usá una imagen menor a 512 KB.',
+    })
     event.target.value = ''
     return
   }
@@ -402,8 +403,10 @@ async function inviteUser() {
 
 async function removeUser(id) {
   const user = settingsStore.users.find(u => u.id === id)
-  if (authStore.isLoggedIn && user?._userId) {
-    await settingsStore.removeUserFromApi(user._userId)
+  if (authStore.isLoggedIn) {
+    // Active users have _userId (MongoDB ObjectId); pending users only have email
+    const target = user?._userId || user?.email
+    if (target) await settingsStore.removeUserFromApi(target)
   }
   settingsStore.removeUser(id)
 }
@@ -479,7 +482,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   font-size: .62rem; font-weight: 700; text-transform: uppercase;
   letter-spacing: .4px; padding: 2px 7px; border-radius: 3px;
 }
-.user-status.invited     { background: rgba(245,158,11,.12); color: var(--warning); }
+.user-status.pending     { background: rgba(245,158,11,.12); color: var(--warning); }
 .user-status.active      { background: rgba(34,197,94,.12);  color: var(--success); }
 .user-status.deactivated { background: rgba(107,143,160,.1); color: var(--muted); }
 
@@ -523,7 +526,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   transition: all .12s;
 }
 .date-fmt-toggle button + button { border-left: 1.5px solid var(--border); }
-.date-fmt-toggle button.active { background: var(--navy); color: #fff; }
+.date-fmt-toggle button.active { background: var(--accent); color: #fff; }
 
 /* Operating cities */
 .org-cities-chips {
@@ -531,7 +534,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 .org-city-chip {
   display: inline-flex; align-items: center; gap: 5px;
-  background: rgba(6,204,180,.12); border: 1px solid rgba(6,204,180,.35);
+  background: rgba(32,167,137,.12); border: 1px solid rgba(32,167,137,.35);
   border-radius: 20px; padding: 3px 8px 3px 10px;
   font-size: .7rem; font-weight: 600; color: var(--accent);
 }
@@ -549,7 +552,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .org-city-input:focus { border-color: var(--accent); }
 .org-city-dropdown {
   position: absolute; left: 0; right: 0; top: 100%; z-index: 300;
-  background: #fff; border: 1.5px solid var(--accent); border-radius: 7px;
+  background: var(--surface); border: 1.5px solid var(--accent); border-radius: 7px;
   box-shadow: 0 4px 18px rgba(0,0,0,.12); overflow: hidden; margin-top: 3px;
 }
 .org-city-option {
@@ -559,6 +562,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 .org-city-option:last-child { border-bottom: none; }
 .org-city-option:hover { background: #f0faf8; }
-.org-city-option strong { color: var(--navy); font-weight: 700; }
+.org-city-option strong { color: var(--text); font-weight: 700; }
 .org-city-option span { color: var(--muted); font-size: .66rem; }
 </style>

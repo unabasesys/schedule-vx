@@ -216,13 +216,17 @@ function archiveProject(id) {
   }
 }
 
-function deleteProject(id) {
-  const msg = globalStore.lang === 'en'
-    ? 'Are you sure you want to delete this calendar? Once deleted, it cannot be recovered.'
-    : '¿Estás seguro de que quieres eliminar este calendario? Una vez eliminado, no podrás recuperarlo.'
-  if (confirm(msg)) {
-    projectsStore.deleteProject(id)
-  }
+async function deleteProject(id) {
+  const lang = globalStore.lang
+  const ok = await useDialog().confirm({
+    title:        lang === 'en' ? 'Delete calendar?'    : '¿Eliminar calendario?',
+    body:         lang === 'en'
+      ? 'Are you sure you want to delete this calendar? Once deleted, it cannot be recovered.'
+      : '¿Estás seguro de que quieres eliminar este calendario? Una vez eliminado, no podrás recuperarlo.',
+    confirmLabel: lang === 'en' ? 'Delete'  : 'Eliminar',
+    cancelLabel:  lang === 'en' ? 'Cancel'  : 'Cancelar',
+  })
+  if (ok) projectsStore.deleteProject(id)
 }
 
 function toggleVisible(id) {
@@ -236,7 +240,7 @@ function cycleStatus(id) {
 
 <style scoped>
 .sidebar {
-  background: var(--sb-bg, #002C3E);
+  background: var(--sb-bg, #1e272e);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -270,7 +274,7 @@ function cycleStatus(id) {
 }
 .sb-user-avatar {
   width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
-  overflow: hidden; background: rgba(6,204,180,.25);
+  overflow: hidden; background: rgba(32,167,137,.25);
   display: flex; align-items: center; justify-content: center;
 }
 .sb-user-avatar img { width: 100%; height: 100%; object-fit: cover; }
@@ -355,12 +359,12 @@ function cycleStatus(id) {
 }
 
 .sb-new-btn {
-  margin: 8px 12px 4px; padding: 8px; background: rgba(6,204,180,.15);
-  border: 1.5px dashed rgba(6,204,180,.35); border-radius: 8px; color: var(--accent);
+  margin: 8px 12px 4px; padding: 8px; background: rgba(32,167,137,.15);
+  border: 1.5px dashed rgba(32,167,137,.35); border-radius: 8px; color: var(--accent);
   font-size: .74rem; font-weight: 700; text-align: center; cursor: pointer;
   transition: all .15s; flex-shrink: 0;
 }
-.sb-new-btn:hover { background: rgba(6,204,180,.25); border-color: var(--accent); }
+.sb-new-btn:hover { background: rgba(32,167,137,.25); border-color: var(--accent); }
 
 .sb-tmpl-btn {
   margin: 0 12px 12px; padding: 7px 8px; background: transparent;
@@ -370,9 +374,9 @@ function cycleStatus(id) {
 }
 .sb-tmpl-btn:hover { background: rgba(255,255,255,.06); color: #fff; }
 .sb-tmpl-btn-active {
-  background: rgba(6,204,180,.12) !important;
+  background: rgba(32,167,137,.12) !important;
   color: var(--accent) !important;
-  border-color: rgba(6,204,180,.5) !important;
+  border-color: rgba(32,167,137,.5) !important;
 }
 
 .sb-logout-btn {

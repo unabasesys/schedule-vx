@@ -1,5 +1,6 @@
 <template>
   <div class="preview-shell">
+    <DialogModal />
 
     <!-- ── Screen-only top bar ──────────────────────────────────── -->
     <div class="preview-top">
@@ -729,7 +730,10 @@ async function downloadPdf() {
     pdf.save(filename)
   } catch (err) {
     console.error('PDF download failed:', err)
-    alert(isEN.value ? 'PDF generation failed. Please try again.' : 'Error al generar el PDF. Intentá de nuevo.')
+    useDialog().alert({
+      title: isEN.value ? 'PDF generation failed' : 'Error al generar el PDF',
+      body:  isEN.value ? 'Please try again.'      : 'Intentá de nuevo.',
+    })
   } finally {
     downloading.value = false
   }

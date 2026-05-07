@@ -68,9 +68,15 @@ export function migrateProjects(projects, templates, lang = 'es') {
     if (!proj.shareToken)         proj.shareToken  = null
     if (proj.shareActive == null) proj.shareActive = false
     if (proj.shareViews == null)  proj.shareViews  = 0
+    if (proj.hidden == null)      proj.hidden      = false
     if (!proj.lang)               proj.lang        = lang
     if (proj.photographer == null) proj.photographer = ''
-    if (!proj.updatedAt)          proj.updatedAt   = proj.createdAt || new Date().toISOString().split('T')[0]
+    if (!proj.updatedAt) {
+      const base = proj.createdAt || ''
+      proj.updatedAt = base ? (base.includes('T') ? base : base + 'T00:00:00.000Z') : new Date().toISOString()
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(proj.updatedAt)) {
+      proj.updatedAt = proj.updatedAt + 'T00:00:00.000Z'
+    }
     ;(proj.events || []).forEach(e => fixEvent(e, maps))
   })
   ;(templates || []).forEach(tmpl => {
@@ -166,9 +172,9 @@ export const useProjectsStore = defineStore('projects', {
         )
       }
       list.sort((a, b) => {
-        const ta = a.updatedAt || a.createdAt || ''
-        const tb = b.updatedAt || b.createdAt || ''
-        return tb > ta ? 1 : tb < ta ? -1 : 0
+        const ta = Date.parse(a.updatedAt || a.createdAt || '') || 0
+        const tb = Date.parse(b.updatedAt || b.createdAt || '') || 0
+        return tb - ta
       })
       return list
     },
@@ -201,10 +207,11 @@ export const useProjectsStore = defineStore('projects', {
       const globalStore   = useGlobalStore()
       const settingsStore = useSettingsStore()
 
-      globalStore.lang       = data.lang
-      globalStore.weekStart  = data.weekStart
-      globalStore.tempUnit   = data.tempUnit
-      globalStore.dateFormat = data.dateFormat || 'DD/MM/AA'
+      globalStore.lang             = data.lang
+      globalStore.weekStart        = data.weekStart
+      globalStore.tempUnit         = data.tempUnit
+      globalStore.dateFormat       = data.dateFormat || 'DD/MM/AA'
+      globalStore.sidebarCollapsed = data.sidebarCollapsed ?? false
       settingsStore.studioName    = data.studioName
       settingsStore.company       = data.company
       settingsStore.users         = data.users
@@ -245,15 +252,35 @@ export const useProjectsStore = defineStore('projects', {
           api.get('/schedule-templates'),
         ])
 
+        // Snapshot SHOW/HIDE state before replacing — backend may not store this field
+        const localHidden = new Map()
+        this.projects.forEach(p => {
+          if (p.hidden != null) {
+            localHidden.set(p.id, p.hidden)
+            if (p.uid) localHidden.set(p.uid, p.hidden)
+          }
+        })
+
         const normProjects  = apiProjects.map(normalizeDoc)
         const normTemplates = apiTemplates.map(normalizeDoc)
         const globalStore   = useGlobalStore()
+
+        // hidden is a local-only UI preference — always win over whatever the API returns
+        normProjects.forEach(p => {
+          const localHid = localHidden.get(p.id) ?? localHidden.get(p.uid)
+          if (localHid !== undefined) p.hidden = localHid
+        })
+
         migrateProjects(normProjects, normTemplates, globalStore.lang)
 
         // Preserve local-only projects not yet in the API
-        const apiUids = new Set(normProjects.map(p => p.uid).filter(Boolean))
+        const apiUids  = new Set(normProjects.map(p => p.uid).filter(Boolean))
+        const normIds  = new Set(normProjects.map(p => p.id))
         const localOnly = this.projects.filter(p =>
-          !isMongoId(p.id) && !apiUids.has(p.id) && !apiUids.has(p.uid)
+          // Local UUID not yet posted
+          (!isMongoId(p.id) && !apiUids.has(p.id) && !apiUids.has(p.uid)) ||
+          // Just posted (has MongoDB ID) but not yet in this GET snapshot (race condition)
+          (isMongoId(p.id) && !normIds.has(p.id) && !apiUids.has(p.uid))
         )
 
         this.projects  = [...normProjects, ...localOnly]
@@ -278,7 +305,8 @@ export const useProjectsStore = defineStore('projects', {
         }
         if (this.selectedId && !this.projects.find(p => p.id === this.selectedId)) {
           const first = this.projects.find(p => p.status !== 'archived' && p.isActive !== false)
-          this.selectedId = first?.id || null
+          if (first) this.selectedId = first.id
+          // Don't reset to null — keeps the view stable if no match found yet
         }
 
         this.migrationPending = localOnly.length > 0
@@ -314,10 +342,11 @@ export const useProjectsStore = defineStore('projects', {
         projects:   this.projects,
         templates:  this.templates,
         selectedId: this.selectedId,
-        lang:       globalStore.lang,
-        weekStart:  globalStore.weekStart,
-        tempUnit:   globalStore.tempUnit,
-        dateFormat: globalStore.dateFormat,
+        lang:             globalStore.lang,
+        weekStart:        globalStore.weekStart,
+        tempUnit:         globalStore.tempUnit,
+        dateFormat:       globalStore.dateFormat,
+        sidebarCollapsed: globalStore.sidebarCollapsed,
         studioName:          settingsStore.studioName,
         company:             settingsStore.company,
         users:               settingsStore.users,
@@ -451,8 +480,7 @@ export const useProjectsStore = defineStore('projects', {
         isActive: true,
       }
       this.projects.unshift(proj)
-      this.selectedId = proj.id
-      globalStore.currentView = 'list'
+      this.selectProject(proj.id)
       this.save()
 
       // Sync to API in background
@@ -468,9 +496,15 @@ export const useProjectsStore = defineStore('projects', {
         const created = normalizeDoc(await useApi().post('/projects', proj))
         const idx = this.projects.findIndex(p => p.id === proj.id)
         if (idx !== -1) {
+          const localUpdatedAt = this.projects[idx].updatedAt
           Object.assign(this.projects[idx], created, { id: created.id })
+          if (localUpdatedAt > (this.projects[idx].updatedAt || '')) {
+            this.projects[idx].updatedAt = localUpdatedAt
+          }
         }
-        if (this.selectedId === proj.id) this.selectedId = created.id
+        // Select the first project (newly created, unshifted to front)
+        const first = this.projects[0]
+        if (first) this.selectProject(first.id)
         this._saveToLocalStorage()
       } catch (e) {
         console.warn('Failed to create project on API:', e.message)

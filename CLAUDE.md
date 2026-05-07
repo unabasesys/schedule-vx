@@ -327,7 +327,69 @@ Por eso:
 
 ---
 
-## 17. Puntos de Atención
+## 17. Entorno Local de Desarrollo
+
+Ambos proyectos están en el escritorio del Mac:
+
+| Proyecto | Carpeta | Puerto | Comando |
+|----------|---------|--------|---------|
+| Front (Nuxt 3) | `/Users/jorge/Desktop/schedule-vx` | 3000 | `npm run dev` |
+| Back (Node/Express) | `/Users/jorge/Desktop/scheduleBack` | 4000 | `npm run dev` |
+
+---
+
+### Cómo funciona el back (`scheduleBack`)
+
+**Stack:** Node.js · Express · MongoDB Atlas (Mongoose) · JWT · AWS S3/SES
+
+**Estructura de archivos:**
+```
+scheduleBack/
+├── app.js                        # Express: cors, bodyParser, morgan, /health, /api router
+├── bin/
+│   ├── server.js                 # Entrada producción
+│   └── dev_server.js             # Entrada desarrollo (con nodemon)
+├── routes/index.js               # Auto-descubre y monta todas las carpetas de apiServices/
+├── apiServices/
+│   ├── auth/                     # register, login, googleLogin, renew, forgot/reset-password
+│   ├── users/                    # CRUD de usuarios, preferencias (schedulePrefs)
+│   ├── organizations/            # CRUD de organización, scheduleSettings (cities, holidays)
+│   ├── projects/                 # CRUD de proyectos/calendarios (modelo espeja el del front)
+│   └── scheduleTemplates/        # Templates reutilizables de estructura de eventos
+├── middleware/
+│   ├── auth.js                   # isAuth — valida JWT y adjunta req.user
+│   └── errorHandler.js           # Manejo centralizado de errores
+├── helpers/
+│   └── upload.js                 # Multer + AWS S3 para subida de imágenes
+└── config/
+    ├── default.js                # Conexión MongoDB según DB_USE (dev/prod)
+    └── logger.js                 # Winston logger global
+```
+
+**Flujo general:**
+1. El cliente (front) envía JWT en el header `Authorization: Bearer <token>`
+2. `middleware/auth.js` valida el token y adjunta el usuario a `req.user`
+3. El header `Organization` identifica la organización activa
+4. Cada servicio en `apiServices/` sigue el patrón: `routes → controller → dao → model`
+5. Los proyectos en MongoDB tienen exactamente la misma estructura de datos que usan los stores del front
+
+**Modelos principales:**
+- `User` — usuario con `schedulePrefs` (lang, weekStart, tempUnit, dateFormat)
+- `Organization` — productora/estudio con `scheduleSettings` (cities, defaultHolidays) y lista de `users` con roles
+- `ScheduleProject` — calendario completo: events, stages, groups, cities, holidays, share config
+- `ScheduleTemplate` — template de eventos reutilizable
+
+**Variables de entorno requeridas (`.env`):**
+- `DB_USE` — `dev` o `prod` (selecciona DB_DEV o DB_PROD)
+- `DB_USER`, `DB_PASS`, `DB_DEV`, `DB_PROD` — MongoDB Atlas
+- `SECRET` — firma de JWT (debe coincidir con `newBack`)
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `REGION`, `BUCKET_NAME_FILES` — S3 para imágenes
+- `SES_EMAIL_AUTH` — email remitente AWS SES
+- `URL_FRONT` — origin permitido en links de email
+
+---
+
+## 18. Puntos de Atención
 
 - El motor de dependencias (`useDependencyEngine.js`) hace un sort topológico; cualquier cambio en lógica de fechas debe respetar el orden de resolución.
 - `stores/projects.js` es el archivo más crítico (~480 líneas). Cambios deben ser quirúrgicos.

@@ -71,12 +71,12 @@ defineEmits(['close'])
 }
 .about-modal-hdr::after {
   content: ''; position: absolute; right: -30px; top: -30px; width: 160px; height: 160px;
-  border-radius: 50%; background: radial-gradient(circle,rgba(6,204,180,.18) 0%,transparent 70%);
+  border-radius: 50%; background: radial-gradient(circle,rgba(32,167,137,.18) 0%,transparent 70%);
   pointer-events: none;
 }
 .about-modal-badge {
   display: inline-flex; align-items: center; gap: 5px;
-  background: rgba(6,204,180,.15); border: 1px solid rgba(6,204,180,.3);
+  background: rgba(32,167,137,.15); border: 1px solid rgba(32,167,137,.3);
   border-radius: 12px; padding: 3px 10px; margin-bottom: 12px;
 }
 .about-modal-badge-dot {
@@ -84,11 +84,11 @@ defineEmits(['close'])
   animation: pulso 2.2s ease-in-out infinite;
 }
 .about-modal-badge-txt {
-  font-family: 'Syne', sans-serif; font-size: .58rem; font-weight: 800;
+  font-family: 'Nunito', sans-serif; font-size: .58rem; font-weight: 800;
   letter-spacing: .8px; color: var(--accent); text-transform: uppercase;
 }
 .about-modal-title {
-  font-family: 'Syne', sans-serif; font-size: 1.4rem; font-weight: 800;
+  font-family: 'Nunito', sans-serif; font-size: 1.4rem; font-weight: 800;
   color: #fff; line-height: 1.2; margin-bottom: 6px;
 }
 .about-modal-title span { color: var(--accent); }
@@ -97,13 +97,13 @@ defineEmits(['close'])
 .about-modal-body { font-size: .82rem; line-height: 1.75; color: var(--text); }
 .about-modal-body p { margin-bottom: 14px; }
 .about-modal-body p:last-child { margin-bottom: 0; }
-.about-modal-body .highlight { font-weight: 700; color: var(--navy); }
+.about-modal-body .highlight { font-weight: 700; color: var(--text); }
 
 .about-modal-email {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 9px 14px; background: rgba(6,204,180,.07); border: 1.5px solid rgba(6,204,180,.2);
-  border-radius: 8px; font-size: .77rem; font-weight: 700; color: var(--navy);
+  padding: 9px 14px; background: rgba(32,167,137,.07); border: 1.5px solid rgba(32,167,137,.2);
+  border-radius: 8px; font-size: .77rem; font-weight: 700; color: var(--text);
   text-decoration: none; transition: all .18s;
 }
-.about-modal-email:hover { background: rgba(6,204,180,.14); border-color: var(--accent); }
+.about-modal-email:hover { background: rgba(32,167,137,.14); border-color: var(--accent); }
 </style>

@@ -159,22 +159,22 @@ function onOutsideClick(e) {
 .hdr-share-btn {
   display: flex; align-items: center; gap: 5px;
   padding: 5px 12px; border: 1.5px solid var(--border); border-radius: 7px;
-  font-size: .72rem; font-weight: 600; cursor: pointer; background: #fff;
+  font-size: .72rem; font-weight: 600; cursor: pointer; background: var(--surface);
   color: var(--muted); font-family: inherit; transition: all .15s;
 }
 .hdr-share-btn:hover, .hdr-share-btn.active {
-  border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.06);
+  border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06);
 }
 .hdr-share-btn:disabled {
   opacity: .4; cursor: not-allowed; pointer-events: auto;
 }
 .hdr-share-btn:disabled:hover {
-  border-color: var(--border); color: var(--muted); background: #fff;
+  border-color: var(--border); color: var(--muted); background: var(--surface);
 }
 
 .share-panel {
   position: absolute; right: 0; top: calc(100% + 6px); z-index: 200;
-  background: #fff; border: 1.5px solid var(--border); border-radius: 10px;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px;
   box-shadow: 0 8px 30px rgba(0,30,45,.12); padding: 6px 0; width: 300px;
 }
 
@@ -198,11 +198,11 @@ function onOutsideClick(e) {
   display: flex; flex-direction: column; gap: 3px;
 }
 .share-action-btn:last-child { margin-bottom: 0; }
-.share-action-btn:hover:not(:disabled) { border-color: var(--accent); background: rgba(6,204,180,.04); }
+.share-action-btn:hover:not(:disabled) { border-color: var(--accent); background: rgba(32,167,137,.04); }
 .share-action-btn:disabled { opacity: .55; cursor: default; }
 
 .share-action-btn--version {
-  border-color: rgba(6,204,180,.35);
+  border-color: rgba(32,167,137,.35);
 }
 .share-action-btn--version:hover:not(:disabled) {
   border-color: var(--accent);
@@ -212,11 +212,11 @@ function onOutsideClick(e) {
   display: flex; align-items: center; gap: 6px;
 }
 .share-action-label {
-  font-size: .78rem; font-weight: 700; color: var(--navy);
+  font-size: .78rem; font-weight: 700; color: var(--text);
 }
 .share-action-badge {
   font-size: .62rem; font-weight: 700; padding: 1px 5px; border-radius: 4px;
-  background: rgba(6,204,180,.15); color: var(--accent);
+  background: rgba(32,167,137,.15); color: var(--accent);
 }
 .share-action-badge--draft {
   background: rgba(107,107,107,.1); color: var(--muted);
@@ -239,10 +239,10 @@ function onOutsideClick(e) {
 .share-link-wrap { display: flex; gap: 6px; }
 .share-link-input {
   flex: 1; padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 7px;
-  font-size: .72rem; font-family: inherit; color: var(--text); background: #f8fbfc; outline: none;
+  font-size: .72rem; font-family: inherit; color: var(--text); background: var(--surface-2); outline: none;
 }
 .share-copy-btn {
-  padding: 7px 12px; background: var(--accent); color: var(--navy); border: none;
+  padding: 7px 12px; background: var(--accent); color: var(--text); border: none;
   border-radius: 7px; font-size: .72rem; font-weight: 700; cursor: pointer;
   font-family: inherit; white-space: nowrap; transition: background .15s, opacity .15s;
 }

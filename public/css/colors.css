@@ -1,24 +1,46 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Montserrat:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
 
 :root {
   --sidebar-w: 270px;
-  --accent: #06CCB4;
-  --accent-dark: #05a893;
-  --navy: #002C3E;
-  --text: #002C3E;
-  --muted: #6b8fa0;
-  --border: #dde6ea;
-  --bg: #f0f5f7;
-  --sb-bg: #002C3E;
+
+  /* Brand */
+  --accent: #20a789;
+  --accent-dark: #19856d;
+
+  /* Dark theme backgrounds */
+  --navy: #1e272e;
+  --bg: #323d47;
+  --surface: #384752;
+  --surface-2: #404e5c;
+  --header-bg: #1e272e;
+
+  /* Text */
+  --text: #f3f4f6;
+  --text-title: #ffffff;
+  --muted: #adb5c2;
+
+  /* Borders */
+  --border: #545f72;
+
+  /* Sidebar */
+  --sb-bg: #1e272e;
   --sb-border: rgba(255,255,255,.08);
+
   --white: #fff;
-  --danger: #ef4444;
-  --warning: #f59e0b;
-  --success: #22c55e;
+  --danger: #ea4e49;
+  --warning: #ffa120;
+  --success: #4ec275;
+
+  /* Stage colors */
   --stage-bid: #7CAEFF;
-  --stage-pre: #06CCB4;
+  --stage-pre: #20a789;
   --stage-sht: #f97316;
   --stage-pst: #a855f7;
   --stage-vpst: #a855f7;
   --stage-spst: #ec4899;
+
+  /* Shadows */
+  --shadow-xs: 0px 2px 4px 0px rgba(0,0,0,.24), 0px 1px 2px 0px rgba(0,0,0,.12);
+  --shadow-s: 0px 8px 16px -4px rgba(0,0,0,.24), 0px 2px 4px 0px rgba(0,0,0,.12);
+  --shadow-m: 0px 20px 40px -8px rgba(0,0,0,.32), 0px 2px 4px 0px rgba(0,0,0,.16);
 }

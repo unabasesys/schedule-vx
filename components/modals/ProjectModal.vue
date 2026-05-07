@@ -1,12 +1,12 @@
 <template>
   <div class="modal-backdrop" @click.self="$emit('close')">
     <div class="modal">
-      <h2>{{ isEdit ? (lang === 'en' ? 'Edit project' : 'Editar proyecto') : (lang === 'en' ? 'New calendar' : 'Nuevo Calendario') }}</h2>
+      <h2>{{ isEdit ? (lang === 'en' ? 'Edit calendar' : 'Editar calendario') : (lang === 'en' ? 'New calendar' : 'Nuevo calendario') }}</h2>
 
       <div class="modal-grid">
         <div class="field">
           <label>{{ lang === 'en' ? 'Client' : 'Cliente' }}</label>
-          <input type="text" v-model="form.client" placeholder="Coca-Cola" />
+          <input ref="clientInputRef" type="text" v-model="form.client" placeholder="Coca-Cola" />
         </div>
         <div class="field">
           <label>{{ lang === 'en' ? 'Agency' : 'Agencia' }}</label>
@@ -127,7 +127,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, nextTick } from 'vue'
 import { PALETTE } from '~/utils/constants'
 
 const projectsStore = useProjectsStore()
@@ -159,6 +159,8 @@ const form = reactive({
   color:        editingProject.value?.color        || PALETTE[0],
   templateId:   '',
 })
+
+const clientInputRef = ref(null)
 
 const citySearch    = ref('')
 const citySuggestions = ref([])
@@ -203,9 +205,12 @@ function hideSuggestions() {
   setTimeout(() => { citySuggestions.value = [] }, 180)
 }
 
-function save() {
+async function save() {
   if (!form.name && !form.client) {
-    alert(lang.value === 'en' ? 'Enter at least a name or client' : 'Ingresa al menos un nombre o cliente')
+    await useDialog().alert({
+      title: lang.value === 'en' ? 'Missing required field'              : 'Falta información',
+      body:  lang.value === 'en' ? 'Enter at least a name or client.' : 'Ingresa al menos un nombre o cliente.',
+    })
     return
   }
   if (isEdit.value) {
@@ -214,13 +219,11 @@ function save() {
       director: form.director, photographer: form.photographer, ep: form.ep,
       status: form.status, color: form.color,
     })
-    $toast?.(lang.value === 'en' ? '✓ Project updated' : '✓ Proyecto actualizado', { type: 'success' })
   } else {
     projectsStore.createProject({
       ...form,
       city: selectedCity.value,
     })
-    $toast?.(lang.value === 'en' ? '✓ Calendar created' : '✓ Calendario creado', { type: 'success' })
   }
   emit('saved')
 }
@@ -232,7 +235,12 @@ function onKeydown(e) {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  if (!isEdit.value) {
+    nextTick(() => clientInputRef.value?.focus())
+  }
+})
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
@@ -240,7 +248,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .pm-loc-selected {
   display: flex; align-items: center; gap: 7px; padding: 5px 10px;
   background: #f0faf8; border: 1.5px solid var(--accent); border-radius: 7px;
-  font-size: .76rem; font-weight: 600; color: var(--navy);
+  font-size: .76rem; font-weight: 600; color: var(--text);
 }
 .pm-loc-clear {
   background: none; border: none; cursor: pointer; color: var(--muted);
@@ -250,7 +258,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 .pm-loc-suggestions {
   position: absolute; left: 0; right: 0; top: 100%; z-index: 200;
-  background: #fff; border: 1.5px solid var(--accent); border-radius: 7px;
+  background: var(--surface); border: 1.5px solid var(--accent); border-radius: 7px;
   box-shadow: 0 4px 18px rgba(0,0,0,.12); overflow: hidden; margin-top: 2px;
 }
 .pm-loc-item {
@@ -259,7 +267,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 .pm-loc-item:last-child { border-bottom: none; }
 .pm-loc-item:hover { background: #f0faf8; }
-.pm-loc-item strong { color: var(--navy); font-weight: 700; }
+.pm-loc-item strong { color: var(--text); font-weight: 700; }
 .pm-loc-item span { color: var(--muted); font-size: .66rem; }
 
 .status-btn-row {

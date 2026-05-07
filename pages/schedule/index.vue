@@ -242,7 +242,7 @@
       v-if="globalStore.projectModalOpen"
       :editing-id="globalStore.editingProjectId"
       @close="globalStore.closeProjectModal()"
-      @saved="globalStore.closeProjectModal()"
+      @saved="onProjectSaved"
     />
     <CopyModal
       v-if="globalStore.copyModalOpen"
@@ -270,8 +270,8 @@ const { currentProject } = storeToRefs(projectsStore)
 
 const isArchived = computed(() => currentProject.value?.status === 'archived')
 
-// All non-hidden, non-archived active projects — drives the combined Calendar View.
-// Includes the selected project even if it happens to be hidden (it should always show).
+// Non-hidden, non-archived active projects — drives the combined Calendar View.
+// A selected calendar in HIDE mode intentionally does not appear in the view.
 const visibleProjects = computed(() =>
   projectsStore.projects.filter(p =>
     p.isActive !== false &&
@@ -295,12 +295,21 @@ function setLang(l) {
   }
 }
 
-function deleteTemplate(id) {
+function onProjectSaved() {
+  const isNew = !globalStore.editingProjectId
+  globalStore.closeProjectModal()
+  if (isNew) globalStore.setView('cal')
+}
+
+async function deleteTemplate(id) {
   const lang = globalStore.lang
-  const msg  = lang === 'en' ? 'Delete this template? This cannot be undone.' : '¿Eliminar esta plantilla? Esta acción no se puede deshacer.'
-  if (confirm(msg)) {
-    projectsStore.deleteTemplate(id)
-  }
+  const ok = await useDialog().confirm({
+    title:        lang === 'en' ? 'Delete template?'              : '¿Eliminar plantilla?',
+    body:         lang === 'en' ? 'This action cannot be undone.' : 'Esta acción no se puede deshacer.',
+    confirmLabel: lang === 'en' ? 'Delete'                        : 'Eliminar',
+    cancelLabel:  lang === 'en' ? 'Cancel'                        : 'Cancelar',
+  })
+  if (ok) projectsStore.deleteTemplate(id)
 }
 
 // ── Templates view ──────────────────────────────────────────────────
@@ -362,8 +371,8 @@ function createFromTemplate(tmplId) {
   align-items: center;
   gap: 12px;
   padding: 10px 20px;
-  background: #fff;
-  border-bottom: 1px solid var(--border);
+  background: var(--header-bg);
+  border-bottom: 1px solid rgba(255,255,255,.06);
   flex-shrink: 0;
   min-height: 54px;
   position: relative;
@@ -372,8 +381,8 @@ function createFromTemplate(tmplId) {
 .hdr-proj-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
 .hdr-proj-name {
   display: flex; align-items: center; gap: 6px;
-  font-family: 'Syne', sans-serif;
-  font-size: .95rem; font-weight: 700; color: var(--navy);
+  font-family: 'Nunito', sans-serif;
+  font-size: .95rem; font-weight: 700; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .hdr-proj-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
@@ -381,7 +390,7 @@ function createFromTemplate(tmplId) {
 .meta-sep { margin: 0 4px; }
 .hdr-archived-badge {
   font-size: .58rem; font-weight: 600; letter-spacing: .03em; text-transform: uppercase;
-  background: rgba(0,0,0,.07); color: var(--muted);
+  background: rgba(255,255,255,.1); color: var(--muted);
   padding: 2px 7px; border-radius: 20px; flex-shrink: 0;
 }
 
@@ -397,18 +406,18 @@ function createFromTemplate(tmplId) {
 .view-tabs { display: flex; gap: 4px; }
 .view-tab {
   padding: 5px 14px;
-  border: 1.5px solid var(--border);
+  border: 1.5px solid rgba(255,255,255,.12);
   border-radius: 7px;
   font-size: .72rem;
   font-weight: 600;
   cursor: pointer;
-  background: #fff;
+  background: rgba(255,255,255,.05);
   color: var(--muted);
   font-family: inherit;
   transition: all .15s;
 }
-.view-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.06); }
-.view-tab:hover:not(.active) { border-color: var(--muted); color: var(--text); }
+.view-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.15); }
+.view-tab:hover:not(.active) { border-color: rgba(255,255,255,.2); color: var(--text); }
 
 .hdr-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .hdr-icon-btn {
@@ -434,7 +443,7 @@ function createFromTemplate(tmplId) {
   transition: all .15s;
   letter-spacing: .5px;
 }
-.lang-toggle-btn.is-en { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.06); }
+.lang-toggle-btn.is-en { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
 .lang-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ── No project ── */
@@ -445,24 +454,24 @@ function createFromTemplate(tmplId) {
   max-width: 560px; display: flex; flex-direction: column; gap: 18px; text-align: center;
 }
 .no-proj-title {
-  font-family: 'Syne', sans-serif; font-size: 1.25rem; font-weight: 800;
-  color: var(--navy); line-height: 1.3;
+  font-family: 'Nunito', sans-serif; font-size: 1.25rem; font-weight: 800;
+  color: var(--text-title); line-height: 1.3;
 }
 .no-proj-body {
   font-size: .8rem; color: var(--muted); line-height: 1.75;
 }
 .no-proj-tagline {
-  font-size: .8rem; font-weight: 700; color: var(--navy); line-height: 1.6;
+  font-size: .8rem; font-weight: 700; color: var(--text); line-height: 1.6;
 }
 .no-proj-cta {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   align-self: center;
-  padding: 9px 20px; background: var(--navy); color: #fff;
+  padding: 9px 20px; background: var(--accent); color: #fff;
   border-radius: 20px; font-size: .75rem; font-weight: 700;
-  font-family: 'Syne', sans-serif; letter-spacing: .3px;
+  font-family: 'Nunito', sans-serif; letter-spacing: .3px;
   text-decoration: none; transition: all .2s; cursor: pointer;
 }
-.no-proj-cta:hover { background: var(--accent); color: var(--navy); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(6,204,180,.28); }
+.no-proj-cta:hover { background: var(--accent-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(32,167,137,.35); }
 .no-proj-cta-play {
   font-size: .65rem; opacity: .85;
 }
@@ -474,8 +483,8 @@ function createFromTemplate(tmplId) {
   background: transparent; color: var(--muted); font-size: .72rem; font-weight: 700;
   cursor: pointer; font-family: inherit; letter-spacing: .3px; transition: all .15s;
 }
-.no-proj-lang-opt:hover:not(.active) { border-color: var(--navy); color: var(--navy); }
-.no-proj-lang-opt.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+.no-proj-lang-opt:hover:not(.active) { border-color: var(--text); color: var(--text); }
+.no-proj-lang-opt.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* ── Templates ── */
 .tmpl-wrap { flex: 1; overflow-y: auto; padding: 20px 24px; }
@@ -484,7 +493,7 @@ function createFromTemplate(tmplId) {
   display: flex; align-items: center; gap: 14px; margin-bottom: 12px;
 }
 .tmpl-title {
-  font-family: 'Syne', sans-serif; font-size: 1rem; font-weight: 700; color: var(--navy);
+  font-family: 'Nunito', sans-serif; font-size: 1rem; font-weight: 700; color: var(--text);
 }
 .tmpl-filters { display: flex; gap: 4px; }
 .tmpl-filter-btn {
@@ -494,8 +503,8 @@ function createFromTemplate(tmplId) {
   cursor: pointer; background: transparent; color: var(--muted); font-family: inherit;
   transition: all .15s;
 }
-.tmpl-filter-btn:hover { border-color: var(--navy); color: var(--navy); }
-.tmpl-filter-btn.active { background: var(--accent); border-color: var(--accent); color: var(--navy); }
+.tmpl-filter-btn:hover { border-color: var(--text); color: var(--text); }
+.tmpl-filter-btn.active { background: var(--accent); border-color: var(--accent); color: var(--text); }
 .tmpl-filter-count {
   font-size: .6rem; font-weight: 700; background: rgba(0,0,0,.08);
   border-radius: 8px; padding: 0 5px; line-height: 1.6;
@@ -504,7 +513,7 @@ function createFromTemplate(tmplId) {
 
 .tmpl-helper {
   font-size: .74rem; color: var(--muted); line-height: 1.6;
-  padding: 10px 14px; background: var(--bg, #f8fbfc);
+  padding: 10px 14px; background: var(--surface-2);
   border: 1px solid var(--border); border-radius: 8px;
   margin-bottom: 16px;
 }
@@ -515,29 +524,29 @@ function createFromTemplate(tmplId) {
 
 .tmpl-item {
   padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 9px;
-  display: flex; align-items: center; gap: 12px; background: #fff;
+  display: flex; align-items: center; gap: 12px; background: var(--surface);
   transition: border-color .13s;
 }
 .tmpl-item:hover { border-color: rgba(0,44,62,.2); }
 
 .tmpl-use-btn {
   flex-shrink: 0;
-  padding: 5px 10px; background: rgba(6,204,180,.1);
-  border: 1.5px dashed rgba(6,204,180,.45); border-radius: 7px;
+  padding: 5px 10px; background: rgba(32,167,137,.1);
+  border: 1.5px dashed rgba(32,167,137,.45); border-radius: 7px;
   color: var(--accent); font-size: .7rem; font-weight: 700;
   cursor: pointer; font-family: inherit; white-space: nowrap;
   transition: all .15s;
 }
-.tmpl-use-btn:hover { background: rgba(6,204,180,.2); border-color: var(--accent); }
+.tmpl-use-btn:hover { background: rgba(32,167,137,.2); border-color: var(--accent); }
 
 .tmpl-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 
 .tmpl-item-name-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.tmpl-item-name { font-size: .84rem; font-weight: 700; color: var(--navy); }
+.tmpl-item-name { font-size: .84rem; font-weight: 700; color: var(--text); }
 .tmpl-item-uses { font-size: .75rem; color: var(--muted); font-weight: 500; }
 .tmpl-item-badge {
   font-size: .58rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
-  padding: 1px 6px; border-radius: 4px; background: rgba(6,204,180,.12); color: var(--accent);
+  padding: 1px 6px; border-radius: 4px; background: rgba(32,167,137,.12); color: var(--accent);
 }
 
 .tmpl-item-meta {
@@ -552,6 +561,6 @@ function createFromTemplate(tmplId) {
   font-size: .68rem; font-weight: 600; cursor: pointer; background: transparent;
   color: var(--muted); font-family: inherit; transition: all .15s; white-space: nowrap;
 }
-.tmpl-action-btn:hover { border-color: var(--navy); color: var(--navy); }
+.tmpl-action-btn:hover { border-color: var(--text); color: var(--text); }
 .tmpl-action-btn--danger:hover { border-color: var(--danger); color: var(--danger); }
 </style>

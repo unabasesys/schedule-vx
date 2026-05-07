@@ -199,7 +199,7 @@ function addCity(s) {
 
 <style scoped>
 .weather-strip {
-  flex-shrink: 0; border-bottom: 1px solid var(--border); background: #fafcfd;
+  flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,.06); background: var(--bg);
   padding: 8px 16px; display: flex; align-items: center; gap: 12px; overflow-x: auto; min-height: 52px;
 }
 .weather-strip::-webkit-scrollbar { height: 3px; }
@@ -207,17 +207,17 @@ function addCity(s) {
 
 .weather-city {
   display: flex; align-items: center; gap: 9px; padding: 6px 14px;
-  border: 1px solid var(--border); border-radius: 8px; background: #f8fbfc;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2);
   flex-shrink: 0; font-size: .76rem;
 }
-.weather-city-name { font-weight: 700; color: var(--navy); font-size: .74rem; }
+.weather-city-name { font-weight: 700; color: var(--text); font-size: .74rem; }
 .weather-icon { font-size: 1.3rem; }
 .weather-temp { color: var(--text); font-weight: 700; font-size: .8rem; }
 .weather-sun { font-size: .62rem; color: var(--muted); }
 .weather-loading { font-size: .7rem; color: var(--muted); }
 .weather-source {
   font-size: .58rem; font-weight: 600; letter-spacing: .02em; text-transform: uppercase;
-  padding: 1px 4px; border-radius: 3px; background: rgba(6,204,180,.12); color: var(--accent);
+  padding: 1px 4px; border-radius: 3px; background: rgba(32,167,137,.12); color: var(--accent);
 }
 .weather-source.stats {
   background: rgba(148,163,184,.12); color: var(--muted);
@@ -246,7 +246,7 @@ function addCity(s) {
 <!-- Portal styles — rendered at body level, must not be scoped -->
 <style>
 .weather-suggestions-portal {
-  background: #fff;
+  background: var(--surface);
   border: 1.5px solid var(--accent);
   border-radius: 7px;
   box-shadow: 0 6px 24px rgba(0,30,45,.13);
@@ -257,7 +257,7 @@ function addCity(s) {
   border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 1px;
 }
 .weather-suggestions-portal .weather-suggestion-item:last-child { border-bottom: none; }
-.weather-suggestions-portal .weather-suggestion-item:hover { background: #f0faf8; }
-.weather-suggestions-portal .weather-suggestion-item strong { color: var(--navy); font-weight: 700; }
+.weather-suggestions-portal .weather-suggestion-item:hover { background: var(--surface-2); }
+.weather-suggestions-portal .weather-suggestion-item strong { color: var(--text); font-weight: 700; }
 .weather-suggestions-portal .weather-suggestion-item span { color: var(--muted); font-size: .66rem; }
 </style>

@@ -14,6 +14,7 @@ const KEYS = {
   logo:       'ub_logo',
   orgCities:          'ub_org_cities',
   orgDefaultHolidays: 'ub_org_default_holidays',
+  sidebarCollapsed:   'ub_sidebar_collapsed',
 }
 
 export function usePersist() {
@@ -31,6 +32,7 @@ export function usePersist() {
     localStorage.setItem(KEYS.users,     JSON.stringify(state.users     || []))
     localStorage.setItem(KEYS.orgCities,          JSON.stringify(state.orgCities          || []))
     localStorage.setItem(KEYS.orgDefaultHolidays, JSON.stringify(state.orgDefaultHolidays || []))
+    localStorage.setItem(KEYS.sidebarCollapsed,   state.sidebarCollapsed ? '1' : '0')
   }
 
   function load() {
@@ -66,7 +68,8 @@ export function usePersist() {
       users:      rawU  ? JSON.parse(rawU)  : [],
       orgCities:          (() => { try { return JSON.parse(localStorage.getItem(KEYS.orgCities)          || '[]') } catch { return [] } })(),
       orgDefaultHolidays: (() => { try { return JSON.parse(localStorage.getItem(KEYS.orgDefaultHolidays) || '[]') } catch { return [] } })(),
-      logo:       localStorage.getItem(KEYS.logo)      || null,
+      logo:             localStorage.getItem(KEYS.logo)             || null,
+      sidebarCollapsed: localStorage.getItem(KEYS.sidebarCollapsed) === '1',
     }
   }
 

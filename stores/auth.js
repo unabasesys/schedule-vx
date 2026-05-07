@@ -145,6 +145,28 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
+    // ── Accept org invitation ──────────────────────────────────────────────
+    async acceptInvitation(inviteToken) {
+      this.loading = true
+      this.error   = null
+      try {
+        const res  = await fetch(`${API()}/auth/accept-invitation`, {
+          method: 'POST',
+          headers: this._headers(),
+          body: JSON.stringify({ token: inviteToken }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'Error al aceptar la invitación')
+        this._setSession(data)
+        return true
+      } catch (err) {
+        this.error = err.message
+        return false
+      } finally {
+        this.loading = false
+      }
+    },
+
     // ── Reset password ─────────────────────────────────────────────────────
     async resetPassword({ token, newPassword }) {
       this.loading = true
