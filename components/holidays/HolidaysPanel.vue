@@ -220,7 +220,8 @@ function formatDate(dateStr) {
 .holidays-search-wrap { padding: 12px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .holidays-search {
   width: 100%; padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 7px;
-  font-size: .78rem; font-family: inherit; outline: none; color: var(--text);
+  font-size: .78rem; font-family: inherit; outline: none;
+  color: var(--text); background: var(--surface-2);
 }
 .holidays-search:focus { border-color: var(--accent); }
 

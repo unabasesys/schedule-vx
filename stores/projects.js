@@ -32,8 +32,9 @@ function fixEvent(ev, maps) {
   if (!ev.whenToUseEN) ev.whenToUseEN = ''
   if (!ev.dateMode)   ev.dateMode   = 'manual'
   if (!ev.durDayType) ev.durDayType = 'calendar'
-  if (ev.keyDate  == null) ev.keyDate  = false
-  if (ev.internal == null) ev.internal = false
+  if (ev.keyDate       == null) ev.keyDate       = false
+  if (ev.internal      == null) ev.internal      = false
+  if (ev.nameCustomized == null) ev.nameCustomized = false
 
   const stageKey = (n) => n + '|' + (ev.stage || '')
   const entry = (ev.templateId && byId[ev.templateId])
@@ -44,8 +45,12 @@ function fixEvent(ev, maps) {
 
   if (entry) {
     if (!ev.templateId || !byId[ev.templateId]) ev.templateId = entry.id
-    if (ev.name === entry.nameEN || ev.name === ev.nameEN) ev.name = entry.name
-    ev.nameEN = entry.nameEN || entry.name
+    // Only normalize names from the template if the user hasn't manually edited them.
+    // Once nameCustomized is true the names are independent of the master template.
+    if (!ev.nameCustomized) {
+      if (ev.name === entry.nameEN || ev.name === ev.nameEN) ev.name = entry.name
+      ev.nameEN = entry.nameEN || entry.name
+    }
     if (!ev.whenToUse)   ev.whenToUse   = entry.whenToUse   || ''
     if (!ev.whenToUseEN) ev.whenToUseEN = entry.whenToUseEN || ''
   }
@@ -221,9 +226,9 @@ export const useProjectsStore = defineStore('projects', {
 
       const authStore = useAuthStore()
       if (authStore?.isLoggedIn) {
-        // Cloud-first: projects come from the API, not from localStorage
-        this.projects   = []
-        this.templates  = []
+        // Start with localStorage cache so projects survive a refresh before the API responds
+        this.projects   = data.projects
+        this.templates  = data.templates
         this.selectedId = data.selectedId  // hint to restore selection after load
         this.migrationPending = false
         try { this.seedInitialData() } catch(e) { console.warn('seedInitialData error', e) }
@@ -342,13 +347,6 @@ export const useProjectsStore = defineStore('projects', {
 
     _saveToLocalStorage() {
       const authStore = useAuthStore()
-      if (authStore?.isLoggedIn) {
-        // Cloud-first: only persist selectedId so the user returns to the same project on next load
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('ub_selected', this.selectedId || '')
-        }
-        return
-      }
       const { persist } = usePersist()
       const globalStore   = useGlobalStore()
       const settingsStore = useSettingsStore()

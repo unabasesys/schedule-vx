@@ -422,18 +422,16 @@ watchEffect(() => {
 })
 
 function holidaysForYear(year) {
-  // Merge active holidays from ALL visible projects, deduplicated by date
+  // Show holidays only for the currently selected project
   const seen     = new Set()
   const holidays = []
-  allProjects.value.forEach(proj => {
-    const disabled = new Set(proj.disabledHolidays || [])
-    ;(proj.holidays || []).forEach(({ countryCode }) => {
-      holidaysStore.getHolidaysForYear(countryCode, year).forEach(h => {
-        if (!disabled.has(h.date) && !seen.has(h.date)) {
-          seen.add(h.date)
-          holidays.push(h)
-        }
-      })
+  const disabled = new Set(props.project.disabledHolidays || [])
+  ;(props.project.holidays || []).forEach(({ countryCode }) => {
+    holidaysStore.getHolidaysForYear(countryCode, year).forEach(h => {
+      if (!disabled.has(h.date) && !seen.has(h.date)) {
+        seen.add(h.date)
+        holidays.push(h)
+      }
     })
   })
   return holidays

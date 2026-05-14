@@ -573,8 +573,8 @@ function toggleKeyDate()   { update({ keyDate:   !props.event.keyDate }) }
 function toggleInternal()  { update({ internal:  !props.event.internal }) }
 
 function updateName(val) {
-  if (props.lang === 'en') update({ nameEN: val })
-  else update({ name: val })
+  if (props.lang === 'en') update({ nameEN: val, nameCustomized: true })
+  else update({ name: val, nameCustomized: true })
 }
 
 function updateDate(val) {
