@@ -91,15 +91,22 @@ export const useSettingsStore = defineStore('settings', {
         this.orgDefaultHolidays = org.scheduleSettings.defaultHolidays
       }
       if (org.users?.length) {
-        this.users = org.users.map(u => ({
-          id:     u.user?._id || u.email,
-          email:  u.user?.email || u.email || '',
-          name:   u.user?.data?.name
-            ? `${u.user.data.name.first || ''} ${u.user.data.name.last || ''}`.trim()
-            : '',
-          status: u.status || 'active',
-          _userId: u.user?._id || null,
-        }))
+        const seen = new Set()
+        this.users = org.users
+          .map(u => ({
+            id:     u.user?._id || u.email,
+            email:  u.user?.email || u.email || '',
+            name:   u.user?.data?.name
+              ? `${u.user.data.name.first || ''} ${u.user.data.name.last || ''}`.trim()
+              : '',
+            status: u.status || 'active',
+            _userId: u.user?._id || null,
+          }))
+          .filter(u => {
+            if (!u.email || seen.has(u.email)) return false
+            seen.add(u.email)
+            return true
+          })
       }
     },
 
@@ -151,19 +158,22 @@ export const useSettingsStore = defineStore('settings', {
 
     async inviteUserToApi(email) {
       const authStore = useAuthStore()
-      if (!authStore.isLoggedIn || !authStore.organization?._id) return false
+      if (!authStore.isLoggedIn || !authStore.organization?._id) return { ok: false, error: null }
       try {
-        const res = await fetch(`${API()}/organizations/${authStore.organization._id}/users`, {
+        const res  = await fetch(`${API()}/organizations/${authStore.organization._id}/users`, {
           method:  'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization:  `Bearer ${authStore.token}`,
             Organization:   authStore.organization._id,
           },
-          body: JSON.stringify({ email, status: 'pending' }),
+          body: JSON.stringify({ email }),
         })
-        return res.ok
-      } catch { return false }
+        const data = await res.json()
+        if (!res.ok) return { ok: false, error: data.error || 'Error al invitar' }
+        this._applyOrgToStore(data)
+        return { ok: true }
+      } catch { return { ok: false, error: 'Error de conexión' } }
     },
 
     async removeUserFromApi(userId) {

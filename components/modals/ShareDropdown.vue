@@ -194,7 +194,7 @@ function onOutsideClick(e) {
 .share-action-btn {
   width: 100%; text-align: left; padding: 9px 11px; margin-bottom: 6px;
   border: 1.5px solid var(--border); border-radius: 8px; cursor: pointer;
-  background: #fafcfd; font-family: inherit; transition: border-color .13s, background .13s;
+  background: var(--surface); font-family: inherit; transition: border-color .13s, background .13s;
   display: flex; flex-direction: column; gap: 3px;
 }
 .share-action-btn:last-child { margin-bottom: 0; }

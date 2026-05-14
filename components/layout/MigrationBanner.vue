@@ -1,5 +1,5 @@
 <template>
-  <div v-if="show" class="migration-banner">
+  <div v-if="show && count > 0" class="migration-banner">
     <div class="migration-content">
       <span class="migration-icon">☁</span>
       <span class="migration-text">

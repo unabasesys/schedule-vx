@@ -45,6 +45,10 @@
           <label>{{ L.fEP }}</label>
           <input type="text" v-model="form.ep" />
         </div>
+        <div class="field">
+          <label>{{ L.fAgencyProducer }}</label>
+          <input type="text" v-model="form.agencyProducer" />
+        </div>
       </div>
 
       <div class="modal-actions">
@@ -78,8 +82,9 @@ const LABELS = {
     fProject:       'Proyecto',
     fDirector:      'Director/a',
     fPhotographer:  'Fotógrafo/a',
-    fEP:            'Productor/a Ejecutivo/a',
-    btnCancel:      'Cancelar',
+    fEP:             'Productor/a Ejecutivo/a',
+    fAgencyProducer: 'Productor/a de Agencia',
+    btnCancel:       'Cancelar',
     btnCopy:        'Crear copia',
     toastCopied:    '✓ Calendario copiado',
   },
@@ -94,8 +99,9 @@ const LABELS = {
     fProject:       'Project',
     fDirector:      'Director',
     fPhotographer:  'Photographer',
-    fEP:            'Executive Producer',
-    btnCancel:      'Cancel',
+    fEP:             'Executive Producer',
+    fAgencyProducer: 'Agency Producer',
+    btnCancel:       'Cancel',
     btnCopy:        'Create copy',
     toastCopied:    '✓ Calendar copied',
   },
@@ -114,7 +120,8 @@ const form = reactive({
   name:         (source.value?.name        || source.value?.client || '') + ' (copy)',
   director:     source.value?.director     || '',
   photographer: source.value?.photographer || '',
-  ep:           source.value?.ep           || '',
+  ep:             source.value?.ep             || '',
+  agencyProducer: source.value?.agencyProducer || '',
 })
 
 function doCopy() {

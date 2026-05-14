@@ -128,7 +128,7 @@
                       class="ev-stack"
                     >
                       <div
-                        v-for="ev in day.pointEvents.slice(0, 3)"
+                        v-for="ev in day.pointEvents"
                         :key="ev._id"
                         class="pill"
                         :style="pillStyle(ev.type, ev.keyDate)"
@@ -348,7 +348,8 @@ const infoFields = computed(() => {
     { k: isEN.value ? 'Agency'        : 'Agencia',         v: p.agency        || '' },
     { k: isEN.value ? 'Director'      : 'Director',        v: p.director      || '' },
     { k: isEN.value ? 'Photographer'  : 'Fotógrafo',       v: p.photographer  || '' },
-    { k: isEN.value ? 'Exec Producer' : 'Prod. Ejecutivo', v: p.ep            || '' },
+    { k: isEN.value ? 'Exec Producer'    : 'Prod. Ejecutivo',   v: p.ep             || '' },
+    { k: isEN.value ? 'Agency Producer' : 'Prod. de Agencia',  v: p.agencyProducer || '' },
   ].filter(f => f.v)
 })
 
@@ -463,7 +464,7 @@ const exportEvents = computed(() => {
       const end = calendarEnd(ev.date, dur)
       result.push({ kind: 'span', type, start: ev.date, end, label, _id: ev.id, keyDate: !!ev.keyDate })
     } else {
-      result.push({ kind: 'point', type, date: ev.date, label, _id: ev.id, keyDate: !!ev.keyDate })
+      result.push({ kind: 'point', type, date: ev.date, label, _id: ev.id, keyDate: !!ev.keyDate, order: ev.order ?? 0 })
     }
   }
 
@@ -506,6 +507,12 @@ const projectMonths = computed(() => {
   }
   return months
 })
+
+// Estimate how many lines a pill label will occupy (1–3)
+function estimatePillLines(label, keyDate = false) {
+  const charsPerLine = keyDate ? 20 : 23
+  return Math.min(3, Math.ceil((label || '').length / charsPerLine))
+}
 
 // ── Lane algorithm (verbatim from handoff render.js) ──────────────────────────
 function buildWeekData(weekDates, allEvents, currentMonth) {
@@ -557,11 +564,25 @@ function buildWeekData(weekDates, allEvents, currentMonth) {
   // Build day cell data
   const days = weekDates.map((date, d) => {
     const dateStr     = ymd(date)
-    const dayEvents   = allEvents.filter(ev => ev.kind === 'point' && ev.date === dateStr)
+    const dayEvents    = allEvents.filter(ev => ev.kind === 'point' && ev.date === dateStr)
     const isHolidayDay = dayEvents.some(e => e.type === 'holiday')
-    // Sort holidays last so project events appear first
+
+    const sorted = dayEvents
+      .filter(e => e.type !== 'holiday')
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
+    const MAX_LINES = 6
+    let usedLines = 0
+    const fittedEvents = []
+    for (const ev of sorted) {
+      const lines = estimatePillLines(ev.label, ev.keyDate)
+      if (usedLines + lines > MAX_LINES) break
+      fittedEvents.push(ev)
+      usedLines += lines
+    }
+
     const pointEvents = [
-      ...dayEvents.filter(e => e.type !== 'holiday'),
+      ...fittedEvents,
       ...dayEvents.filter(e => e.type === 'holiday'),
     ]
 

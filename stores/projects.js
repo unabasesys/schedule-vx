@@ -146,6 +146,7 @@ export const useProjectsStore = defineStore('projects', {
     selectedId: null,
     loadings: { create: false, copy: false },
     migrationPending: false,
+    cloudLoading: false,
   }),
 
   getters: {
@@ -200,13 +201,11 @@ export const useProjectsStore = defineStore('projects', {
     init() {
       const { load, loadLogo } = usePersist()
       const data = load()
-      this.projects   = data.projects
-      this.templates  = data.templates
-      this.selectedId = data.selectedId
 
       const globalStore   = useGlobalStore()
       const settingsStore = useSettingsStore()
 
+      // Always restore preferences from localStorage
       globalStore.lang             = data.lang
       globalStore.weekStart        = data.weekStart
       globalStore.tempUnit         = data.tempUnit
@@ -220,31 +219,37 @@ export const useProjectsStore = defineStore('projects', {
       const logo = loadLogo()
       if (logo) settingsStore.logo = logo
 
-      if (this.selectedId && !this.projects.find(p => p.id === this.selectedId)) {
-        this.selectedId = null
-      }
-
-      migrateProjects(this.projects, this.templates, globalStore.lang)
-
-      try { this.seedInitialData() } catch(e) { console.warn('seedInitialData error', e) }
-
-      if (!this.selectedId) {
-        const first = this.projects.find(p => p.status !== 'archived' && p.isActive !== false)
-        if (first) this.selectedId = first.id
-      }
-
-      this.migrationPending = this.projects.some(p => !isMongoId(p.id))
-
-      // Refresh from API in background
       const authStore = useAuthStore()
       if (authStore?.isLoggedIn) {
+        // Cloud-first: projects come from the API, not from localStorage
+        this.projects   = []
+        this.templates  = []
+        this.selectedId = data.selectedId  // hint to restore selection after load
+        this.migrationPending = false
+        try { this.seedInitialData() } catch(e) { console.warn('seedInitialData error', e) }
         this.loadFromApi()
+      } else {
+        // Offline mode: use localStorage
+        this.projects   = data.projects
+        this.templates  = data.templates
+        this.selectedId = data.selectedId
+        if (this.selectedId && !this.projects.find(p => p.id === this.selectedId)) {
+          this.selectedId = null
+        }
+        migrateProjects(this.projects, this.templates, globalStore.lang)
+        try { this.seedInitialData() } catch(e) { console.warn('seedInitialData error', e) }
+        if (!this.selectedId) {
+          const first = this.projects.find(p => p.status !== 'archived' && p.isActive !== false)
+          if (first) this.selectedId = first.id
+        }
+        this.migrationPending = this.projects.some(p => !isMongoId(p.id))
       }
     },
 
     async loadFromApi() {
       const authStore = useAuthStore()
       if (!authStore?.isLoggedIn) return
+      this.cloudLoading = true
       try {
         const api = useApi()
         const [apiProjects, apiTemplates] = await Promise.all([
@@ -314,6 +319,8 @@ export const useProjectsStore = defineStore('projects', {
         this._saveToLocalStorage()
       } catch (err) {
         console.warn('loadFromApi failed:', err)
+      } finally {
+        this.cloudLoading = false
       }
     },
 
@@ -333,8 +340,15 @@ export const useProjectsStore = defineStore('projects', {
       }, 1500))
     },
 
-    // Write localStorage only (no API — used internally after API load)
     _saveToLocalStorage() {
+      const authStore = useAuthStore()
+      if (authStore?.isLoggedIn) {
+        // Cloud-first: only persist selectedId so the user returns to the same project on next load
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('ub_selected', this.selectedId || '')
+        }
+        return
+      }
       const { persist } = usePersist()
       const globalStore   = useGlobalStore()
       const settingsStore = useSettingsStore()
@@ -424,21 +438,25 @@ export const useProjectsStore = defineStore('projects', {
       const { stages, groups } = createProjectDefaults(lang)
 
       let events = []
-      const tmpl = data.templateId ? this.templates.find(t => t.id === data.templateId) : null
-      if (tmpl) {
-        tmpl.useCount = (tmpl.useCount || 0) + 1
-        events = eventsFromTemplate(tmpl)
-        if (tmpl.stages?.length) {
-          stages.push(...tmpl.stages.map(s => ({ ...s, id: uid() })))
-        }
-        if (tmpl.groups?.length) {
-          groups.length = 0
-          groups.push(...tmpl.groups.map(g => ({ ...g, id: uid() })))
-        }
-        // Notify API of template use (fire-and-forget)
-        const authStore = useAuthStore()
-        if (authStore?.isLoggedIn && isMongoId(tmpl.id)) {
-          useApi().patch(`/schedule-templates/${tmpl.id}/used`).catch(() => {})
+      if (data.importedEvents?.length) {
+        events = data.importedEvents
+      } else {
+        const tmpl = data.templateId ? this.templates.find(t => t.id === data.templateId) : null
+        if (tmpl) {
+          tmpl.useCount = (tmpl.useCount || 0) + 1
+          events = eventsFromTemplate(tmpl)
+          if (tmpl.stages?.length) {
+            stages.push(...tmpl.stages.map(s => ({ ...s, id: uid() })))
+          }
+          if (tmpl.groups?.length) {
+            groups.length = 0
+            groups.push(...tmpl.groups.map(g => ({ ...g, id: uid() })))
+          }
+          // Notify API of template use (fire-and-forget)
+          const authStore = useAuthStore()
+          if (authStore?.isLoggedIn && isMongoId(tmpl.id)) {
+            useApi().patch(`/schedule-templates/${tmpl.id}/used`).catch(() => {})
+          }
         }
       }
 
@@ -451,8 +469,9 @@ export const useProjectsStore = defineStore('projects', {
         name:         data.name         || '',
         director:     data.director     || '',
         photographer: data.photographer || '',
-        ep:           data.ep           || '',
-        status:       data.status       || 'competing',
+        ep:             data.ep             || '',
+        agencyProducer: data.agencyProducer || '',
+        status:         data.status         || 'competing',
         color:        data.color        || '#06CCB4',
         lang,
         createdAt:    new Date().toISOString().split('T')[0],
@@ -619,7 +638,8 @@ export const useProjectsStore = defineStore('projects', {
         name:        opts.name         ?? (src.name + ' (copia)'),
         director:    opts.director     ?? src.director,
         photographer:opts.photographer ?? src.photographer,
-        ep:          opts.ep           ?? src.ep,
+        ep:             opts.ep             ?? src.ep,
+        agencyProducer: opts.agencyProducer ?? src.agencyProducer,
         events:      newEvents,
         version:     0, hasChanges: false,
         shareToken:  null, shareActive: false, shareViews: 0,

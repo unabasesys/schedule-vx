@@ -18,8 +18,8 @@
             'cal-day-today':            cell.isToday,
             'cal-day-weekend':          cell.isWeekend,
             'cal-day-holiday':          cell.isHoliday,
-            'cal-day-droptarget':       cell.dateStr === dragoverDate && !!dragEvId && !isDropTargetInvalid,
-            'cal-day-droptarget-invalid': cell.dateStr === dragoverDate && !!dragEvId && isDropTargetInvalid,
+            'cal-day-droptarget':       cell.dateStr === dragoverDate && (!!dragEvId || !!activeDrag?.evId) && !isDropTargetInvalid,
+            'cal-day-droptarget-invalid': cell.dateStr === dragoverDate && (!!dragEvId || !!activeDrag?.evId) && isDropTargetInvalid,
           }"
           @click="cell.inMonth && emit('day-select', cell.dateStr)"
           @dblclick="!readOnly && cell.inMonth && emit('day-click', cell.dateStr)"
@@ -650,7 +650,7 @@ function formatOverflowDate(dateStr) {
 .cal-ev-bar {
   position: absolute;
   min-height: 20px; border-radius: 4px;
-  display: flex; align-items: flex-start; padding: 3px 7px;
+  display: flex; align-items: center; padding: 3px 7px;
   cursor: pointer; overflow: hidden;
   transition: opacity .12s; box-sizing: border-box;
 }
@@ -703,7 +703,8 @@ function formatOverflowDate(dateStr) {
 
 .bar-key-icon {
   font-size: .52rem; flex-shrink: 0; margin-right: 3px;
-  pointer-events: none; color: inherit; line-height: 1;
+  pointer-events: none; color: inherit;
+  display: inline-flex; align-items: center;
 }
 
 .cal-ev-bar.bar-holiday {

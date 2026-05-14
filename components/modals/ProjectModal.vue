@@ -28,6 +28,10 @@
           <label>{{ lang === 'en' ? 'Executive producer' : 'Productor/a Ejecutivo/a' }}</label>
           <input type="text" v-model="form.ep" placeholder="EP name" />
         </div>
+        <div class="field">
+          <label>{{ lang === 'en' ? 'Agency producer' : 'Productor/a de Agencia' }}</label>
+          <input type="text" v-model="form.agencyProducer" placeholder="Agency producer name" />
+        </div>
       </div>
 
       <!-- Location (new project only) -->
@@ -103,8 +107,8 @@
         </div>
       </div>
 
-      <!-- Template (new project only) -->
-      <div v-if="!isEdit" style="margin-top:10px;">
+      <!-- Template (new project only) — hidden when events are imported -->
+      <div v-if="!isEdit && !importedEvents.length" style="margin-top:10px;">
         <div class="field">
           <label>{{ lang === 'en' ? 'Use template (optional)' : 'Usar template (opcional)' }}</label>
           <select v-model="form.templateId">
@@ -115,6 +119,23 @@
           </select>
         </div>
       </div>
+
+      <!-- Import from existing calendar (new project only) -->
+      <div v-if="!isEdit" style="margin-top:10px;">
+        <div v-if="importedEvents.length" class="pm-imported-badge">
+          ✓ {{ importedEvents.length }} {{ lang === 'en' ? 'events imported' : 'eventos importados' }}
+          <button class="pm-imported-clear" @click="importedEvents = []">✕</button>
+        </div>
+        <button v-else-if="!form.templateId" class="pm-import-btn" @click="showImportModal = true">
+          {{ lang === 'en' ? '↑ Import from existing calendar' : '↑ Importar desde otro calendario' }}
+        </button>
+      </div>
+
+      <ImportCalendarModal
+        v-if="showImportModal"
+        @close="showImportModal = false"
+        @imported="onImported"
+      />
 
       <div class="modal-actions">
         <button class="btn-ghost" @click="$emit('close')">{{ lang === 'en' ? 'Cancel' : 'Cancelar' }}</button>
@@ -154,13 +175,21 @@ const form = reactive({
   name:         editingProject.value?.name         || '',
   director:     editingProject.value?.director     || '',
   photographer: editingProject.value?.photographer || '',
-  ep:           editingProject.value?.ep           || '',
+  ep:             editingProject.value?.ep             || '',
+  agencyProducer: editingProject.value?.agencyProducer || '',
   status:       editingProject.value?.status       || 'competing',
   color:        editingProject.value?.color        || PALETTE[0],
   templateId:   '',
 })
 
 const clientInputRef = ref(null)
+const showImportModal = ref(false)
+const importedEvents = ref([])
+
+function onImported(events) {
+  importedEvents.value = events
+  showImportModal.value = false
+}
 
 const citySearch    = ref('')
 const citySuggestions = ref([])
@@ -216,13 +245,14 @@ async function save() {
   if (isEdit.value) {
     projectsStore.updateProject(props.editingId, {
       client: form.client, agency: form.agency, name: form.name,
-      director: form.director, photographer: form.photographer, ep: form.ep,
+      director: form.director, photographer: form.photographer, ep: form.ep, agencyProducer: form.agencyProducer,
       status: form.status, color: form.color,
     })
   } else {
     projectsStore.createProject({
       ...form,
       city: selectedCity.value,
+      importedEvents: importedEvents.value.length ? importedEvents.value : undefined,
     })
   }
   emit('saved')
@@ -276,20 +306,41 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .status-btn {
   flex: 1; padding: 7px 10px; border-radius: 7px; border: 1.5px solid var(--border);
   font-size: .72rem; font-weight: 700; cursor: pointer; font-family: inherit;
-  background: none; color: var(--muted); transition: all .12s; letter-spacing: .2px;
+  background: none; color: #fff; transition: all .12s; letter-spacing: .2px;
 }
 .status-btn:hover { opacity: .8; }
 
+.pm-import-btn {
+  width: 100%; padding: 9px 14px; border-radius: 8px;
+  border: 1.5px dashed var(--border); background: none;
+  color: var(--muted); font-size: .76rem; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: all .12s;
+  text-align: center;
+}
+.pm-import-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.pm-imported-badge {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px; border-radius: 8px;
+  border: 1.5px solid var(--accent); background: rgba(6,204,180,.08);
+  color: var(--accent); font-size: .76rem; font-weight: 700;
+}
+.pm-imported-clear {
+  background: none; border: none; cursor: pointer; color: var(--muted);
+  font-size: .8rem; margin-left: auto; padding: 0 2px; line-height: 1;
+}
+.pm-imported-clear:hover { color: #e53e3e; }
+
 /* Competing — amber */
 .status-btn.status-competing.active {
-  background: rgba(245,158,11,.15); border-color: #f59e0b; color: #b45309;
+  background: rgba(245,158,11,.15); border-color: #f59e0b; color: #fff;
 }
 /* Won — emerald */
 .status-btn.status-awarded.active {
-  background: rgba(16,185,129,.15); border-color: #10b981; color: #047857;
+  background: rgba(16,185,129,.15); border-color: #10b981; color: #fff;
 }
 /* Lost — rose */
 .status-btn.status-lost.active {
-  background: rgba(244,63,94,.12); border-color: #f43f5e; color: #be123c;
+  background: rgba(244,63,94,.12); border-color: #f43f5e; color: #fff;
 }
 </style>

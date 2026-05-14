@@ -1,5 +1,10 @@
 <template>
   <div class="schedule-page">
+    <!-- Cloud loading indicator -->
+    <div v-if="projectsStore.cloudLoading" class="cloud-loading-bar">
+      <div class="cloud-loading-track"><div class="cloud-loading-fill"></div></div>
+    </div>
+
     <!-- Migration banner for local-only projects -->
     <MigrationBanner v-if="projectsStore.migrationPending" :lang="globalStore.lang" />
 
@@ -350,6 +355,23 @@ function createFromTemplate(tmplId) {
 </script>
 
 <style scoped>
+.cloud-loading-bar {
+  position: sticky; top: 0; z-index: 200; height: 3px;
+}
+.cloud-loading-track {
+  width: 100%; height: 100%; background: transparent; overflow: hidden;
+}
+.cloud-loading-fill {
+  height: 100%; background: var(--accent);
+  animation: cloud-slide 1.2s ease-in-out infinite;
+  transform-origin: left;
+}
+@keyframes cloud-slide {
+  0%   { transform: translateX(-100%) scaleX(0.4); }
+  50%  { transform: translateX(60%)   scaleX(0.6); }
+  100% { transform: translateX(200%)  scaleX(0.4); }
+}
+
 .holidays-backdrop {
   position: fixed;
   inset: 0;

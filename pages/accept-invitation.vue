@@ -15,9 +15,9 @@
       <!-- Success (already logged in → auto-accepted) -->
       <div v-else-if="state === 'success'" class="invite-body">
         <div class="invite-icon success-icon">✓</div>
-        <h2 class="invite-title">¡Ya sos parte del equipo!</h2>
+        <h2 class="invite-title">¡Ya eres parte de Calendar by unabase!</h2>
         <p class="invite-msg">Tu cuenta fue vinculada a <strong>{{ orgName }}</strong>.</p>
-        <NuxtLink to="/schedule" class="btn-primary">Ir al calendario</NuxtLink>
+        <NuxtLink to="/calendar" class="btn-primary">Ir al calendario</NuxtLink>
       </div>
 
       <!-- Error -->

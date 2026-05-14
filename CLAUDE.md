@@ -333,7 +333,7 @@ Ambos proyectos están en el escritorio del Mac:
 
 | Proyecto | Carpeta | Puerto | Comando |
 |----------|---------|--------|---------|
-| Front (Nuxt 3) | `/Users/jorge/Desktop/schedule-vx` | 3000 | `npm run dev` |
+| Front (Nuxt 3) | `/Users/jorge/Desktop/schedule-vx` | 3001 | `npm run dev` |
 | Back (Node/Express) | `/Users/jorge/Desktop/scheduleBack` | 4000 | `npm run dev` |
 
 ---

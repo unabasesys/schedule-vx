@@ -768,7 +768,7 @@ function updateDepAnchor(anchor) {
 .ev-dur-input {
   width: 38px; border: 1.5px solid var(--border); border-radius: 5px;
   padding: 3px 4px; font-size: .72rem; font-family: inherit;
-  text-align: center; outline: none; color: var(--text);
+  text-align: center; outline: none; color: var(--text); background: var(--surface);
 }
 .ev-dur-input:focus { border-color: var(--accent); }
 

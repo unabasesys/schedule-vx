@@ -65,7 +65,7 @@ const route      = useRoute()
 authStore.init()
 
 if (authStore.isLoggedIn) {
-  await navigateTo('/schedule')
+  await navigateTo('/calendar')
 }
 
 const form       = reactive({ firstName: '', lastName: '', email: '', password: '', confirm: '' })
@@ -90,7 +90,7 @@ const handleSubmit = async () => {
   if (ok) {
     const inviteToken = route.query.inviteToken
     if (inviteToken) await authStore.acceptInvitation(inviteToken)
-    navigateTo('/schedule')
+    navigateTo('/calendar')
   }
 }
 
@@ -111,7 +111,7 @@ onMounted(() => {
         if (ok) {
           const inviteToken = route.query.inviteToken
           if (inviteToken) await authStore.acceptInvitation(inviteToken)
-          navigateTo('/schedule')
+          navigateTo('/calendar')
         }
       },
     })

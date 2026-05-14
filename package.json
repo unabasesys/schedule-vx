@@ -1,5 +1,5 @@
 {
-  "name": "schedule-nuxt",
+  "name": "calendar",
   "private": true,
   "scripts": {
     "dev": "nuxt dev",

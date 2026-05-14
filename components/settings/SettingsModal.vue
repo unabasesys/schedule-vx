@@ -166,8 +166,15 @@
             @focus="$event.target.style.borderColor='var(--accent)'"
             @blur="$event.target.style.borderColor='var(--border)'"
             @keydown.enter="inviteUser"
+            @input="inviteError = ''; inviteSuccess = ''"
           />
           <button class="btn-primary" @click="inviteUser" style="padding:7px 14px;font-size:.75rem;">{{ L.inviteBtn }}</button>
+        </div>
+        <div v-if="inviteSuccess" class="invite-feedback invite-feedback--ok">
+          {{ lang === 'en' ? `Invitation sent to ${inviteSuccess}` : `Invitación enviada a ${inviteSuccess}` }}
+        </div>
+        <div v-if="inviteError" class="invite-feedback invite-feedback--err">
+          {{ inviteError }}
         </div>
         <div class="users-list">
           <div v-for="user in settingsStore.users" :key="user.id" class="user-row">
@@ -254,6 +261,8 @@ const localWeekStart  = ref(globalStore.weekStart)
 const localTempUnit   = ref(globalStore.tempUnit)
 const localDateFormat = ref(globalStore.dateFormat || 'DD/MM/AA')
 const inviteEmail     = ref('')
+const inviteError     = ref('')
+const inviteSuccess   = ref('')
 
 // ── Operating cities ──────────────────────────────────────────────────────────
 import { DEFAULT_CITIES } from '~/utils/constants'
@@ -394,11 +403,20 @@ function removeLogo() {
 async function inviteUser() {
   if (!inviteEmail.value.trim()) return
   const email = inviteEmail.value.trim()
+  inviteError.value   = ''
+  inviteSuccess.value = ''
+
   if (authStore.isLoggedIn) {
-    await settingsStore.inviteUserToApi(email)
+    const result = await settingsStore.inviteUserToApi(email)
+    if (!result.ok) {
+      inviteError.value = result.error || (lang.value === 'en' ? 'Could not send the invitation' : 'No se pudo enviar la invitación')
+      return
+    }
+  } else {
+    settingsStore.inviteUser(email)
   }
-  settingsStore.inviteUser(email)
-  inviteEmail.value = ''
+  inviteSuccess.value = email
+  inviteEmail.value   = ''
 }
 
 async function removeUser(id) {
@@ -472,6 +490,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>
+.invite-feedback {
+  font-size: .73rem; font-weight: 600; padding: 5px 10px;
+  border-radius: 6px; margin-top: -2px;
+}
+.invite-feedback--ok  { background: rgba(32,167,137,.10); color: var(--accent); }
+.invite-feedback--err { background: rgba(234,78,73,.10);  color: var(--danger); }
+
 .users-list { display: flex; flex-direction: column; gap: 6px; }
 .user-row {
   display: flex; align-items: center; gap: 8px;
@@ -546,7 +571,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .org-city-input {
   width: 100%; padding: 7px 10px; border: 1.5px solid var(--border);
   border-radius: 7px; font-size: .78rem; font-family: inherit; outline: none;
-  background: var(--bg-soft, #f5f7fa); color: var(--text);
+  background: var(--bg); color: var(--text);
   box-sizing: border-box; transition: border-color .15s;
 }
 .org-city-input:focus { border-color: var(--accent); }
