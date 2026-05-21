@@ -5,8 +5,6 @@
       <div class="cloud-loading-track"><div class="cloud-loading-fill"></div></div>
     </div>
 
-    <!-- Migration banner for local-only projects -->
-    <MigrationBanner v-if="projectsStore.migrationPending" :lang="globalStore.lang" />
 
     <!-- Header (only when a project is selected) -->
     <div v-if="currentProject" class="main-hdr">
@@ -41,6 +39,11 @@
             :class="{ active: globalStore.currentView === 'list' }"
             @click="globalStore.setView('list')"
           >{{ globalStore.lang === 'en' ? 'Events' : 'Eventos' }}</button>
+          <button
+            class="view-tab"
+            :class="{ active: globalStore.currentView === 'daily' }"
+            @click="globalStore.setView('daily')"
+          >Daily</button>
         </div>
       </div>
 
@@ -122,6 +125,14 @@
       :cal-month="globalStore.calMonth"
       :week-start="globalStore.weekStart"
       :temp-unit="globalStore.tempUnit"
+      :read-only="isArchived"
+    />
+
+    <!-- Daily Schedule View -->
+    <DailyView
+      v-if="currentProject && globalStore.currentView === 'daily'"
+      :project="currentProject"
+      :lang="globalStore.lang"
       :read-only="isArchived"
     />
 

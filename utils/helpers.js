@@ -10,12 +10,6 @@ export function esc(s) {
     .replace(/"/g, '&quot;')
 }
 
-export function fmtDate(d) {
-  if (!d) return ''
-  const [y, m, day] = d.split('-')
-  return `${parseInt(day)}/${parseInt(m)}/${y.slice(2)}`
-}
-
 /**
  * Add N days to a date string.
  * @param {string} dateStr   - ISO date "YYYY-MM-DD"
@@ -110,6 +104,37 @@ export function toDisplayTemp(c, unit) {
 
 export function tempSymbol(unit) {
   return unit === 'F' ? '°F' : '°C'
+}
+
+/**
+ * Convert HH:MM from one IANA timezone to another for a given calendar date.
+ * Returns 'HH:MM' (24h) or null on error.
+ */
+export function convertTimezone(dateStr, timeHHMM, fromTz, toTz) {
+  if (!dateStr || !timeHHMM || !fromTz || !toTz || fromTz === toTz) return timeHHMM
+  try {
+    const [y, mo, d] = dateStr.split('-').map(Number)
+    const [h, mi]    = timeHHMM.split(':').map(Number)
+    const naiveUTC   = new Date(Date.UTC(y, mo - 1, d, h, mi, 0))
+    const shown = new Intl.DateTimeFormat('en-US', {
+      timeZone: fromTz, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(naiveUTC)
+    const [sh, sm] = shown.split(':').map(Number)
+    const diffMin  = (h * 60 + mi) - (sh * 60 + sm)
+    const realUTC  = new Date(naiveUTC.getTime() + diffMin * 60000)
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: toTz, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(realUTC)
+  } catch { return null }
+}
+
+/** Format HH:MM (24h) as "h:MM AM/PM" */
+export function fmt12h(timeHHMM) {
+  if (!timeHHMM) return ''
+  const [h, m] = timeHHMM.split(':').map(Number)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const h12    = h % 12 || 12
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`
 }
 
 /**

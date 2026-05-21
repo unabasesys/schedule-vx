@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 
 export const useGlobalStore = defineStore('global', {
   state: () => ({
-    currentView: 'cal',   // 'cal' | 'list' | 'tmpl'
+    currentView: 'cal',   // 'cal' | 'list' | 'tmpl' | 'daily'
     lang: 'es',
     sidebarFilter: 'active',  // 'active' | 'archived' | 'all'
     evFilter: 'all',           // 'all' | 'active' | 'conflicts'
@@ -26,9 +26,10 @@ export const useGlobalStore = defineStore('global', {
   }),
 
   getters: {
-    isCalView: (s) => s.currentView === 'cal',
-    isListView: (s) => s.currentView === 'list',
-    isTmplView: (s) => s.currentView === 'tmpl',
+    isCalView:   (s) => s.currentView === 'cal',
+    isListView:  (s) => s.currentView === 'list',
+    isTmplView:  (s) => s.currentView === 'tmpl',
+    isDailyView: (s) => s.currentView === 'daily',
   },
 
   actions: {
@@ -97,7 +98,7 @@ export const useGlobalStore = defineStore('global', {
     },
     toggleSidebar() {
       this.sidebarCollapsed = !this.sidebarCollapsed
-      try { localStorage.setItem('ub_sidebar_collapsed', this.sidebarCollapsed ? '1' : '0') } catch {}
+      usePersist().setSidebarCollapsed(this.sidebarCollapsed)
     },
 
     openSettings() { this.settingsOpen = true },

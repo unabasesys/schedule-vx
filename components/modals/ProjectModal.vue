@@ -107,8 +107,8 @@
         </div>
       </div>
 
-      <!-- Template (new project only) — hidden when events are imported -->
-      <div v-if="!isEdit && !importedEvents.length" style="margin-top:10px;">
+      <!-- Template (new project only) -->
+      <div v-if="!isEdit" style="margin-top:10px;">
         <div class="field">
           <label>{{ lang === 'en' ? 'Use template (optional)' : 'Usar template (opcional)' }}</label>
           <select v-model="form.templateId">
@@ -119,23 +119,6 @@
           </select>
         </div>
       </div>
-
-      <!-- Import from existing calendar (new project only) -->
-      <div v-if="!isEdit" style="margin-top:10px;">
-        <div v-if="importedEvents.length" class="pm-imported-badge">
-          ✓ {{ importedEvents.length }} {{ lang === 'en' ? 'events imported' : 'eventos importados' }}
-          <button class="pm-imported-clear" @click="importedEvents = []">✕</button>
-        </div>
-        <button v-else-if="!form.templateId" class="pm-import-btn" @click="showImportModal = true">
-          {{ lang === 'en' ? '↑ Import from existing calendar' : '↑ Importar desde otro calendario' }}
-        </button>
-      </div>
-
-      <ImportCalendarModal
-        v-if="showImportModal"
-        @close="showImportModal = false"
-        @imported="onImported"
-      />
 
       <div class="modal-actions">
         <button class="btn-ghost" @click="$emit('close')">{{ lang === 'en' ? 'Cancel' : 'Cancelar' }}</button>
@@ -183,13 +166,6 @@ const form = reactive({
 })
 
 const clientInputRef = ref(null)
-const showImportModal = ref(false)
-const importedEvents = ref([])
-
-function onImported(events) {
-  importedEvents.value = events
-  showImportModal.value = false
-}
 
 const citySearch    = ref('')
 const citySuggestions = ref([])
@@ -252,7 +228,6 @@ async function save() {
     projectsStore.createProject({
       ...form,
       city: selectedCity.value,
-      importedEvents: importedEvents.value.length ? importedEvents.value : undefined,
     })
   }
   emit('saved')
@@ -309,27 +284,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   background: none; color: #fff; transition: all .12s; letter-spacing: .2px;
 }
 .status-btn:hover { opacity: .8; }
-
-.pm-import-btn {
-  width: 100%; padding: 9px 14px; border-radius: 8px;
-  border: 1.5px dashed var(--border); background: none;
-  color: var(--muted); font-size: .76rem; font-weight: 600;
-  cursor: pointer; font-family: inherit; transition: all .12s;
-  text-align: center;
-}
-.pm-import-btn:hover { border-color: var(--accent); color: var(--accent); }
-
-.pm-imported-badge {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 12px; border-radius: 8px;
-  border: 1.5px solid var(--accent); background: rgba(6,204,180,.08);
-  color: var(--accent); font-size: .76rem; font-weight: 700;
-}
-.pm-imported-clear {
-  background: none; border: none; cursor: pointer; color: var(--muted);
-  font-size: .8rem; margin-left: auto; padding: 0 2px; line-height: 1;
-}
-.pm-imported-clear:hover { color: #e53e3e; }
 
 /* Competing — amber */
 .status-btn.status-competing.active {

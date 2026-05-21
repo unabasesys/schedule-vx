@@ -168,7 +168,7 @@ const userAvatar = computed(() => authStore.user?.imgUrl || null)
 
 // ── Org computed ──────────────────────────────────────────────────────────────
 const orgName = computed(() =>
-  authStore.organization?.name || settingsStore.studioName || 'Mi Productora'
+  settingsStore.studioName || authStore.organization?.name || 'Mi Productora'
 )
 const orgLogo = computed(() =>
   authStore.organization?.imgUrl || settingsStore.logo || null

@@ -427,7 +427,7 @@ const weeks = computed(() => {
       if (evEnd < weekStart || evStart > weekEnd) continue
 
       const name  = props.lang === 'en' ? (ev.nameEN || ev.name) : ev.name
-      const color = ev._projColor || '#20a789'
+      const color = ev._stageColor || ev._projColor || '#20a789'
 
       if (isBusinessEv) {
         // Business-day events: render only on actual business days,

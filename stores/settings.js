@@ -24,9 +24,6 @@ export const useSettingsStore = defineStore('settings', {
 
     saveLogo(dataUrl) {
       this.logo = dataUrl
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('ub_logo', dataUrl)
-      }
     },
 
     setCompany(data) {

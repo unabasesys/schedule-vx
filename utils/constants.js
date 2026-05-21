@@ -133,6 +133,6 @@ export const DEFAULT_STAGES = [
 export const STAGE_ORDER = {bid:0, pre:1, sht:2, vpst:3, spst:4, pst:5}
 
 export const PALETTE = [
-  '#06CCB4','#7CAEFF','#C8D6E5','#3b82f6','#8b5cf6','#ec4899',
+  '#06CCB4','#7CAEFF','#3b82f6','#8b5cf6','#ec4899',
   '#ef4444','#f97316','#f59e0b','#22c55e','#10b981','#0ea5e9',
 ]

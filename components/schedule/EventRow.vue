@@ -80,6 +80,22 @@
       </div>
     </Teleport>
 
+    <!-- Toggle-off one-time hint -->
+    <Teleport to="body">
+      <div v-if="offHintOpen" class="ev-delete-backdrop" @click.self="dismissHint(false)">
+        <div class="ev-off-hint-modal">
+          <div class="ev-delete-modal-title">{{ L.offHintTitle }}</div>
+          <div class="ev-off-hint-body">
+            {{ L.offHintBody1 }} <strong>{{ L.offHintFilter }}</strong>.<br>{{ L.offHintBody2 }}
+          </div>
+          <div class="ev-off-hint-actions">
+            <button class="ev-off-hint-never" @click="dismissHint(true)">{{ L.offHintNever }}</button>
+            <button class="ev-delete-confirm" @click="dismissHint(false)">{{ L.offHintDismiss }}</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- ② Name + info + group assignment ──────────────────────────────── -->
     <div class="ev-main">
       <input
@@ -171,7 +187,6 @@
         class="ev-date-label"
         :class="{ 'ev-date-auto': event.dateMode === 'auto', 'ev-date-broken': event.dep?.broken }"
         :title="L.startDate"
-        @click="!readOnly && openDatePicker()"
       >
         <span class="ev-date-text">{{ formattedStartDate || '— / — / —' }}</span>
         <input
@@ -301,9 +316,15 @@ const LABELS = {
     btnCancel:           'Cancelar',
     btnDelete:           'Eliminar',
     internalTitle:  'Solo interno — no aparece en PDFs ni links compartidos',
-    groupsBtn:           'Grupos',
-    groupsTitle:    'Asignar grupos',
-    noGroupsDefined:'No hay grupos definidos',
+    groupsBtn:           'Depts.',
+    groupsTitle:    'Asignar departamentos',
+    noGroupsDefined:'No hay departamentos definidos',
+    offHintTitle:   'Evento desactivado',
+    offHintBody1:   'Este evento quedará oculto en el calendario. Podés volver a activarlo con el mismo botón, o encontrarlo usando el filtro',
+    offHintFilter:  '"Todos"',
+    offHintBody2:   'Si querés eliminarlo definitivamente, usá el ícono de la papelera 🗑.',
+    offHintDismiss: 'Entendido',
+    offHintNever:   'No volver a mostrar',
   },
   en: {
     toggleTitle:    'Toggle event on / off',
@@ -337,9 +358,15 @@ const LABELS = {
     btnCancel:           'Cancel',
     btnDelete:           'Delete',
     internalTitle:  'Internal only — hidden from PDFs and shared links',
-    groupsBtn:           'Groups',
-    groupsTitle:    'Assign groups',
-    noGroupsDefined:'No groups defined',
+    groupsBtn:           'Depts.',
+    groupsTitle:    'Assign departments',
+    noGroupsDefined:'No departments defined',
+    offHintTitle:   'Event deactivated',
+    offHintBody1:   'This event is now hidden from the calendar. You can turn it back on with the same toggle, or find it using the',
+    offHintFilter:  '"All"',
+    offHintBody2:   'To permanently delete it, use the trash icon 🗑.',
+    offHintDismiss: 'Got it',
+    offHintNever:   'Don\'t show again',
   },
 }
 
@@ -567,7 +594,20 @@ onUnmounted(() => {
   document.removeEventListener('keydown', onDeleteKeydown,     true)
 })
 
-function toggleActive()    { update({ active:    !props.event.active }) }
+const offHintOpen = ref(false)
+
+function toggleActive() {
+  const goingOff = props.event.active
+  update({ active: !props.event.active })
+  if (goingOff && !localStorage.getItem('ub_ev_off_hint')) {
+    offHintOpen.value = true
+  }
+}
+
+function dismissHint(forever) {
+  if (forever) localStorage.setItem('ub_ev_off_hint', '1')
+  offHintOpen.value = false
+}
 function toggleCompleted() { update({ completed: !props.event.completed }) }
 function toggleKeyDate()   { update({ keyDate:   !props.event.keyDate }) }
 function toggleInternal()  { update({ internal:  !props.event.internal }) }
@@ -627,10 +667,6 @@ function updateDepRelation(rel) {
 
 function updateDepDays(n) {
   update({ dep: { ...props.event.dep, days: n }, dateMode: 'auto' })
-}
-
-function updateDepDayType(dt) {
-  update({ dep: { ...props.event.dep, dayType: dt }, dateMode: 'auto' })
 }
 
 function updateDepAnchor(anchor) {
@@ -797,8 +833,8 @@ function updateDepAnchor(anchor) {
   white-space: nowrap; pointer-events: none; line-height: 1;
 }
 .ev-date-native {
-  position: absolute; width: 0; height: 0;
-  opacity: 0; pointer-events: none; border: none; padding: 0;
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; border: none; padding: 0;
 }
 
 /* Dependency single-button toggles (day type + anchor) */
@@ -988,4 +1024,29 @@ function updateDepAnchor(anchor) {
 }
 .ev-delete-confirm:hover { background: #dc2020; }
 .ev-delete-confirm:focus { outline: 2px solid var(--danger); outline-offset: 2px; }
+
+/* Toggle-off hint modal */
+.ev-off-hint-modal {
+  background: var(--surface); border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+  padding: 24px 28px; width: 360px; max-width: 90vw;
+}
+.ev-off-hint-body {
+  font-size: .78rem; color: var(--muted); line-height: 1.6;
+  margin-bottom: 22px;
+}
+.ev-off-hint-body strong { color: var(--text); }
+.ev-off-hint-actions {
+  display: flex; justify-content: flex-end; gap: 8px; align-items: center;
+}
+.ev-off-hint-never {
+  padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 7px;
+  background: var(--surface); color: var(--muted); font-size: .72rem; font-weight: 500;
+  cursor: pointer; font-family: inherit; transition: all .13s;
+}
+.ev-off-hint-never:hover { border-color: var(--muted); color: var(--text); }
+.ev-off-hint-modal .ev-delete-confirm {
+  background: var(--accent);
+}
+.ev-off-hint-modal .ev-delete-confirm:hover { background: #19967a; }
 </style>

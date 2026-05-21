@@ -1,5 +1,6 @@
 import { STAGE_ORDER } from '~/utils/constants'
 import { useSettingsStore } from '~/stores/settings'
+import { addDays } from '~/utils/helpers'
 
 export function usePdfExport() {
   // Access settings once at composable setup time (safe Pinia context)
@@ -13,17 +14,28 @@ export function usePdfExport() {
     return dt.toISOString().slice(0, 10)
   }
 
-  function eventEnd(ev) {
+  function eventEnd(ev, holidayDates = null) {
     const n = Math.max(1, ev.duration || 1) - 1
     if (n === 0) return ev.date
     if ((ev.durDayType || 'calendar') !== 'business') return shiftDate(ev.date, n)
-    let count = 0, cur = ev.date
-    while (count < n) {
-      cur = shiftDate(cur, 1)
-      const dow = new Date(cur + 'T12:00:00').getDay()
-      if (dow !== 0 && dow !== 6) count++
-    }
-    return cur
+    return addDays(ev.date, n, 'business', holidayDates)
+  }
+
+  function getProjectHolidayDates(proj) {
+    const holidaysStore = useHolidaysStore()
+    const disabled = new Set(proj.disabledHolidays || [])
+    const years = new Set(
+      (proj.events || []).filter(e => e.date).map(e => Number(e.date.slice(0, 4)))
+    )
+    const active = new Set()
+    ;(proj.holidays || []).forEach(({ countryCode }) => {
+      years.forEach(year => {
+        holidaysStore.getHolidaysForYear(countryCode, year).forEach(h => {
+          if (!disabled.has(h.date)) active.add(h.date)
+        })
+      })
+    })
+    return active.size ? active : null
   }
 
   function lighten(rgb, f = 0.45) {
@@ -88,8 +100,9 @@ export function usePdfExport() {
     // ── Tag all events with project info ─────────────────────────────────────
     const TODAY = new Date().toISOString().slice(0, 10)
 
-    const tagged = projList.flatMap((proj, pi) =>
-      (proj.events || [])
+    const tagged = projList.flatMap((proj, pi) => {
+      const holidayDates = getProjectHolidayDates(proj)
+      return (proj.events || [])
         .filter(e => e.active && e.date && !e.internal)
         .map(e => ({
           ...e,
@@ -99,9 +112,9 @@ export function usePdfExport() {
           _clr:  isMultiCal
             ? PROJ_CLR[pi % PROJ_CLR.length]
             : (STAGE_CLR[e.stage] || PROJ_CLR[0]),
-          _end:  eventEnd(e),
+          _end:  eventEnd(e, holidayDates),
         }))
-    )
+    })
 
     // ── Month range ──────────────────────────────────────────────────────────
     const allDates = tagged.flatMap(e => [e.date, e._end]).filter(Boolean).sort()
@@ -230,9 +243,9 @@ export function usePdfExport() {
       doc.text(settingsStore.studioName || 'unabase', orgNameX, ZONE_A_Y + 7)
 
       // Version + DRAFT label (right)
-      const verNum   = !isMultiCal ? (projList[0].version || 1) : null
+      const verNum   = !isMultiCal ? (projList[0].version ?? 0) : null
       const verParts = []
-      if (verNum)   verParts.push(`${L('version')} ${verNum}`)
+      if (verNum != null) verParts.push(`${L('version')} ${verNum}`)
       if (isDraft)  verParts.push(L('draft'))
       const verLabel = verParts.join(' · ')
 
@@ -411,8 +424,8 @@ export function usePdfExport() {
         }
       }
 
-      // ── DRAFT WATERMARK (multi-cal only) ─────────────────────────────────────
-      if (isMultiCal) {
+      // ── DRAFT WATERMARK ──────────────────────────────────────────────────────
+      if (isDraft) {
         // Use very light color — no opacity needed, compatible with all jsPDF versions
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(72)

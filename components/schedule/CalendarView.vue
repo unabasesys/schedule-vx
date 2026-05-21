@@ -362,12 +362,15 @@ const coloredEvents = computed(() => {
         .filter(s => s.visible === false || s.active === false)
         .map(s => s.key)
     )
+    const stageColorMap = {}
+    ;(proj.stages || []).forEach(s => { if (s.color) stageColorMap[s.key] = s.color })
     ;(proj.events || [])
       .filter(e => e.active && e.date && !hiddenStageKeys.has(e.stage))
       .forEach(e => merged.push({
         ...e,
-        _projId:    proj.id,
-        _projColor: proj.color || '#20a789',
+        _projId:     proj.id,
+        _projColor:  proj.color || '#20a789',
+        _stageColor: stageColorMap[e.stage] || null,
       }))
   })
   return merged
@@ -596,7 +599,7 @@ async function confirmEvModal() {
       date: evModalFrom.value, dateMode: 'manual',
       duration: Math.max(1, evModalDays.value || 1),
       durDayType: evModalDayType.value,
-      dep: { active: false, eventId: '', relation: 'after', days: 1, dayType: 'calendar', broken: false },
+      dep: { active: false, eventId: '', relation: 'after', days: 1, broken: false },
       locked: false, notes: '', order: ownerProj.events.length,
       completed: false, keyDate: evModalKeyDate.value, internal: evModalInternal.value, whenToUse: '', whenToUseEN: '', groups: [],
     }
@@ -754,7 +757,7 @@ async function removeEvModalDep() {
   if (!ok) return
   const projId = evModalProjId.value || props.project.id
   projectsStore.updateEvent(projId, ev.id, {
-    dep: { active: false, eventId: '', relation: 'after', days: 1, dayType: 'calendar', broken: false },
+    dep: { active: false, eventId: '', relation: 'after', days: 1, broken: false },
     dateMode: 'manual',
   })
   projectsStore.recalcAndSave(projId)

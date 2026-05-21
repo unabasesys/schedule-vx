@@ -15,7 +15,6 @@ export default defineNuxtConfig({
       sbKey:          process.env.NUXT_PUBLIC_SB_KEY    || '',
       apiUrl:         process.env.NUXT_PUBLIC_API_URL   || 'http://localhost:4000/api',
       googleClientId:  process.env.GOOGLE_CLIENT_ID       || '',
-      anthropicKey:    process.env.NUXT_PUBLIC_ANTHROPIC_KEY || '',
     }
   },
   i18n: {

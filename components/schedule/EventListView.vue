@@ -134,6 +134,32 @@
           >
             <div class="stage-hdr-left" @click="editingStageId !== stage.id && toggleCollapse(stage.key)" style="cursor:pointer;user-select:none">
               <span class="stage-collapse-arrow">{{ collapsedStages.has(stage.key) ? '▶' : '▼' }}</span>
+              <!-- Stage color dot -->
+              <div v-if="!readOnly" class="stage-color-wrap" @click.stop>
+                <button
+                  class="stage-color-dot"
+                  :style="{ background: stage.color || project.color || '#20a789' }"
+                  :title="lang === 'en' ? 'Stage color' : 'Color de etapa'"
+                  @click.stop="openStageColorPicker(stage.id)"
+                ></button>
+                <div v-if="stageColorPickerId === stage.id" class="stage-color-picker">
+                  <div class="stage-color-swatches">
+                    <button
+                      v-for="c in PALETTE"
+                      :key="c"
+                      class="stage-color-swatch"
+                      :class="{ selected: stage.color === c }"
+                      :style="{ background: c }"
+                      @click.stop="setStageColor(stage.id, c)"
+                    ></button>
+                  </div>
+                  <button
+                    class="stage-color-reset"
+                    :class="{ active: !stage.color }"
+                    @click.stop="setStageColor(stage.id, null)"
+                  >{{ lang === 'en' ? 'Calendar color' : 'Color del calendario' }}</button>
+                </div>
+              </div>
               <template v-if="!readOnly && editingStageId === stage.id">
                 <input
                   ref="stageNameInputRef"
@@ -345,7 +371,7 @@
 </template>
 
 <script setup>
-import { STAGE_ORDER } from '~/utils/constants'
+import { STAGE_ORDER, PALETTE } from '~/utils/constants'
 import { uid } from '~/utils/helpers'
 
 // ── Inline translations ───────────────────────────────────────────────────────
@@ -363,9 +389,9 @@ const LABELS = {
     filterNotCompleted: 'No completadas',
     filterInternalOnly: 'Internal Only',
     holidays:       'Feriados',
-    groupsTitle:    'Grupos',
-    groupPlaceholder: 'Nombre del grupo',
-    addGroup:       '＋ Grupo',
+    groupsTitle:    'Departamentos',
+    groupPlaceholder: 'Nombre del departamento',
+    addGroup:       '＋ Departamento',
     addStage:          '＋ Etapa',
     stagePlaceholder:  'Nombre de la etapa',
     pickStageTitle:    '¿En qué etapa va el evento?',
@@ -377,7 +403,7 @@ const LABELS = {
     btnDeleteStage:   'Eliminar etapa',
     brokenDeps:     'dependencias rotas',
     colActions:     'Acciones',
-    colEvent:       'Evento · Grupos',
+    colEvent:       'Evento · Departamentos',
     colDates:       'Días · Duración · Inicio · Fin',
     colDep:         'Dependencia / Programación',
     moveTitle:      'Mover calendario',
@@ -392,7 +418,7 @@ const LABELS = {
     promptTemplate: 'Nombre del template:',
     emptyTitle:   '¿Partiste sin template? Perfecto.',
     emptyBody1:   'Entonces este calendario lo puedes armar 100% a tu manera.\n\nLo primero es crear una Etapa, porque ahí es donde viven los eventos.\nDesde ahí puedes ir construyendo tu calendario poco a poco, agregando todas las etapas y eventos que necesites, y cambiando el orden cuando quieras.',
-    emptyBody2:   'También puedes usar Grupos para conectar eventos de distintas etapas.\nSi prendes o apagas un grupo, todos los eventos vinculados cambian contigo.',
+    emptyBody2:   'También puedes usar Departamentos para conectar eventos de distintas etapas.\nSi prendes o apagas un departamento, todos los eventos vinculados cambian contigo.',
     emptyBody3:   'Y no le tengas miedo a las dependencias.\nPuede sonar técnico, pero en la práctica son muy fáciles de usar y te van a ayudar a mover tu calendario de forma mucho más inteligente.',
     emptyAction:  'Empieza creando tu primera Etapa y prueba sin miedo.',
     emptyBtn:     '＋ Etapa',
@@ -410,9 +436,9 @@ const LABELS = {
     filterNotCompleted: 'Not completed',
     filterInternalOnly: 'Internal Only',
     holidays:       'Holidays',
-    groupsTitle:    'Groups',
-    groupPlaceholder: 'Group name',
-    addGroup:       '＋ Group',
+    groupsTitle:    'Departments',
+    groupPlaceholder: 'Department name',
+    addGroup:       '＋ Department',
     addStage:          '＋ Stage',
     stagePlaceholder:  'Stage name',
     pickStageTitle:    'Which stage should this event go in?',
@@ -424,7 +450,7 @@ const LABELS = {
     btnDeleteStage:   'Delete stage',
     brokenDeps:     'broken dependencies',
     colActions:     'Actions',
-    colEvent:       'Event · Groups',
+    colEvent:       'Event · Departments',
     colDates:       'Days · Duration · Start · End',
     colDep:         'Dependency / Scheduling',
     moveTitle:      'Move calendar',
@@ -439,7 +465,7 @@ const LABELS = {
     promptTemplate: 'Template name:',
     emptyTitle:   'Starting without a template? Perfect.',
     emptyBody1:   'This calendar is yours to build your own way.\n\nThe first step is to create a Stage, because that\'s where events live.\nFrom there, you can build your calendar step by step, adding as many stages and events as you need, and changing the order whenever you want.',
-    emptyBody2:   'You can also use Groups to connect events from different stages.\nWhen you turn a group on or off, all linked events follow.',
+    emptyBody2:   'You can also use Departments to connect events from different stages.\nWhen you turn a department on or off, all linked events follow.',
     emptyBody3:   'And don\'t be afraid of Dependencies.\nThey may sound technical, but they\'re actually very easy to use and can help you adjust your calendar in a much smarter way.',
     emptyAction:  'Start by creating your first Stage and explore freely.',
     emptyBtn:     '＋ Stage',
@@ -630,6 +656,24 @@ const stagesWithEvents = computed(() => {
 const listDragId    = ref(null)   // evId being dragged
 const dropIndicator = ref(null)   // 'evId:above' | 'evId:below' | 'stage:key'
 
+// ── Stage color picker ───────────────────────────────────────────────────────
+const stageColorPickerId = ref(null)
+
+function openStageColorPicker(stageId) {
+  stageColorPickerId.value = stageColorPickerId.value === stageId ? null : stageId
+}
+
+function setStageColor(stageId, color) {
+  projectsStore.setStageColor(props.project.id, stageId, color)
+  stageColorPickerId.value = null
+}
+
+function onStageColorPickerClickOutside(e) {
+  if (!e.target.closest('.stage-color-wrap')) {
+    stageColorPickerId.value = null
+  }
+}
+
 // ── Stage inline rename ──────────────────────────────────────────────────────
 const editingStageId   = ref(null)
 const editingStageName = ref('')
@@ -744,7 +788,7 @@ function createEventInStage(stageKey) {
   const ev = {
     id: uid(), name: defaultName, nameEN: defaultName,
     stage: stageKey, active: true, date: '', dateMode: 'manual', duration: 1, durDayType: 'calendar',
-    dep: { active: false, eventId: '', relation: 'after', days: 1, dayType: 'calendar', broken: false },
+    dep: { active: false, eventId: '', relation: 'after', days: 1, broken: false },
     locked: false, notes: '', order: props.project.events.length,
     completed: false, keyDate: false, internal: false, whenToUse: '', whenToUseEN: '', groups: [],
   }
@@ -810,7 +854,15 @@ function onKeydown(e) {
   if (e.key === 'Enter')  { e.preventDefault();  applyMove() }
 }
 onMounted(()   => window.addEventListener('keydown', onKeydown))
-onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('click', onStageColorPickerClickOutside)
+})
+
+watch(stageColorPickerId, (val) => {
+  if (val) document.addEventListener('click',    onStageColorPickerClickOutside)
+  else     document.removeEventListener('click', onStageColorPickerClickOutside)
+})
 </script>
 
 <style scoped>
@@ -1145,4 +1197,45 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   outline: 1.5px solid var(--accent);
   outline-offset: -1px;
 }
+
+/* ── Stage color picker ───────────────────────────────────────────────────── */
+.stage-color-wrap {
+  position: relative; display: flex; align-items: center;
+}
+.stage-color-dot {
+  width: 11px; height: 11px; border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,.18);
+  cursor: pointer; padding: 0; flex-shrink: 0;
+  transition: transform .13s, box-shadow .13s;
+}
+.stage-color-dot:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 2px rgba(255,255,255,.12);
+}
+.stage-color-picker {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 100;
+  background: var(--surface-2, var(--surface)); border: 1px solid var(--border);
+  border-radius: 9px; padding: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.35);
+  min-width: 168px;
+}
+.stage-color-swatches {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;
+}
+.stage-color-swatch {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid transparent; cursor: pointer; padding: 0;
+  transition: transform .1s;
+}
+.stage-color-swatch:hover { transform: scale(1.2); }
+.stage-color-swatch.selected {
+  border-color: #fff; box-shadow: 0 0 0 1.5px rgba(255,255,255,.5);
+}
+.stage-color-reset {
+  width: 100%; padding: 4px 8px; border-radius: 5px;
+  border: 1.5px solid var(--border); background: var(--bg);
+  color: var(--muted); font-size: .65rem; font-family: inherit;
+  cursor: pointer; text-align: center; transition: all .12s;
+}
+.stage-color-reset:hover,
+.stage-color-reset.active { border-color: var(--accent); color: var(--accent); }
 </style>

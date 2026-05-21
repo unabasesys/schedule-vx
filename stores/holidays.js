@@ -13,6 +13,7 @@ export const useHolidaysStore = defineStore('holidays', {
       this.loading = true
       try {
         const res = await fetch('https://date.nager.at/api/v3/AvailableCountries')
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
         this.allCountries = await res.json()
       } catch (e) {
         this.allCountries = []
@@ -35,6 +36,7 @@ export const useHolidaysStore = defineStore('holidays', {
       if (this.countryHolidays[key]) return this.countryHolidays[key]
       try {
         const res  = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${countryCode}`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const data = await res.json()
         this.countryHolidays[key] = Array.isArray(data) ? data : []
       } catch (e) {

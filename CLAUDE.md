@@ -150,7 +150,7 @@ Representación operativa y versionable del proyecto. Contiene: eventos, feriado
   groups: string[],
   dep: {
     active, eventId, relation: 'after' | 'before' | 'same',
-    days, dayType: 'calendar' | 'business', broken
+    days, broken
   }
 }
 ```

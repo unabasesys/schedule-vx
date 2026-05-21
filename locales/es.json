@@ -114,9 +114,9 @@
   "showAction": "Mostrar",
   "conflictBadgeTitle": "Este calendario tiene eventos con dependencias rotas",
   "addEventToStage": "Agregar evento",
-  "groupsTitle": "Grupos",
-  "createGroup": "+ Grupo",
-  "deleteGroup": "¿Eliminar este grupo?",
+  "groupsTitle": "Departamentos",
+  "createGroup": "+ Departamento",
+  "deleteGroup": "¿Eliminar este departamento?",
   "addStage": "+ Etapa",
   "whenToUseTitle": "Cuándo usar",
   "holidaysTitle": "Feriados de este proyecto",
@@ -159,7 +159,7 @@
   "help": "idea →",
   "emptyTitle": "¿Partiste sin template? Perfecto.",
   "emptyBody1": "Entonces este calendario lo puedes armar 100% a tu manera.\n\nLo primero es crear una Etapa, porque ahí es donde viven los eventos.\nDesde ahí puedes ir construyendo tu calendario poco a poco, agregando todas las etapas y eventos que necesites, y cambiando el orden cuando quieras.",
-  "emptyBody2": "También puedes usar Grupos para conectar eventos de distintas etapas.\nSi prendes o apagas un grupo, todos los eventos vinculados cambian contigo.",
+  "emptyBody2": "También puedes usar Departamentos para conectar eventos de distintas etapas.\nSi prendes o apagas un departamento, todos los eventos vinculados cambian contigo.",
   "emptyBody3": "Y no le tengas miedo a las dependencias.\nPuede sonar técnico, pero en la práctica son muy fáciles de usar y te van a ayudar a mover tu calendario de forma mucho más inteligente.",
   "emptyAction": "Empieza creando tu primera Etapa y prueba sin miedo."
 }

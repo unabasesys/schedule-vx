@@ -22,7 +22,6 @@ export function useDependencyEngine() {
    *   anchor    {'start'|'end'} — which date of the reference event to use (default 'start')
    *   relation  {'after'|'before'|'same'}
    *   days      {number}
-   *   dayType   {'calendar'|'business'}
    *
    * @param {Object} proj
    * @param {Set<string>|null} activeHolidayDates

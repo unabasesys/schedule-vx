@@ -17,12 +17,15 @@
     </div>
 
     <!-- ── Not found ────────────────────────────────────────────── -->
-    <div v-if="!project" class="preview-empty">
-      Project not found. Go back and reopen from the calendar.
+    <div v-if="loading" class="preview-empty">
+      Cargando proyecto...
+    </div>
+    <div v-else-if="loadError || !project" class="preview-empty">
+      No se pudo cargar el proyecto. Cerrá esta pestaña y volvé a abrir el PDF desde el calendario.
     </div>
 
     <!-- ── Pages ────────────────────────────────────────────────── -->
-    <template v-else>
+    <template v-else-if="project">
       <div
         v-for="(page, pageIdx) in pages"
         :key="pageIdx"
@@ -224,25 +227,42 @@ const project      = ref(null)
 const orgName      = ref('Mi Productora')
 const orgLogo      = ref('')
 const lang         = ref('es')
-const weekStartCfg = ref('mon')   // 'mon' | 'sun'
-const dateFormat   = ref('DD/MM/AA') // 'DD/MM/AA' | 'MM/DD/AA'
+const weekStartCfg = ref('sun')
+const dateFormat   = ref('DD/MM/AA')
+const loading      = ref(true)
+const loadError    = ref(false)
 
-onMounted(() => {
-  lang.value         = localStorage.getItem('ub_lang')       || 'es'
-  weekStartCfg.value = localStorage.getItem('ub_weekstart')  || 'sun'
-  dateFormat.value   = localStorage.getItem('ub_dateformat') || 'DD/MM/AA'
+onMounted(async () => {
+  const authStore     = useAuthStore()
+  const settingsStore = useSettingsStore()
 
-  orgName.value = localStorage.getItem('ub_studio') || 'Mi Productora'
-  orgLogo.value = localStorage.getItem('ub_logo')   || ''
+  authStore.init()
+
+  const prefs = authStore.user?.schedulePrefs || {}
+  lang.value         = prefs.lang       || 'es'
+  weekStartCfg.value = prefs.weekStart  || 'sun'
+  dateFormat.value   = prefs.dateFormat || 'DD/MM/AA'
+
+  if (!authStore.isLoggedIn) {
+    loadError.value = true
+    loading.value   = false
+    return
+  }
 
   try {
-    const raw = localStorage.getItem('ub_projects')
-    if (raw) {
-      const projs = JSON.parse(raw)
-      const found = projs.find(p => p.id === projectId.value)
-      if (found) project.value = found
-    }
-  } catch {}
+    const [proj] = await Promise.all([
+      useApi().get(`/projects/${projectId.value}`),
+      settingsStore.fetchOrg(),
+    ])
+    project.value = proj
+    orgName.value = settingsStore.studioName || authStore.organization?.name || 'Mi Productora'
+    orgLogo.value = settingsStore.logo || ''
+  } catch (e) {
+    console.warn('print: failed to load', e)
+    loadError.value = true
+  } finally {
+    loading.value = false
+  }
 })
 
 // ── Locale helpers ─────────────────────────────────────────────────────────────
