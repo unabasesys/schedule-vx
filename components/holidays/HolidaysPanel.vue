@@ -25,7 +25,7 @@
     </div>
 
     <!-- Holiday list -->
-    <div class="holidays-list">
+    <div class="holidays-list" ref="listRef">
       <div v-if="!project.holidays?.length" class="holidays-empty">
         {{ lang === 'en' ? 'No countries loaded for this project. Use the search to add one.' : 'Sin países cargados para este proyecto. Usa la búsqueda para agregar.' }}
       </div>
@@ -54,7 +54,8 @@
             v-for="h in getHolidays(country.countryCode)"
             :key="h.date"
             class="holiday-item"
-            :class="{ 'holiday-item-off': isDisabled(h.date) }"
+            :class="{ 'holiday-item-off': isDisabled(h.date), 'holiday-item-highlight': h.date === activeHighlight }"
+            :data-hol-date="h.date"
           >
             <label class="hol-toggle hol-toggle-sm" :title="isDisabled(h.date) ? L.enableOne : L.disableOne">
               <input type="checkbox" :checked="!isDisabled(h.date)" @change="toggleHoliday(h.date)" />
@@ -99,13 +100,33 @@ const props = defineProps({
 })
 const emit = defineEmits(['close'])
 
+function onKeydown(e) { if (e.key === 'Escape' && props.open) emit('close') }
+onMounted(() => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+
 const lang = computed(() => globalStore.lang)
 const L    = computed(() => LABELS[lang.value] ?? LABELS.es)
 
 const searchQuery   = ref('')
 const searchResults = ref([])
+const listRef       = ref(null)
+const activeHighlight = ref(null)
 
 const year = computed(() => new Date().getFullYear())
+
+// ── Highlight: scroll to a specific holiday date (triggered from drag-drop dialog) ──
+watch(() => globalStore.highlightHolidayDate, (date) => {
+  if (!date) return
+  activeHighlight.value = date
+  nextTick(() => {
+    const el = listRef.value?.querySelector(`[data-hol-date="${date}"]`)
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => {
+      activeHighlight.value = null
+      globalStore.highlightHolidayDate = null
+    }, 2500)
+  })
+})
 
 // ── Disabled set ─────────────────────────────────────────────────────────────
 const disabledSet = computed(() => new Set(props.project.disabledHolidays || []))
@@ -193,6 +214,7 @@ function formatDate(dateStr) {
     ? `${parseInt(m)}/${parseInt(d)}`
     : `${parseInt(d)}/${parseInt(m)}`
 }
+
 </script>
 
 <style scoped>
@@ -301,4 +323,11 @@ function formatDate(dateStr) {
 .holiday-item-off { opacity: .42; }
 .holiday-item-date { color: var(--accent); font-weight: 600; flex-shrink: 0; min-width: 36px; }
 .holiday-item-name { color: var(--text); flex: 1; }
+@keyframes hol-highlight-fade {
+  0%   { background: rgba(239,68,68,.22); border-radius: 4px; }
+  100% { background: transparent; }
+}
+.holiday-item.holiday-item-highlight {
+  animation: hol-highlight-fade 2.5s ease-out forwards;
+}
 </style>

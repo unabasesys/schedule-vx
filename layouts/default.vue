@@ -7,6 +7,7 @@
 
     <DialogModal />
     <SnapNoticeModal />
+    <PendingInvitationsModal />
 
     <!-- Reopen button — only shown when sidebar is fully collapsed -->
     <Transition name="sb-reopen">
@@ -28,6 +29,13 @@
 
 <script setup>
 const globalStore = useGlobalStore()
+const authStore   = useAuthStore()
+
+onMounted(async () => {
+  if (authStore.isLoggedIn) {
+    await authStore.fetchPendingInvitations()
+  }
+})
 </script>
 
 <style>

@@ -1,12 +1,16 @@
 <template>
   <div class="modal-backdrop" @click.self="$emit('close')">
     <div class="modal wide">
-      <h2>{{ L.companyTitle }}</h2>
+      <h2>{{ creationMode ? (lang === 'en' ? 'New organization' : 'Nueva organización') : L.companyTitle }}</h2>
 
       <div class="modal-grid" style="margin-bottom:14px;">
         <div class="field">
           <label>{{ L.companyName }}</label>
-          <input type="text" v-model="form.name" />
+          <input
+            type="text"
+            v-model="form.name"
+            placeholder=""
+          />
         </div>
         <div class="field">
           <label>{{ L.companyWeb }}</label>
@@ -36,22 +40,13 @@
         </div>
       </div>
 
-      <!-- Week start -->
+      <!-- Language -->
       <div class="settings-row">
-        <span class="settings-label">{{ L.weekStartLabel }}</span>
-        <select class="settings-select" v-model="localWeekStart" @change="globalStore.setWeekStart(localWeekStart)">
-          <option value="sun">{{ L.weekSun }}</option>
-          <option value="mon">{{ L.weekMon }}</option>
-        </select>
-      </div>
-
-      <!-- Temp unit -->
-      <div class="settings-row" style="margin-top:8px;">
-        <span class="settings-label">{{ L.tempUnitLabel }}</span>
-        <select class="settings-select" v-model="localTempUnit" @change="globalStore.setTempUnit(localTempUnit)">
-          <option value="C">Celsius (°C)</option>
-          <option value="F">Fahrenheit (°F)</option>
-        </select>
+        <span class="settings-label">{{ L.langLabel }}</span>
+        <div class="date-fmt-toggle">
+          <button :class="{ active: localLang === 'es' }" @click="localLang = 'es'">Español</button>
+          <button :class="{ active: localLang === 'en' }" @click="localLang = 'en'">English</button>
+        </div>
       </div>
 
       <!-- Date format -->
@@ -154,8 +149,8 @@
         </div>
       </div>
 
-      <!-- Users -->
-      <div style="margin-top:16px;">
+      <!-- Users — hidden during org creation -->
+      <div v-if="!creationMode" style="margin-top:16px;">
         <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:8px;">{{ L.usersLabel }}</div>
         <div style="display:flex;gap:8px;margin-bottom:10px;">
           <input
@@ -180,7 +175,8 @@
           <div v-for="user in settingsStore.users" :key="user.id" class="user-row">
             <span class="user-email">{{ user.email }}</span>
             <span class="user-status" :class="user.status">{{ statusLabel(user.status) }}</span>
-            <button class="btn-ghost" style="padding:3px 8px;font-size:.65rem;" @click="removeUser(user.id)">✕</button>
+            <span v-if="isOrgOwner(user)" class="user-owner-badge">{{ lang === 'en' ? 'owner' : 'propietario' }}</span>
+            <button v-else class="btn-ghost" style="padding:3px 8px;font-size:.65rem;" @click="removeUser(user.id)">✕</button>
           </div>
           <div v-if="!settingsStore.users.length" style="font-size:.75rem;color:var(--muted);">
             {{ lang === 'en' ? 'No users invited yet' : 'No hay usuarios invitados' }}
@@ -189,6 +185,22 @@
       </div>
 
       <div v-if="orgError" class="org-error">{{ orgError }}</div>
+
+      <!-- Danger zone — owner only, hidden during org creation -->
+      <div v-if="isCurrentUserOwner && authStore.isLoggedIn && !creationMode" class="danger-zone">
+        <div class="danger-zone-label">{{ lang === 'en' ? 'Danger zone' : 'Zona de peligro' }}</div>
+        <div class="danger-zone-row">
+          <div class="danger-zone-desc">
+            <strong>{{ lang === 'en' ? 'Delete organization' : 'Eliminar organización' }}</strong>
+            <span>{{ lang === 'en'
+              ? 'Permanently deletes this organization and all its calendars. This action cannot be undone.'
+              : 'Elimina permanentemente esta organización y todos sus calendarios. Esta acción no se puede deshacer.' }}</span>
+          </div>
+          <button class="btn-danger" @click="handleDeleteOrg" :disabled="saving">
+            {{ lang === 'en' ? 'Delete org' : 'Eliminar org' }}
+          </button>
+        </div>
+      </div>
 
       <div class="modal-actions">
         <button class="btn-ghost" @click="$emit('close')" :disabled="saving">{{ L.btnCancel }}</button>
@@ -201,12 +213,16 @@
 </template>
 
 <script setup>
+const props = defineProps({
+  creationMode: { type: Boolean, default: false },
+})
+
 const settingsStore = useSettingsStore()
 const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()
 const authStore     = useAuthStore()
 
-const emit    = defineEmits(['close'])
+const emit    = defineEmits(['close', 'created'])
 const saving  = ref(false)
 const orgError = ref(null)
 
@@ -220,6 +236,7 @@ const LABELS = {
     logoHint:        'Recomendado: 192×192 px · PNG, SVG o WebP',
     uploadLogo:      'Subir logo',
     removeLogo:      'Quitar logo',
+    langLabel:       'Idioma',
     weekStartLabel:  'Inicio de semana',
     weekSun:         'Domingo',
     weekMon:         'Lunes',
@@ -237,6 +254,7 @@ const LABELS = {
     logoHint:        'Recommended: 192×192 px · PNG, SVG or WebP',
     uploadLogo:      'Upload logo',
     removeLogo:      'Remove logo',
+    langLabel:       'Language',
     weekStartLabel:  'Week starts on',
     weekSun:         'Sunday',
     weekMon:         'Monday',
@@ -252,13 +270,12 @@ const lang = computed(() => globalStore.lang || 'es')
 const L    = computed(() => LABELS[lang.value] ?? LABELS.es)
 
 const form = reactive({
-  name:    settingsStore.company.name    || '',
-  website: settingsStore.company.website || '',
-  logo:    settingsStore.logo            || '',
+  name:    props.creationMode ? '' : (settingsStore.company.name    || ''),
+  website: props.creationMode ? '' : (settingsStore.company.website || ''),
+  logo:    props.creationMode ? '' : (settingsStore.logo            || ''),
 })
 
-const localWeekStart  = ref(globalStore.weekStart)
-const localTempUnit   = ref(globalStore.tempUnit)
+const localLang       = ref(globalStore.lang || 'es')
 const localDateFormat = ref(globalStore.dateFormat || 'DD/MM/AA')
 const inviteEmail     = ref('')
 const inviteError     = ref('')
@@ -267,7 +284,7 @@ const inviteSuccess   = ref('')
 // ── Operating cities ──────────────────────────────────────────────────────────
 import { DEFAULT_CITIES } from '~/utils/constants'
 
-const localOrgCities     = ref(JSON.parse(JSON.stringify(settingsStore.orgCities || [])))
+const localOrgCities     = ref(props.creationMode ? [] : JSON.parse(JSON.stringify(settingsStore.orgCities || [])))
 const citySearchText     = ref('')
 const orgCitySuggestions = ref([])
 let citySearchTimer      = null
@@ -338,7 +355,7 @@ function hideCitySuggestions() {
 // ── Default holiday countries ─────────────────────────────────────────────────
 const holidaysStore = useHolidaysStore()
 
-const localOrgDefaultHolidays = ref(JSON.parse(JSON.stringify(settingsStore.orgDefaultHolidays || [])))
+const localOrgDefaultHolidays = ref(props.creationMode ? [] : JSON.parse(JSON.stringify(settingsStore.orgDefaultHolidays || [])))
 const holidaySearchText = ref('')
 const holidaySuggestions = ref([])
 
@@ -368,6 +385,47 @@ function removeDefaultHoliday(code) {
 
 function hideHolidaySuggestions() {
   setTimeout(() => { holidaySuggestions.value = [] }, 180)
+}
+
+function isOrgOwner(user) {
+  return user.role === 'owner'
+}
+
+const isCurrentUserOwner = computed(() => {
+  const currentOrgId = authStore.organization?._id?.toString()
+  if (!currentOrgId) return false
+  const current = authStore.organizations.find(o => o._id?.toString() === currentOrgId)
+  return current?.isOwner === true
+})
+
+async function handleDeleteOrg() {
+  const orgName = authStore.organization?.name || ''
+  const confirmed = await useDialog().confirm({
+    title:        lang.value === 'en' ? 'Delete organization?' : '¿Eliminar organización?',
+    body:         lang.value === 'en'
+      ? `This will permanently delete "${orgName}" and all its calendars. This action cannot be undone.`
+      : `Esto eliminará permanentemente "${orgName}" y todos sus calendarios. Esta acción no se puede deshacer.`,
+    confirmLabel: lang.value === 'en' ? 'Yes, delete' : 'Sí, eliminar',
+    cancelLabel:  lang.value === 'en' ? 'Cancel' : 'Cancelar',
+  })
+  if (!confirmed) return
+
+  saving.value = true
+  const result = await authStore.deleteOrg(authStore.organization._id)
+  saving.value = false
+
+  if (!result.ok) {
+    orgError.value = result.error || (lang.value === 'en' ? 'Could not delete the organization.' : 'No se pudo eliminar la organización.')
+  } else {
+    await useDialog().alert({
+      title: lang.value === 'en' ? 'Organization deleted' : 'Organización eliminada',
+      body:  lang.value === 'en'
+        ? `"${orgName}" has been successfully deleted.`
+        : `"${orgName}" se ha eliminado con éxito.`,
+      confirmLabel: 'OK',
+    })
+    emit('close')
+  }
 }
 
 function statusLabel(s) {
@@ -421,25 +479,89 @@ async function inviteUser() {
 
 async function removeUser(id) {
   const user = settingsStore.users.find(u => u.id === id)
+  if (!user) return
+
+  const name = user.name || user.email
+  const ok = await useDialog().confirm({
+    title:        lang.value === 'en' ? 'Remove user?' : '¿Eliminar usuario?',
+    body:         lang.value === 'en'
+      ? `Are you sure you want to remove ${name} from this organization?`
+      : `¿Estás seguro de que querés eliminar a ${name} de la organización?`,
+    confirmLabel: lang.value === 'en' ? 'Remove' : 'Eliminar',
+    cancelLabel:  lang.value === 'en' ? 'Cancel' : 'Cancelar',
+  })
+  if (!ok) return
+
   if (authStore.isLoggedIn) {
-    // Active users have _userId (MongoDB ObjectId); pending users only have email
-    const target = user?._userId || user?.email
-    if (target) await settingsStore.removeUserFromApi(target)
+    const isSelf = authStore.user?.email && user.email === authStore.user.email
+    const target = (isSelf && authStore.user?._id) ? authStore.user._id : (user._userId || user.email)
+    if (target) {
+      const result = await settingsStore.removeUserFromApi(target)
+      if (!result.ok) {
+        orgError.value = result.error || (lang.value === 'en' ? 'Failed to remove user.' : 'No se pudo eliminar el usuario.')
+        return
+      }
+    }
   }
   settingsStore.removeUser(id)
+  await authStore.fetchMyOrgs()
 }
 
 async function save() {
   saving.value  = true
   orgError.value = null
 
+  if (props.creationMode) {
+    if (!form.name.trim()) {
+      orgError.value = lang.value === 'en' ? 'Organization name is required.' : 'El nombre de la organización es requerido.'
+      saving.value = false
+      return
+    }
+    const result = await authStore.createOrg(form.name.trim())
+    if (!result.ok) {
+      orgError.value = result.error || (lang.value === 'en' ? 'Could not create organization. Try again.' : 'No se pudo crear la organización. Intentá de nuevo.')
+      saving.value = false
+      return
+    }
+    globalStore.setLang(localLang.value)
+    globalStore.setDateFormat(localDateFormat.value)
+    settingsStore.setCompany({ name: form.name, website: form.website })
+    settingsStore.setStudioName(form.name)
+    settingsStore.setOrgCities(localOrgCities.value)
+    settingsStore.setOrgDefaultHolidays(localOrgDefaultHolidays.value)
+    if (form.logo && form.logo.startsWith('data:')) {
+      const url = await settingsStore.uploadLogoToApi(form.logo)
+      if (url) form.logo = url
+    }
+    await Promise.all([
+      settingsStore.saveOrgToApi({
+        name:    form.name,
+        website: form.website,
+        scheduleSettings: {
+          cities:          localOrgCities.value,
+          defaultHolidays: localOrgDefaultHolidays.value,
+        },
+      }),
+      settingsStore.saveUserPrefsToApi({
+        lang:       localLang.value,
+        weekStart:  globalStore.weekStart,
+        tempUnit:   globalStore.tempUnit,
+        dateFormat: localDateFormat.value,
+      }),
+    ])
+    settingsStore.saveLogo(form.logo)
+    saving.value = false
+    emit('created')
+    emit('close')
+    return
+  }
+
   // Local preferences first (always saved)
   settingsStore.setCompany({ name: form.name, website: form.website })
   settingsStore.setStudioName(form.name)
   settingsStore.setOrgCities(localOrgCities.value)
   settingsStore.setOrgDefaultHolidays(localOrgDefaultHolidays.value)
-  globalStore.setWeekStart(localWeekStart.value)
-  globalStore.setTempUnit(localTempUnit.value)
+  globalStore.setLang(localLang.value)
   globalStore.setDateFormat(localDateFormat.value)
   projectsStore.save()
 
@@ -450,14 +572,22 @@ async function save() {
       if (url) form.logo = url
     }
 
-    await settingsStore.saveOrgToApi({
-      name:     form.name,
-      website:  form.website,
-      scheduleSettings: {
-        cities:          localOrgCities.value,
-        defaultHolidays: localOrgDefaultHolidays.value,
-      },
-    })
+    await Promise.all([
+      settingsStore.saveOrgToApi({
+        name:     form.name,
+        website:  form.website,
+        scheduleSettings: {
+          cities:          localOrgCities.value,
+          defaultHolidays: localOrgDefaultHolidays.value,
+        },
+      }),
+      settingsStore.saveUserPrefsToApi({
+        lang:       localLang.value,
+        weekStart:  globalStore.weekStart,
+        tempUnit:   globalStore.tempUnit,
+        dateFormat: localDateFormat.value,
+      }),
+    ])
   }
 
   settingsStore.saveLogo(form.logo)
@@ -468,12 +598,11 @@ async function save() {
 // ── Keyboard: Enter = save, Esc = close ────────────────────────────────────────
 function onKeydown(e) {
   if (e.key === 'Escape') { emit('close') }
-  if (e.key === 'Enter' && e.target.tagName !== 'INPUT') { save() }
+  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { save() }
 }
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
-  // Load org from API if logged in
-  if (authStore.isLoggedIn) {
+  if (authStore.isLoggedIn && !props.creationMode) {
     const org = await settingsStore.fetchOrg()
     if (org) {
       form.name    = org.name || ''
@@ -510,6 +639,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .user-status.pending     { background: rgba(245,158,11,.12); color: var(--warning); }
 .user-status.active      { background: rgba(34,197,94,.12);  color: var(--success); }
 .user-status.deactivated { background: rgba(107,143,160,.1); color: var(--muted); }
+.user-owner-badge {
+  font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 6px; border-radius: 4px;
+  background: rgba(42,79,158,.15); color: var(--accent);
+}
 
 .logo-thumb {
   width: 56px; height: 56px; object-fit: contain;
@@ -589,4 +723,35 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .org-city-option:hover { background: #f0faf8; }
 .org-city-option strong { color: var(--text); font-weight: 700; }
 .org-city-option span { color: var(--muted); font-size: .66rem; }
+
+.danger-zone {
+  margin-top: 20px;
+  border: 1px solid rgba(234,78,73,.3);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.danger-zone-label {
+  background: rgba(234,78,73,.07);
+  padding: 6px 14px;
+  font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--danger);
+}
+.danger-zone-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+}
+.danger-zone-desc {
+  flex: 1; display: flex; flex-direction: column; gap: 3px;
+}
+.danger-zone-desc strong { font-size: .78rem; color: var(--text); }
+.danger-zone-desc span   { font-size: .7rem;  color: var(--muted); }
+.btn-danger {
+  flex-shrink: 0;
+  padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer;
+  font-size: .72rem; font-weight: 700; font-family: inherit;
+  background: rgba(234,78,73,.1); color: var(--danger);
+  transition: background .12s;
+}
+.btn-danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
+.btn-danger:disabled { opacity: .45; cursor: not-allowed; }
 </style>

@@ -14,6 +14,7 @@ export const useGlobalStore = defineStore('global', {
     dateFormat: 'DD/MM/AA', // 'DD/MM/AA' | 'MM/DD/AA'
     sidebarSearch: '',
     holidaysPanelOpen: false,
+    highlightHolidayDate: null,
     // Modal state (global so layout and sidebar can share)
     projectModalOpen:       false,
     editingProjectId:       null,
@@ -35,6 +36,7 @@ export const useGlobalStore = defineStore('global', {
   actions: {
     setView(view) {
       this.currentView = view
+      usePersist().setView(view)
     },
     setLang(l) {
       this.lang = l
@@ -52,19 +54,6 @@ export const useGlobalStore = defineStore('global', {
       this.calYear  = year
       this.calMonth = month
     },
-    calPrev() {
-      if (this.calMonth === 0) { this.calMonth = 11; this.calYear-- }
-      else this.calMonth--
-    },
-    calNext() {
-      if (this.calMonth === 11) { this.calMonth = 0; this.calYear++ }
-      else this.calMonth++
-    },
-    calToday() {
-      const now = new Date()
-      this.calYear  = now.getFullYear()
-      this.calMonth = now.getMonth()
-    },
     setWeekStart(ws) {
       this.weekStart = ws
     },
@@ -76,6 +65,10 @@ export const useGlobalStore = defineStore('global', {
     },
     toggleHolidaysPanel() {
       this.holidaysPanelOpen = !this.holidaysPanelOpen
+    },
+    openHolidaysPanelAt(date) {
+      this.holidaysPanelOpen    = true
+      this.highlightHolidayDate = date
     },
 
     openProjectModal(id = null, templateId = null) {

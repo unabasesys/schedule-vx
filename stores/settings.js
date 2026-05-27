@@ -60,12 +60,12 @@ export const useSettingsStore = defineStore('settings', {
 
     async fetchOrg() {
       const authStore = useAuthStore()
-      if (!authStore.isLoggedIn) return null
+      if (!authStore.isLoggedIn || !authStore.organization?._id) return null
       try {
-        const res = await fetch(`${API()}/organizations/my`, {
+        const res = await fetch(`${API()}/organizations/${authStore.organization._id}`, {
           headers: {
             Authorization: `Bearer ${authStore.token}`,
-            ...(authStore.organization?._id ? { Organization: authStore.organization._id } : {}),
+            Organization: authStore.organization._id,
           },
         })
         if (!res.ok) return null
@@ -80,13 +80,9 @@ export const useSettingsStore = defineStore('settings', {
       if (!org) return
       this.setStudioName(org.name || 'Mi Productora')
       this.setCompany({ name: org.name || '', website: org.contact?.webSite || '' })
-      if (org.imgUrl) this.logo = org.imgUrl
-      if (org.scheduleSettings?.cities?.length) {
-        this.orgCities = org.scheduleSettings.cities
-      }
-      if (org.scheduleSettings?.defaultHolidays?.length) {
-        this.orgDefaultHolidays = org.scheduleSettings.defaultHolidays
-      }
+      this.logo = org.imgUrl || null
+      this.orgCities          = org.scheduleSettings?.cities          || []
+      this.orgDefaultHolidays = org.scheduleSettings?.defaultHolidays || []
       if (org.users?.length) {
         const seen = new Set()
         this.users = org.users
@@ -97,6 +93,7 @@ export const useSettingsStore = defineStore('settings', {
               ? `${u.user.data.name.first || ''} ${u.user.data.name.last || ''}`.trim()
               : '',
             status: u.status || 'active',
+            role:   u.role   || 'member',
             _userId: u.user?._id || null,
           }))
           .filter(u => {
@@ -131,21 +128,41 @@ export const useSettingsStore = defineStore('settings', {
       } catch { return false }
     },
 
+    async saveUserPrefsToApi({ lang, weekStart, tempUnit, dateFormat }) {
+      const authStore = useAuthStore()
+      if (!authStore.isLoggedIn) return false
+      try {
+        const res = await fetch(`${API()}/users/me`, {
+          method:  'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization:  `Bearer ${authStore.token}`,
+            ...(authStore.organization?._id ? { Organization: authStore.organization._id } : {}),
+          },
+          body: JSON.stringify({ schedulePrefs: { lang, weekStart, tempUnit, dateFormat } }),
+        })
+        if (!res.ok) return false
+        const data = await res.json()
+        if (data?._id) {
+          authStore.user = data
+          authStore._persist()
+        }
+        return true
+      } catch { return false }
+    },
+
     async uploadLogoToApi(dataUrl) {
       const authStore = useAuthStore()
       if (!authStore.isLoggedIn || !authStore.organization?._id) return null
       try {
-        const blob     = await fetch(dataUrl).then(r => r.blob())
-        const formData = new FormData()
-        formData.append('logo', blob, 'logo.png')
-
         const res = await fetch(`${API()}/organizations/${authStore.organization._id}/logo`, {
           method:  'PUT',
           headers: {
-            Authorization: `Bearer ${authStore.token}`,
-            Organization:  authStore.organization._id,
+            'Content-Type': 'application/json',
+            Authorization:  `Bearer ${authStore.token}`,
+            Organization:   authStore.organization._id,
           },
-          body: formData,
+          body: JSON.stringify({ imgUrl: dataUrl }),
         })
         if (!res.ok) return null
         const data = await res.json()
@@ -189,8 +206,12 @@ export const useSettingsStore = defineStore('settings', {
             },
           }
         )
-        return res.ok
-      } catch { return false }
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          return { ok: false, error: body.error || null }
+        }
+        return { ok: true }
+      } catch { return { ok: false, error: null } }
     },
   },
 })

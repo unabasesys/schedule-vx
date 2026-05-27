@@ -3,30 +3,6 @@
     <!-- Navigation -->
     <div class="cal-nav">
       <div style="display:flex;align-items:center;gap:6px;z-index:1;"></div>
-      <div class="cal-month-title" style="position:absolute;left:0;right:0;text-align:center;pointer-events:none;">
-        {{ calTitle }}
-      </div>
-      <div style="margin-left:auto;font-size:.68rem;color:var(--muted);display:flex;align-items:center;gap:6px;z-index:1;">
-        <select
-          class="settings-select"
-          :value="weekStart"
-          @change="globalStore.setWeekStart($event.target.value); projectsStore.save()"
-          style="padding:3px 8px;font-size:.68rem;"
-        >
-          <option value="sun">{{ lang === 'en' ? 'Sunday' : 'Domingo' }}</option>
-          <option value="mon">{{ lang === 'en' ? 'Monday' : 'Lunes' }}</option>
-        </select>
-        <span style="width:1px;height:14px;background:var(--border);display:inline-block;margin:0 2px;"></span>
-        <select
-          class="settings-select"
-          :value="tempUnit"
-          @change="globalStore.setTempUnit($event.target.value)"
-          style="padding:3px 8px;font-size:.68rem;"
-        >
-          <option value="C">°C</option>
-          <option value="F">°F</option>
-        </select>
-      </div>
     </div>
 
     <!-- Weather strip -->
@@ -41,12 +17,15 @@
     <div class="cal-scroll">
       <div class="cal-main-grid">
         <div
-          v-for="m in visibleMonths"
+          v-for="(m, idx) in visibleMonths"
           :key="`${m.year}-${m.month}`"
           :id="`cal-month-${m.year}-${m.month}`"
           class="cal-month-col"
         >
-          <div class="cal-month-label">{{ monthTitle(m.year, m.month) }}</div>
+          <div class="cal-month-label-row">
+            <div class="cal-month-label">{{ monthTitle(m.year, m.month) }}</div>
+            <button v-if="idx === 0" class="add-month-btn add-month-btn--prev" @click="addPrevMonth" :title="lang === 'en' ? 'Add previous month' : 'Agregar mes anterior'">−</button>
+          </div>
           <CalendarMonth
             :year="m.year"
             :month="m.month"
@@ -55,6 +34,9 @@
             :lang="lang"
             :holidays="holidaysForYear(m.year)"
             :read-only="readOnly"
+            :focus-date="focusDate"
+            :saving-ev-id="savingEvId"
+            :daily-schedule="project.dailySchedule || []"
             @day-select="onDaySelect"
             @day-click="onDayClick"
             @event-click="onEventClick"
@@ -114,6 +96,27 @@
           </select>
         </div>
 
+        <!-- Departments -->
+        <div v-if="project.groups?.filter(g => g.active !== false).length" class="field field--spaced">
+          <label>{{ lang === 'en' ? 'Departments' : 'Departamentos' }}</label>
+          <div class="ev-modal-groups">
+            <label
+              v-for="grp in project.groups.filter(g => g.active !== false)"
+              :key="grp.id"
+              class="ev-modal-group-opt"
+            >
+              <input
+                type="checkbox"
+                :checked="evModalGroups.includes(grp.key) || evModalGroups.includes(grp.id)"
+                @change="evModalGroups.includes(grp.key)
+                  ? evModalGroups.splice(evModalGroups.indexOf(grp.key), 1)
+                  : evModalGroups.push(grp.key)"
+              />
+              <span>{{ lang === 'en' ? (grp.nameEN || grp.name) : grp.name }}</span>
+            </label>
+          </div>
+        </div>
+
         <!-- Days + type toggle -->
         <div class="field field--spaced ev-days-row">
           <div class="ev-days-input">
@@ -138,7 +141,7 @@
           </div>
           <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
             <label>{{ lang === 'en' ? 'To' : 'Hasta' }}</label>
-            <input v-model="evModalTo" type="date" @change="evModalToManual = true" />
+            <input v-model="evModalTo" type="date" @change="onToChange" />
           </div>
         </div>
 
@@ -208,6 +211,13 @@ const holidaysStore = useHolidaysStore()
 const activeDrag = reactive({ evId: null, evStart: null, isBusiness: false })
 provide('calDrag', activeDrag)
 
+// Tracks which event is mid-save after a drag-drop so CalendarMonth can show a pulse
+const savingEvId = ref(null)
+
+// Pending durDayType overrides from drag-drop (evId → dayType).
+// Avoids mutating store objects directly during the async drop flow.
+const pendingDayTypes = new Map()
+
 const props = defineProps({
   project:   { type: Object,  required: true },           // selected project (weather, new events)
   projects:  { type: Array,   default: () => [] },        // all visible projects for combined view
@@ -219,9 +229,11 @@ const props = defineProps({
   readOnly:  { type: Boolean, default: false },
 })
 
-// Resolved list: if caller provides projects use it, otherwise fall back to selected project only
+// Resolved list: if caller provides projects use it, otherwise fall back to selected project only.
+// If all projects are hidden (empty list) and the selected one is also hidden, show nothing.
 const allProjects = computed(() =>
-  props.projects.length ? props.projects : [props.project]
+  props.projects.length ? props.projects
+    : (props.project.hidden ? [] : [props.project])
 )
 
 // Track which project owns the event currently open in the modal (for multi-project saves)
@@ -241,6 +253,7 @@ const evModalCompleted = ref(false)
 const evModalFrom     = ref('')
 const evModalTo       = ref('')
 const evModalToManual = ref(false)
+const evModalGroups   = ref([])
 const evModalNameRef  = ref(null)
 
 // Live reference to the event being edited (reads from the store so toggles/removes
@@ -280,27 +293,6 @@ const eventDateRange = computed(() => {
   return { minDate, maxDate }
 })
 
-const calTitle = computed(() => {
-  const months = props.lang === 'en' ? MONTHS_EN : MONTHS_ES
-  const range  = eventDateRange.value
-  const yy = (y) => String(y).slice(-2)
-  if (!range) return `${months[props.calMonth]} ${yy(props.calYear)}`
-  const [y1, m1] = range.minDate.split('-').map(Number)
-  const [y2, m2] = range.maxDate.split('-').map(Number)
-
-  // Day span: inclusive count from first event start to last event end
-  const msPerDay  = 86400000
-  const spanDays  = Math.round(
-    (new Date(range.maxDate + 'T12:00:00') - new Date(range.minDate + 'T12:00:00')) / msPerDay
-  ) + 1
-  const dayLabel  = props.lang === 'en' ? 'days' : 'días'
-  const spanSuffix = ` (${spanDays} ${dayLabel})`
-
-  if (y1 === y2 && m1 === m2) return `${months[m1 - 1]} ${yy(y1)}${spanSuffix}`
-  if (y1 === y2) return `${months[m1 - 1]} – ${months[m2 - 1]} ${yy(y1)}${spanSuffix}`
-  return `${months[m1 - 1]} ${yy(y1)} – ${months[m2 - 1]} ${yy(y2)}${spanSuffix}`
-})
-
 // Auto-derived months from event range (0-indexed months for CalendarMonth)
 const autoVisibleMonths = computed(() => {
   const range = eventDateRange.value
@@ -319,28 +311,40 @@ const autoVisibleMonths = computed(() => {
 
 // Manually added months beyond the auto range
 const extraMonthCount = ref(0)
-watch(() => props.project.id, () => { extraMonthCount.value = 0 })
+const extraMonthsBefore = ref(0)
+watch(() => props.project.id, () => { extraMonthCount.value = 0; extraMonthsBefore.value = 0 })
 
 // Always show "+" so the user can extend the view by one month at any time
 const showAddMonth = true
 
-// Full visible range = auto months + manually added extras
+// Full visible range = manually added before + auto months + manually added extras
 const visibleMonths = computed(() => {
   const base = autoVisibleMonths.value
-  if (extraMonthCount.value === 0) return base
+  const first = base[0]
+  const before = []
+  let yb = first.year, mb = first.month
+  for (let i = 0; i < extraMonthsBefore.value; i++) {
+    mb--
+    if (mb < 0) { mb = 11; yb-- }
+    before.unshift({ year: yb, month: mb })
+  }
   const last = base[base.length - 1]
   const extra = []
-  let y = last.year, m = last.month // 0-indexed
+  let y = last.year, m = last.month
   for (let i = 0; i < extraMonthCount.value; i++) {
     m++
     if (m > 11) { m = 0; y++ }
     extra.push({ year: y, month: m })
   }
-  return [...base, ...extra]
+  return [...before, ...base, ...extra]
 })
 
 function addNextMonth() {
   extraMonthCount.value++
+}
+
+function addPrevMonth() {
+  extraMonthsBefore.value++
 }
 
 function monthTitle(y, m) {
@@ -463,6 +467,22 @@ function calcTo(from, days, dayType) {
   return current
 }
 
+function calcDaysFromRange(from, to, dayType) {
+  if (!from || !to || to < from) return 1
+  if (dayType === 'calendar') {
+    const diffMs = new Date(to + 'T12:00:00') - new Date(from + 'T12:00:00')
+    return Math.round(diffMs / 86400000) + 1
+  }
+  // Business days — count working days inclusive
+  let count = 1, current = from
+  while (current < to) {
+    current = shiftDate(current, 1)
+    const dow = new Date(current + 'T12:00:00').getDay()
+    if (dow !== 0 && dow !== 6) count++
+  }
+  return Math.max(1, count)
+}
+
 // ── Active holidays for the selected project (used in business-day validation) ──
 // Covers all years currently rendered; used only for event creation/editing on props.project.
 const activeHolidayDatesForProject = computed(() => {
@@ -512,6 +532,7 @@ function onDayClick(dateStr) {
   evModalDayType.value  = 'calendar'
   evModalKeyDate.value  = false
   evModalInternal.value = false
+  evModalGroups.value   = []
   evModalFrom.value     = dateStr
   evModalTo.value       = dateStr
   evModalToManual.value = false
@@ -531,6 +552,7 @@ function onEventClick(ev) {
   evModalKeyDate.value   = ev.keyDate   || false
   evModalInternal.value  = ev.internal  || false
   evModalCompleted.value = ev.completed || false
+  evModalGroups.value    = [...(ev.groups || [])]
   evModalFrom.value     = ev.date || ''
   evModalTo.value       = calcTo(ev.date, ev.duration || 1, ev.durDayType || 'calendar')
   evModalToManual.value = false
@@ -547,6 +569,17 @@ function onFromChange() {
 function onDaysChange() {
   evModalToManual.value = false
   evModalTo.value = calcTo(evModalFrom.value, evModalDays.value, evModalDayType.value)
+}
+
+function onToChange() {
+  if (!evModalFrom.value || !evModalTo.value) return
+  if (evModalTo.value < evModalFrom.value) {
+    evModalTo.value = evModalFrom.value
+    evModalDays.value = 1
+    return
+  }
+  evModalDays.value = calcDaysFromRange(evModalFrom.value, evModalTo.value, evModalDayType.value)
+  evModalToManual.value = true
 }
 
 async function onDayTypeChange(type) {
@@ -600,23 +633,28 @@ async function confirmEvModal() {
       duration: Math.max(1, evModalDays.value || 1),
       durDayType: evModalDayType.value,
       dep: { active: false, eventId: '', relation: 'after', days: 1, broken: false },
-      locked: false, notes: '', order: ownerProj.events.length,
-      completed: false, keyDate: evModalKeyDate.value, internal: evModalInternal.value, whenToUse: '', whenToUseEN: '', groups: [],
+      notes: '', order: ownerProj.events.length,
+      completed: false, keyDate: evModalKeyDate.value, internal: evModalInternal.value, groups: evModalGroups.value,
     }
     projectsStore.addEvent(projId, ev)
   } else {
+    const nameFields = props.lang === 'en'
+      ? { nameEN: name, nameCustomized: true }
+      : { name,   nameCustomized: true }
     projectsStore.updateEvent(projId, evModalId.value, {
-      name, nameEN: name,
+      ...nameFields,
       stage:      evModalStage.value,
       duration:   Math.max(1, evModalDays.value || 1),
       durDayType: evModalDayType.value,
       keyDate:    evModalKeyDate.value,
       internal:   evModalInternal.value,
       completed:  evModalCompleted.value,
+      groups:     evModalGroups.value,
       date:       evModalFrom.value,
     })
   }
   projectsStore.recalcAndSave(projId)
+  projectsStore.selectProject(projId)
   evModalOpen.value = false
 }
 
@@ -625,6 +663,7 @@ async function confirmEvModal() {
 function onReorderEvents({ evId1, evId2 }) {
   const projId = projIdFor(evId1)
   projectsStore.reorderEvents(projId, evId1, evId2)
+  projectsStore.selectProject(projId)
 }
 
 // Move an event to a new start date, keeping all other settings unchanged.
@@ -639,18 +678,86 @@ function snapWeekend(dateStr) {
   return d.toISOString().split('T')[0]
 }
 
+// Returns active holiday dates for any project
+function getActiveHolidayDatesFor(proj) {
+  const disabled = new Set(proj.disabledHolidays || [])
+  const years = new Set(visibleMonths.value.map(m => m.year))
+  if (!years.size) years.add(new Date().getFullYear())
+  const dates = new Set()
+  ;(proj.holidays || []).forEach(({ countryCode }) => {
+    years.forEach(year => {
+      holidaysStore.getHolidaysForYear(countryCode, year).forEach(h => {
+        if (!disabled.has(h.date)) dates.add(h.date)
+      })
+    })
+  })
+  return dates
+}
+
+// Returns the display name of a holiday on a given date for a project
+function getHolidayName(proj, dateStr) {
+  const year = parseInt(dateStr.slice(0, 4))
+  for (const { countryCode } of (proj.holidays || [])) {
+    const h = holidaysStore.getHolidaysForYear(countryCode, year).find(h => h.date === dateStr)
+    if (h) return h.localName || h.name || dateStr
+  }
+  return dateStr
+}
+
 async function onRescheduleEvent({ evId, newDate }) {
   const projId = projIdFor(evId)
   const proj   = projectsStore.projects.find(p => p.id === projId)
   const ev     = proj?.events.find(e => e.id === evId)
   if (!ev) return
 
-  // Weekend snapping applies only to Business Days events.
+  // Business day event dropped on weekend or holiday → ask what to do
   if (ev.durDayType === 'business') {
-    newDate = snapWeekend(newDate)
+    const dow        = new Date(newDate + 'T12:00:00').getDay()
+    const isWeekend  = dow === 0 || dow === 6
+    const isHoliday  = getActiveHolidayDatesFor(proj).has(newDate)
+    const en         = props.lang === 'en'
+
+    if (isHoliday) {
+      const holName = getHolidayName(proj, newDate)
+      const chosen  = await useDialog().choice({
+        title:   en ? 'Business day event on a holiday' : 'Evento de Días Hábiles en un feriado',
+        body:    en
+          ? `"${ev.name}" is a Business Day event.\n\nIf you want to keep it here you can either convert it to Calendar Day or deactivate this holiday.`
+          : `"${ev.name}" es un evento de Días Hábiles.\n\nSi querés dejarlo aquí podés convertirlo a Días Corridos o desactivar el feriado.`,
+        choices: [
+          { label: en ? 'Convert to Calendar Day'        : 'Convertir a Días Corridos',          value: 'calendar',    primary: true },
+          { label: en ? `Deactivate "${holName}"` : `Desactivar "${holName}"`, value: 'deactivate' },
+        ],
+        cancelLabel: en ? 'Cancel' : 'Cancelar',
+      })
+      if (!chosen) return
+      if (chosen === 'deactivate') {
+        const disabled = [...(proj.disabledHolidays || [])]
+        if (!disabled.includes(newDate)) disabled.push(newDate)
+        projectsStore.updateDisabledHolidays(projId, disabled)
+        globalStore.openHolidaysPanelAt(newDate)
+        // keep durDayType: 'business' — day is now a valid business day
+      } else {
+        newDate = newDate // stays where dropped
+        pendingDayTypes.set(evId, 'calendar')
+      }
+    } else if (isWeekend) {
+      const ok = await useDialog().confirm({
+        title:        en ? 'Business day event on a weekend'   : 'Evento de Días Hábiles en fin de semana',
+        body:         en
+          ? `"${ev.name}" is a Business Day event and cannot land on a weekend.\n\nDo you want to convert it to Calendar Day?`
+          : `"${ev.name}" es un evento de Días Hábiles y no puede caer en fin de semana.\n\nSi querés dejarlo acá, convertilo a Días Corridos.`,
+        confirmLabel: en ? 'Convert to Calendar Day' : 'Convertir a Días Corridos',
+        cancelLabel:  en ? 'Cancel'                  : 'Cancelar',
+      })
+      if (!ok) return
+      pendingDayTypes.set(evId, 'calendar')
+    }
   }
 
   const dateChanged = newDate !== ev.date
+  const pendingDayType = pendingDayTypes.get(evId)
+  pendingDayTypes.delete(evId)
 
   // When dropping onto a day that already has events in the same stage,
   // give the dragged event the lowest order so it appears first (lane 0).
@@ -665,10 +772,13 @@ async function onRescheduleEvent({ evId, newDate }) {
     : null
 
   // Nothing changed at all — skip
-  if (!dateChanged && newOrder === null) return
+  if (!dateChanged && newOrder === null && !pendingDayType) return
 
   const body = { date: newDate, dateMode: 'manual' }
   if (newOrder !== null) body.order = newOrder
+  if (pendingDayType) {
+    body.durDayType = pendingDayType
+  }
 
   // Only ask about dependency if the date is actually changing
   if (ev.dep?.active && dateChanged) {
@@ -687,6 +797,13 @@ async function onRescheduleEvent({ evId, newDate }) {
   }
   projectsStore.updateEvent(projId, evId, body)
   projectsStore.recalcAndSave(projId)
+  projectsStore.selectProject(projId)
+
+  // Fire the API save immediately — don't wait for the 1500ms debounce.
+  // This guarantees the change survives a page reload right after dropping.
+  savingEvId.value = evId
+  await projectsStore.syncProjectNow(projId)
+  savingEvId.value = null
 }
 
 async function onHolidayClick({ date, name }) {
@@ -805,10 +922,6 @@ onUnmounted(() => {
   padding: 4px 10px; font-size: .85rem; cursor: pointer; color: var(--muted); line-height: 1;
 }
 .cal-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
-.cal-month-title {
-  font-family: 'Nunito', sans-serif; font-size: .92rem; font-weight: 700; color: var(--text);
-}
-
 .hdr-icon-btn {
   background: none; border: 1.5px solid var(--border); border-radius: 7px;
   padding: 5px 9px; font-size: .8rem; cursor: pointer; color: var(--muted); transition: all .15s;
@@ -827,6 +940,12 @@ onUnmounted(() => {
 
 .add-month-wrap {
   display: flex; justify-content: center; padding: 20px 0 8px;
+}
+.cal-month-label-row {
+  position: relative; display: flex; align-items: center; min-height: 44px;
+}
+.add-month-btn--prev {
+  position: absolute; left: 50%; transform: translateX(-50%);
 }
 .add-month-btn {
   width: 34px; height: 34px; border-radius: 50%;
@@ -927,6 +1046,20 @@ onUnmounted(() => {
 .ev-dep-actions {
   display: flex; gap: 8px; flex-wrap: wrap;
 }
+
+.ev-modal-groups {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.ev-modal-group-opt {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .72rem; color: var(--text); cursor: pointer;
+  border: 1.5px solid var(--border); border-radius: 6px;
+  padding: 4px 8px; transition: border-color .12s;
+}
+.ev-modal-group-opt:has(input:checked) {
+  border-color: var(--accent); background: rgba(32,167,137,.08); color: var(--accent);
+}
+.ev-modal-group-opt input { display: none; }
 .ev-dep-actions .btn-small {
   padding: 5px 10px; font-size: .68rem;
 }

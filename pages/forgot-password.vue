@@ -9,7 +9,7 @@
         </div>
         <div class="panel-content">
           <h2 class="panel-product">Calendar</h2>
-          <p class="panel-tagline">Crea y gestiona calendarios de producción audiovisual de forma profesional.</p>
+          <p class="panel-tagline">Organiza calendarios de producción para proyectos de la industria creativa.</p>
         </div>
         <div class="panel-dots">
           <span class="dot"></span>
@@ -23,17 +23,17 @@
 
         <!-- Step 1: enter email -->
         <template v-if="step === 1">
-          <h1 class="auth-title">Recuperar contraseña</h1>
-          <p class="auth-subtitle">Ingresá tu email y te enviaremos un enlace para crear una nueva contraseña.</p>
+          <h1 class="auth-title">Reset your password</h1>
+          <p class="auth-subtitle">Enter your email and we'll send you a link to create a new password.</p>
 
           <form class="auth-form" @submit.prevent="handleSendEmail">
             <div class="field">
-              <label for="email">Email</label>
+              <label for="email">Email address</label>
               <input
                 id="email"
                 v-model="email"
                 type="email"
-                placeholder="tu@email.com"
+                placeholder="you@email.com"
                 autocomplete="email"
                 required
               />
@@ -42,41 +42,42 @@
             <div v-if="authStore.error" class="auth-error">{{ authStore.error }}</div>
 
             <button type="submit" class="btn-primary" :disabled="authStore.loading">
-              <span v-if="authStore.loading">Enviando...</span>
-              <span v-else>Enviar enlace</span>
+              <span v-if="authStore.loading">Sending...</span>
+              <span v-else>Send reset link</span>
             </button>
           </form>
         </template>
 
         <!-- Step 2: enter token + new password -->
         <template v-else-if="step === 2">
-          <h1 class="auth-title">Nueva contraseña</h1>
+          <h1 class="auth-title">New password</h1>
           <p class="auth-subtitle">
-            Revisá tu correo en <strong class="email-highlight">{{ email }}</strong>
-            y pegá el código del enlace que te enviamos.
+            <template v-if="email">Check your inbox at <strong class="email-highlight">{{ email }}</strong> and</template>
+            <template v-else>Enter the code from the reset link you received by email and</template>
+            enter your new password below.
           </p>
 
           <form class="auth-form" @submit.prevent="handleReset">
             <div class="field">
-              <label for="token">Código del enlace</label>
+              <label for="token">Reset code</label>
               <input
                 id="token"
                 v-model="resetToken"
                 type="text"
-                placeholder="Pegá el código aquí"
+                placeholder="Paste the code here"
                 autocomplete="off"
                 required
               />
-              <span class="field-hint">Es el parámetro "token=" del link que recibiste por email.</span>
+              <span class="field-hint">It's the "token=" parameter from the link you received by email.</span>
             </div>
 
             <div class="field">
-              <label for="password">Nueva contraseña</label>
+              <label for="password">New password</label>
               <input
                 id="password"
                 v-model="form.password"
                 type="password"
-                placeholder="Mínimo 8 caracteres"
+                placeholder="At least 8 characters"
                 autocomplete="new-password"
                 required
                 minlength="8"
@@ -84,12 +85,12 @@
             </div>
 
             <div class="field">
-              <label for="confirm">Confirmar contraseña</label>
+              <label for="confirm">Confirm password</label>
               <input
                 id="confirm"
                 v-model="form.confirm"
                 type="password"
-                placeholder="Repetí tu contraseña"
+                placeholder="Repeat your password"
                 autocomplete="new-password"
                 required
               />
@@ -99,31 +100,31 @@
             <div v-else-if="authStore.error" class="auth-error">{{ authStore.error }}</div>
 
             <button type="submit" class="btn-primary" :disabled="authStore.loading">
-              <span v-if="authStore.loading">Actualizando...</span>
-              <span v-else>Actualizar contraseña</span>
+              <span v-if="authStore.loading">Updating...</span>
+              <span v-else>Update password</span>
             </button>
 
-            <button type="button" class="btn-back" @click="step = 1">
-              ← Cambiar email
+            <button type="button" class="btn-back" @click="step = 1; resetToken = ''; form.password = ''; form.confirm = ''; authStore.error = null; localError = null">
+              ← Change email
             </button>
           </form>
         </template>
 
         <!-- Step 3: done -->
         <template v-else>
-          <h1 class="auth-title">¡Listo!</h1>
+          <h1 class="auth-title">All done!</h1>
           <div class="auth-success">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
               <polyline points="22 4 12 14.01 9 11.01"/>
             </svg>
-            <p>Contraseña actualizada correctamente para <strong class="email-highlight">{{ email }}</strong>.</p>
+            <p>Password updated successfully for <strong class="email-highlight">{{ email }}</strong>.</p>
           </div>
-          <NuxtLink to="/login" class="btn-primary btn-login-link">Ir al login</NuxtLink>
+          <NuxtLink to="/login" class="btn-primary btn-login-link">Go to Sign In</NuxtLink>
         </template>
 
         <p class="auth-footer">
-          <NuxtLink to="/login" class="link-accent">← Volver al login</NuxtLink>
+          <NuxtLink to="/login" class="link-accent">← Back to Sign In</NuxtLink>
         </p>
       </div>
 
@@ -138,7 +139,7 @@ const authStore  = useAuthStore()
 const route      = useRoute()
 
 const step       = ref(1)
-const email      = ref('')
+const email      = ref(route.query.email || '')
 const resetToken = ref(route.query.token || '')
 const form       = reactive({ password: '', confirm: '' })
 const localError = ref(null)
@@ -158,11 +159,11 @@ const handleReset = async () => {
   localError.value = null
   authStore.error  = null
   if (form.password !== form.confirm) {
-    localError.value = 'Las contraseñas no coinciden.'
+    localError.value = 'Passwords do not match.'
     return
   }
   if (form.password.length < 8) {
-    localError.value = 'La contraseña debe tener al menos 8 caracteres.'
+    localError.value = 'Password must be at least 8 characters.'
     return
   }
   const msg = await authStore.resetPassword({ token: resetToken.value, newPassword: form.password })

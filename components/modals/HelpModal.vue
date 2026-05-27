@@ -17,29 +17,27 @@
       <div class="about-modal-body">
         <template v-if="lang === 'en'">
           <p>This is a <span class="highlight">production calendar</span> designed for film and photography production teams. It helps you manage events, dependencies, stages, and key dates across multiple projects.</p>
-          <p>All your data is <span class="highlight">stored locally</span> in your browser — no account needed, completely private.</p>
+          <p>Your data is <span class="highlight">saved to the cloud</span> and synced to your account. Sign in from any device to access your calendars.</p>
           <p><span class="highlight">How to use:</span></p>
           <ul style="padding-left:18px;margin-top:4px;line-height:1.9;">
             <li>Create a new calendar from the sidebar</li>
-            <li>Switch between Calendar and Events views</li>
+            <li>Switch between Calendar, Events and Daily views</li>
             <li>Set event dates manually or use dependencies to auto-calculate</li>
             <li>Mark key dates with ★</li>
             <li>Save templates from your best calendars</li>
-            <li>Share your calendar via a public link (requires Supabase)</li>
             <li>Export to PDF for clients and agencies</li>
           </ul>
         </template>
         <template v-else>
           <p>Este es un <span class="highlight">calendario de producción</span> diseñado para equipos de cine y fotografía. Te ayuda a gestionar eventos, dependencias, etapas y fechas clave en múltiples proyectos.</p>
-          <p>Todos tus datos se <span class="highlight">guardan localmente</span> en tu navegador — sin cuenta, completamente privado.</p>
+          <p>Tus datos se <span class="highlight">guardan en la nube</span> y están vinculados a tu cuenta. Inicia sesión desde cualquier dispositivo para acceder a tus calendarios.</p>
           <p><span class="highlight">Cómo usar:</span></p>
           <ul style="padding-left:18px;margin-top:4px;line-height:1.9;">
             <li>Crea un nuevo calendario desde la barra lateral</li>
-            <li>Alterna entre las vistas Calendario y Eventos</li>
+            <li>Alterna entre las vistas Calendario, Eventos y Daily</li>
             <li>Fija fechas manualmente o usa dependencias para calcularlas automáticamente</li>
             <li>Marca fechas clave con ★</li>
             <li>Guarda templates de tus mejores calendarios</li>
-            <li>Comparte tu calendario con un link público (requiere Supabase)</li>
             <li>Exporta a PDF para clientes y agencias</li>
           </ul>
         </template>

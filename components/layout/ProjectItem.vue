@@ -5,11 +5,6 @@
     @click="$emit('select')"
     @dblclick.stop="$emit('edit')"
   >
-    <div
-      class="proj-dot"
-      :style="{ background: project.color || '#20a789' }"
-    ></div>
-
     <div class="proj-info">
       <div class="proj-name">{{ project.name || project.client || '—' }}</div>
       <div class="proj-sub">
@@ -26,6 +21,12 @@
       </div>
       <div class="proj-event-count">
         {{ lang === 'en' ? 'Events' : 'Eventos' }} {{ (project.events || []).filter(e => e.active).length }}
+      </div>
+      <div class="proj-event-count" v-if="(project.dailySchedule || []).length">
+        {{ lang === 'en' ? 'Daily Events' : 'Daily Events' }} {{ (project.dailySchedule || []).length }}
+      </div>
+      <div class="proj-event-count" v-if="calendarSpan">
+        {{ lang === 'en' ? 'Duration' : 'Duración' }}: {{ calendarSpan }} {{ lang === 'en' ? 'days' : 'días' }}
       </div>
       <div class="proj-badges">
         <div
@@ -48,8 +49,7 @@
     <div class="proj-actions">
       <!-- Toggle visible -->
       <button
-        class="proj-act-btn"
-        :class="{ 'proj-act-btn--eye-shown': !project.hidden }"
+        class="proj-act-btn proj-act-btn--eye-shown"
         :title="project.hidden ? (lang === 'en' ? 'Show' : 'Mostrar') : (lang === 'en' ? 'Hide' : 'Ocultar')"
         @click.stop="$emit('toggle-visible')"
       >
@@ -59,12 +59,6 @@
           <template v-if="project.hidden">
             <line x1="2" y1="2" x2="14" y2="14"/>
           </template>
-        </svg>
-      </button>
-      <!-- Edit -->
-      <button class="proj-act-btn" :title="lang === 'en' ? 'Edit' : 'Editar'" @click.stop="$emit('edit')">
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M11 2.5l2.5 2.5L5 13.5H2.5V11L11 2.5z"/>
         </svg>
       </button>
       <!-- Copy -->
@@ -105,6 +99,19 @@
           <line x1="10" y1="7" x2="10" y2="11"/>
         </svg>
       </button>
+      <!-- Save as template -->
+      <button
+        class="proj-act-btn"
+        :title="lang === 'en' ? 'Save as template' : 'Guardar como template'"
+        :disabled="!(project.events || []).length"
+        @click.stop="$emit('save-template')"
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="12" height="12" rx="1.5"/>
+          <line x1="8" y1="5" x2="8" y2="11"/>
+          <line x1="5" y1="8" x2="11" y2="8"/>
+        </svg>
+      </button>
     </div>
   </div>
 </template>
@@ -116,7 +123,7 @@ const props = defineProps({
   lang:     { type: String, default: 'es' },
 })
 
-defineEmits(['select', 'edit', 'copy', 'archive', 'delete', 'toggle-visible', 'cycle-status'])
+defineEmits(['select', 'edit', 'copy', 'archive', 'delete', 'toggle-visible', 'cycle-status', 'save-template'])
 
 const statusLabel = computed(() => {
   const map = {
@@ -132,6 +139,21 @@ const statusLabel = computed(() => {
 const hasConflicts = computed(() =>
   (props.project.events || []).some(e => e.active && e.dep?.active && e.dep?.broken)
 )
+
+const calendarSpan = computed(() => {
+  const events = (props.project.events || []).filter(e => e.active && e.date)
+  if (!events.length) return null
+  let minMs = Infinity
+  let maxMs = -Infinity
+  for (const e of events) {
+    const start = new Date(e.date).getTime()
+    const end = new Date(e.date)
+    end.setDate(end.getDate() + Math.max(1, e.duration || 1) - 1)
+    if (start < minMs) minMs = start
+    if (end.getTime() > maxMs) maxMs = end.getTime()
+  }
+  return Math.round((maxMs - minMs) / 86400000) + 1
+})
 </script>
 
 <style scoped>

@@ -117,7 +117,7 @@ const copyMode = ref('struct')
 const form = reactive({
   client:       source.value?.client       || '',
   agency:       source.value?.agency       || '',
-  name:         (source.value?.name        || source.value?.client || '') + ' (copy)',
+  name:         (source.value?.name        || source.value?.client || '') + (lang.value === 'en' ? ' (copy)' : ' (copia)'),
   director:     source.value?.director     || '',
   photographer: source.value?.photographer || '',
   ep:             source.value?.ep             || '',

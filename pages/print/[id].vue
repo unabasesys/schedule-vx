@@ -35,7 +35,7 @@
         <div class="page-head">
           <div class="wordmark">
             <img v-if="orgLogo" :src="orgLogo" class="org-logo" alt="logo" />
-            <div class="logo" v-html="orgWordmark"></div>
+            <div class="logo">{{ orgWordmark.first }}<em v-if="orgWordmark.last"> {{ orgWordmark.last }}</em></div>
             <div class="wordmark-divider"></div>
             <div class="product">{{ isEN ? 'Production Schedule' : 'Calendario de Producción' }}</div>
           </div>
@@ -169,7 +169,7 @@
 
         <!-- Page footer -->
         <div class="page-foot">
-          <div class="foot-left">unabase Calendar<span class="foot-url">&nbsp;· built by unabase.com</span></div>
+          <div class="foot-left">Calendar by <span class="foot-url">unabase.com</span></div>
           <div class="foot-center">Confidential · For production use only</div>
           <div class="page-num">{{ pad(pageIdx + 1) }}<span class="page-sep">/</span>{{ pad(pages.length) }}</div>
         </div>
@@ -223,18 +223,20 @@ const route     = useRoute()
 const projectId = computed(() => route.params.id)
 const isDraft   = computed(() => route.query.draft === '1')
 
-const project      = ref(null)
-const orgName      = ref('Mi Productora')
-const orgLogo      = ref('')
-const lang         = ref('es')
-const weekStartCfg = ref('sun')
-const dateFormat   = ref('DD/MM/AA')
-const loading      = ref(true)
-const loadError    = ref(false)
+const project          = ref(null)
+const orgName          = ref('Mi Productora')
+const orgLogo          = ref('')
+const lang             = ref('es')
+const weekStartCfg     = ref('sun')
+const dateFormat       = ref('DD/MM/AA')
+const loading          = ref(true)
+const loadError        = ref(false)
+const resolvedHolidays = ref([]) // { date, name, localName, countryCode }[]
 
 onMounted(async () => {
   const authStore     = useAuthStore()
   const settingsStore = useSettingsStore()
+  const holidaysStore = useHolidaysStore()
 
   authStore.init()
 
@@ -252,13 +254,41 @@ onMounted(async () => {
   try {
     const [proj] = await Promise.all([
       useApi().get(`/projects/${projectId.value}`),
-      settingsStore.fetchOrg(),
+      settingsStore.fetchOrg().catch(e => console.warn('print: fetchOrg failed', e)),
     ])
     project.value = proj
     orgName.value = settingsStore.studioName || authStore.organization?.name || 'Mi Productora'
-    orgLogo.value = settingsStore.logo || ''
+    orgLogo.value = settingsStore.logo || authStore.organization?.imgUrl || ''
+
+    // Resolve actual holiday dates from country codes (non-fatal)
+    const countryCodes = (proj.holidays || []).map(h => h.countryCode).filter(Boolean)
+    if (countryCodes.length) {
+      try {
+        const years = new Set(
+          (proj.events || []).filter(e => e.date).map(e => Number(e.date.slice(0, 4)))
+        )
+        if (!years.size) years.add(new Date().getFullYear())
+        const disabled = new Set(proj.disabledHolidays || [])
+        const holMap = new Map()
+        await Promise.all(
+          countryCodes.flatMap(cc =>
+            [...years].map(async (year) => {
+              const hols = await holidaysStore.fetchHolidaysForYear(cc, year)
+              if (Array.isArray(hols)) {
+                hols.forEach(h => {
+                  if (!disabled.has(h.date) && !holMap.has(h.date)) holMap.set(h.date, h)
+                })
+              }
+            })
+          )
+        )
+        resolvedHolidays.value = [...holMap.values()]
+      } catch (e) {
+        console.warn('print: failed to load holidays', e)
+      }
+    }
   } catch (e) {
-    console.warn('print: failed to load', e)
+    console.warn('print: failed to load project', e)
     loadError.value = true
   } finally {
     loading.value = false
@@ -354,9 +384,8 @@ const lastUpdatedStr = computed(() => {
 // ── Org wordmark (last word in italic) ────────────────────────────────────────
 const orgWordmark = computed(() => {
   const parts = orgName.value.trim().split(/\s+/)
-  if (parts.length === 1) return parts[0]
-  const last = parts.pop()
-  return parts.join(' ') + ' <em>' + last + '</em>'
+  if (parts.length <= 1) return { first: parts[0] || '', last: '' }
+  return { first: parts.slice(0, -1).join(' '), last: parts[parts.length - 1] }
 })
 
 // ── Project info fields ────────────────────────────────────────────────────────
@@ -454,16 +483,13 @@ const exportEvents = computed(() => {
   const result = []
 
   // Build set of active holiday dates for business-day calculations
-  const holidayDates = new Set(
-    (p.holidays || [])
-      .filter(h => !(p.disabledHolidays || []).includes(h.date))
-      .map(h => h.date)
-  )
+  // resolvedHolidays already has disabled ones filtered out (done in onMounted)
+  const holidayDates = new Set(resolvedHolidays.value.map(h => h.date))
 
   // Project events
   for (const ev of p.events || []) {
     if (!ev.active || !ev.date || ev.internal) continue
-    const label   = isEN.value ? (ev.nameEN || ev.name) : ev.name
+    const label   = (isEN.value ? (ev.nameEN || ev.name) : ev.name) || (isEN.value ? '(No title)' : '(Sin título)')
     const type    = STAGE_TYPE[ev.stage] || 'preprod'
     const dur     = ev.duration || 1
     const isBusiness = ev.durDayType === 'business'
@@ -488,10 +514,8 @@ const exportEvents = computed(() => {
     }
   }
 
-  // Holidays from project
-  for (const h of p.holidays || []) {
-    const disabled = (p.disabledHolidays || []).includes(h.date)
-    if (disabled) continue
+  // Holidays — resolved dates from country codes (disabled ones already excluded)
+  for (const h of resolvedHolidays.value) {
     const label = isEN.value ? (h.localName || h.name) : (h.name || h.localName)
     result.push({ kind: 'point', type: 'holiday', date: h.date, label: label || 'Holiday', _id: 'hol-' + h.date })
   }
@@ -750,16 +774,10 @@ async function downloadPdf() {
         allowTaint: true,
         imageTimeout: 0,
         onclone(clonedDoc) {
-          // Remove any CSS filters/effects that html2canvas may misrender
           clonedDoc.querySelectorAll('img').forEach(img => {
             img.style.filter = 'none'
             img.style.mixBlendMode = 'normal'
             img.style.imageRendering = 'high-quality'
-          })
-          // Temporarily enlarge the org logo so it's captured at higher pixel density
-          clonedDoc.querySelectorAll('.org-logo').forEach(el => {
-            el.style.height = '80px'
-            el.style.maxWidth = '320px'
           })
         },
       })

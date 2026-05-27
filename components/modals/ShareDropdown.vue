@@ -18,7 +18,7 @@
 
       <!-- ── PDF ── -->
       <div class="share-section">
-        <div class="share-section-title">PDF</div>
+        <div class="share-section-title">{{ lang === 'en' ? 'Calendar' : 'Calendario' }}</div>
 
         <!-- Borrador — always visible, no version bump -->
         <button class="share-action-btn" @click="downloadDraft">
@@ -55,38 +55,42 @@
         </button>
       </div>
 
-      <!-- ── Live link ── -->
+      <!-- ── Daily Schedule PDF ── -->
       <div class="share-section">
-        <div class="share-section-title">{{ lang === 'en' ? 'Live link' : 'Link en vivo' }}</div>
+        <div class="share-section-title">Daily Schedule</div>
 
-        <div class="share-toggle-row">
-          <span class="share-toggle-label">{{ lang === 'en' ? 'Link active' : 'Link activo' }}</span>
-          <label class="ev-toggle" style="margin-left:auto;">
-            <input
-              type="checkbox"
-              :checked="project.shareActive"
-              @change="toggleShare"
-            />
-            <span class="ev-toggle-slider"></span>
-          </label>
+        <div v-if="!hasDailyEvents" class="daily-empty">
+          {{ lang === 'en' ? 'No daily events yet.' : 'No hay Daily Events aún.' }}
         </div>
 
-        <div v-if="project.shareToken" class="share-link-block">
-          <div class="share-link-wrap">
-            <input
-              type="text"
-              class="share-link-input"
-              :value="shareUrl"
-              readonly
-            />
-            <button class="share-copy-btn" @click="copyLink">
-              {{ copied ? (lang === 'en' ? '✓ Copied' : '✓ Copiado') : (lang === 'en' ? 'Copy' : 'Copiar') }}
+        <template v-else>
+          <div class="daily-row">
+            <label class="daily-label">{{ lang === 'en' ? 'From' : 'Desde' }}</label>
+            <input type="date" v-model="dailyFrom" class="daily-input" />
+          </div>
+          <div class="daily-row">
+            <label class="daily-label">{{ lang === 'en' ? 'To' : 'Hasta' }}</label>
+            <input type="date" v-model="dailyTo" class="daily-input" />
+          </div>
+          <div class="daily-row">
+            <label class="daily-label">{{ lang === 'en' ? 'Type' : 'Tipo' }}</label>
+            <div class="daily-toggle">
+              <button
+                :class="['daily-tog-btn', dailyType === 'client' && 'active']"
+                @click="dailyType = 'client'"
+              >{{ lang === 'en' ? 'Client-facing' : 'Para cliente' }}</button>
+              <button
+                :class="['daily-tog-btn', dailyType === 'internal' && 'active']"
+                @click="dailyType = 'internal'"
+              >{{ lang === 'en' ? 'Internal' : 'Interno' }}</button>
+            </div>
+          </div>
+          <div class="daily-footer">
+            <button class="daily-export-btn" @click="openDailyPreview">
+              {{ lang === 'en' ? 'Preview PDF' : 'Vista previa PDF' }}
             </button>
           </div>
-          <div v-if="project.shareViews" class="share-views">
-            {{ project.shareViews }} {{ lang === 'en' ? 'live views' : 'vistas en vivo' }}
-          </div>
-        </div>
+        </template>
       </div>
 
     </div>
@@ -101,37 +105,36 @@ const props = defineProps({
   project: { type: Object, required: true },
 })
 
-const lang      = computed(() => globalStore.lang)
-const open      = ref(false)
-const hasEvents = computed(() => (props.project?.events || []).some(e => e.active && e.date))
-const wrapEl = ref(null)
-const copied = ref(false)
+const lang         = computed(() => globalStore.lang)
+const open         = ref(false)
+const hasEvents    = computed(() => (props.project?.events || []).some(e => e.active && e.date))
+const wrapEl       = ref(null)
+const dailyFrom    = ref('')
+const dailyTo      = ref('')
+const dailyType    = ref('client')
 
-const shareUrl = computed(() => {
-  if (!props.project?.shareToken) return ''
-  const base = typeof window !== 'undefined' ? window.location.origin : ''
-  return `${base}/share?token=${props.project.shareToken}`
+const hasDailyEvents = computed(() =>
+  (props.project?.dailySchedule || []).some(i => i.date)
+)
+
+watch(open, (val) => {
+  if (val && hasDailyEvents.value) {
+    const dates = (props.project?.dailySchedule || []).map(i => i.date).filter(Boolean).sort()
+    dailyFrom.value = dates[0]
+    dailyTo.value   = dates[dates.length - 1]
+    dailyType.value = 'client'
+  }
 })
 
 function toggleOpen() {
   open.value = !open.value
 }
 
-async function toggleShare() {
-  await projectsStore.toggleShare(props.project.id)
-}
-
-function copyLink() {
-  if (!shareUrl.value) return
-  navigator.clipboard?.writeText(shareUrl.value)
-  copied.value = true
-  setTimeout(() => { copied.value = false }, 2000)
-}
-
 function downloadDraft() {
   window.open(`/print/${props.project.id}?draft=1`, '_blank')
   open.value = false
 }
+
 
 function downloadNewVersion() {
   if (props.project.hasChanges) {
@@ -141,15 +144,40 @@ function downloadNewVersion() {
   open.value = false
 }
 
-// Close on outside click
+
+function openDailyPreview() {
+  const params = new URLSearchParams({
+    from: dailyFrom.value,
+    to:   dailyTo.value,
+    type: dailyType.value,
+    lang: globalStore.lang,
+  })
+  // Append a temporary anchor to body so Safari doesn't cancel navigation
+  // when the dropdown is removed from DOM in the same tick
+  const a = document.createElement('a')
+  a.href   = `/print-daily/${props.project.id}?${params}`
+  a.target = '_blank'
+  a.rel    = 'noopener noreferrer'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  open.value = false
+}
+
+// Close on outside click or ESC
 onMounted(() => {
   document.addEventListener('click', onOutsideClick)
+  document.addEventListener('keydown', onKeyDown)
 })
 onUnmounted(() => {
   document.removeEventListener('click', onOutsideClick)
+  document.removeEventListener('keydown', onKeyDown)
 })
 function onOutsideClick(e) {
   if (wrapEl.value && !wrapEl.value.contains(e.target)) open.value = false
+}
+function onKeyDown(e) {
+  if (e.key === 'Escape') open.value = false
 }
 </script>
 
@@ -228,25 +256,38 @@ function onOutsideClick(e) {
   font-size: .68rem; color: var(--muted); line-height: 1.4;
 }
 
-/* ── Live link ── */
-.share-toggle-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 10px; background: var(--bg); border-radius: 7px;
+/* ── Daily Schedule form ── */
+.daily-empty {
+  font-size: .72rem; color: var(--muted); text-align: center; padding: 6px 0;
 }
-.share-toggle-label { flex: 1; font-size: .78rem; color: var(--text); }
-
-.share-link-block { margin-top: 10px; }
-.share-link-wrap { display: flex; gap: 6px; }
-.share-link-input {
-  flex: 1; padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 7px;
-  font-size: .72rem; font-family: inherit; color: var(--text); background: var(--surface-2); outline: none;
+.daily-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
 }
-.share-copy-btn {
-  padding: 7px 12px; background: var(--accent); color: var(--text); border: none;
-  border-radius: 7px; font-size: .72rem; font-weight: 700; cursor: pointer;
-  font-family: inherit; white-space: nowrap; transition: background .15s, opacity .15s;
+.daily-label {
+  font-size: .72rem; font-weight: 600; color: var(--muted); width: 50px; flex-shrink: 0;
 }
-.share-copy-btn:hover { background: var(--accent-dark); }
-
-.share-views { font-size: .7rem; color: var(--muted); margin-top: 6px; }
+.daily-input {
+  flex: 1; background: var(--surface-2); border: 1.5px solid var(--border);
+  border-radius: 6px; padding: 5px 9px; font-size: .78rem; color: var(--text); font-family: inherit;
+}
+.daily-input:focus { outline: none; border-color: var(--accent); }
+.daily-toggle { display: flex; gap: 4px; }
+.daily-tog-btn {
+  padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 6px;
+  background: transparent; color: var(--muted); font-size: .7rem; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: all .13s;
+}
+.daily-tog-btn:hover { border-color: var(--text); color: var(--text); }
+.daily-tog-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.1); }
+.daily-footer {
+  display: flex; justify-content: flex-end;
+  padding-top: 8px; margin-top: 2px;
+}
+.daily-export-btn {
+  padding: 6px 16px; border: none; border-radius: 7px;
+  background: var(--accent); color: #fff; font-size: .75rem; font-weight: 700;
+  cursor: pointer; font-family: inherit; transition: background .13s;
+}
+.daily-export-btn:hover:not(:disabled) { background: var(--accent-dark); }
+.daily-export-btn:disabled { opacity: .6; cursor: default; }
 </style>

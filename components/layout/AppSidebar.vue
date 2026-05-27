@@ -27,26 +27,8 @@
         </div>
       </div>
 
-      <!-- Org row -->
-      <div class="studio-row">
-        <div class="studio-logo-wrap">
-          <img v-if="orgLogo" :src="orgLogo" alt="org logo" />
-          <span v-else class="studio-logo-ph">🎬</span>
-        </div>
-        <div class="studio-info">
-          <div class="studio-name-d">{{ orgName }}</div>
-        </div>
-        <button
-          class="sb-org-settings-btn"
-          :title="globalStore.lang === 'en' ? 'Organization settings' : 'Configuración de organización'"
-          @click="globalStore.openSettings()"
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-        </button>
-      </div>
+      <!-- Org row / switcher -->
+      <OrgSwitcher />
     </div>
 
     <!-- Filters -->
@@ -118,6 +100,7 @@
         @delete="deleteProject(proj.id)"
         @toggle-visible="toggleVisible(proj.id)"
         @cycle-status="cycleStatus(proj.id)"
+        @save-template="saveAsTemplate(proj.id)"
       />
     </div>
 
@@ -144,7 +127,6 @@
 <script setup>
 const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()
-const settingsStore = useSettingsStore()
 const authStore     = useAuthStore()
 
 // ── User computed ─────────────────────────────────────────────────────────────
@@ -165,14 +147,6 @@ const userInitials = computed(() => {
 })
 
 const userAvatar = computed(() => authStore.user?.imgUrl || null)
-
-// ── Org computed ──────────────────────────────────────────────────────────────
-const orgName = computed(() =>
-  settingsStore.studioName || authStore.organization?.name || 'Mi Productora'
-)
-const orgLogo = computed(() =>
-  authStore.organization?.imgUrl || settingsStore.logo || null
-)
 
 function logout() {
   authStore.logout()
@@ -236,6 +210,22 @@ function toggleVisible(id) {
 function cycleStatus(id) {
   projectsStore.cycleStatus(id)
 }
+
+async function saveAsTemplate(id) {
+  const lang = globalStore.lang
+  const proj = projectsStore.projects.find(p => p.id === id)
+  const name = await useDialog().prompt({
+    title:        lang === 'en' ? 'Save this calendar as a template' : 'Guardar este calendario como template',
+    label:        lang === 'en' ? 'Template name'                    : 'Nombre del template',
+    placeholder:  lang === 'en' ? 'Enter template name'             : 'Escribe el nombre del template',
+    defaultValue: proj?.name || proj?.client || 'Template',
+    confirmLabel: 'OK',
+    cancelLabel:  lang === 'en' ? 'Cancel' : 'Cancelar',
+  })
+  if (name === null) return
+  projectsStore.saveAsTemplate(id, name)
+  useNuxtApp().$toast?.(lang === 'en' ? 'Template saved' : 'Template guardado', { type: 'success' })
+}
 </script>
 
 <style scoped>
@@ -291,28 +281,6 @@ function cycleStatus(id) {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
-.studio-row {
-  display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,.06);
-  border-radius: 8px; padding: 7px 9px;
-}
-.studio-logo-wrap {
-  width: 32px; height: 32px; border-radius: 6px; overflow: hidden; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(255,255,255,.1);
-}
-.studio-logo-wrap img { width: 100%; height: 100%; object-fit: cover; }
-.studio-logo-ph { font-size: 1rem; }
-.studio-info { flex: 1; min-width: 0; }
-.studio-name-d {
-  font-size: .78rem; font-weight: 700; color: #fff; white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis;
-}
-.sb-org-settings-btn {
-  flex-shrink: 0; background: none; border: none; padding: 4px 5px; border-radius: 5px;
-  color: rgba(255,255,255,.35); cursor: pointer; display: flex;
-  align-items: center; justify-content: center; transition: background .15s, color .15s;
-}
-.sb-org-settings-btn:hover { background: rgba(255,255,255,.1); color: rgba(255,255,255,.8); }
 
 .sb-filter-row {
   display: flex; align-items: center; justify-content: space-between; padding: 6px 12px 2px;

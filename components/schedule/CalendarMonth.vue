@@ -18,6 +18,7 @@
             'cal-day-today':            cell.isToday,
             'cal-day-weekend':          cell.isWeekend,
             'cal-day-holiday':          cell.isHoliday,
+            'cal-day-focused':          cell.dateStr === focusDate && cell.inMonth,
             'cal-day-droptarget':       cell.dateStr === dragoverDate && (!!dragEvId || !!activeDrag?.evId) && !isDropTargetInvalid,
             'cal-day-droptarget-invalid': cell.dateStr === dragoverDate && (!!dragEvId || !!activeDrag?.evId) && isDropTargetInvalid,
           }"
@@ -51,7 +52,9 @@
             'bar-continues-left': bar.continuesLeft,
             'bar-continues-right':bar.continuesRight,
             'bar-holiday':        bar.isHoliday,
+            'bar-key':            bar.isKey,
             'bar-out-of-month':   bar.outOfMonth,
+            'bar-saving':         bar.evId === props.savingEvId,
           }"
           :style="{
             left:       `calc(${bar.col * COL_W}% + 3px)`,
@@ -89,6 +92,7 @@
             </svg>
           </span>
           <span class="bar-label">{{ bar.name }}</span>
+          <span v-if="!bar.isHoliday && dailyEventIds.has(bar.evId)" class="bar-daily-dot" title="Has daily schedule items"></span>
           <span v-if="bar.continuesRight" class="bar-arrow bar-arrow-right">→</span>
         </div>
 
@@ -142,14 +146,29 @@
 import { isoToday, describeDependency } from '~/utils/helpers'
 
 const props = defineProps({
-  year:      { type: Number, required: true },
-  month:     { type: Number, required: true },
-  events:    { type: Array,  default: () => [] },
-  weekStart: { type: String, default: 'sun' },
-  lang:      { type: String, default: 'es' },
-  readOnly:  { type: Boolean, default: false },
-  holidays:  { type: Array,  default: () => [] },
+  year:        { type: Number, required: true },
+  month:       { type: Number, required: true },
+  events:      { type: Array,  default: () => [] },
+  weekStart:   { type: String, default: 'sun' },
+  lang:        { type: String, default: 'es' },
+  readOnly:    { type: Boolean, default: false },
+  holidays:    { type: Array,  default: () => [] },
+  focusDate:     { type: String, default: '' },
+  savingEvId:    { type: String, default: null },
+  dailySchedule: { type: Array,  default: () => [] },
 })
+
+const dailyCountByEvent = computed(() => {
+  const map = new Map()
+  for (const item of props.dailySchedule) {
+    if (item.relatedCalendarEventId) {
+      map.set(item.relatedCalendarEventId, (map.get(item.relatedCalendarEventId) || 0) + 1)
+    }
+  }
+  return map
+})
+
+const dailyEventIds = computed(() => new Set(dailyCountByEvent.value.keys()))
 
 const emit = defineEmits(['day-click', 'day-select', 'event-click', 'holiday-click', 'reorder-events', 'reschedule-event'])
 
@@ -544,13 +563,20 @@ const weeks = computed(() => {
   return result
 })
 
-// ── Bar tooltip: dependency-aware ─────────────────────────────────────────────
+// ── Bar tooltip: dependency-aware + daily events count ───────────────────────
 function barTooltip(bar) {
   const ev  = bar.event
   const dep = ev?.dep
-  if (!dep?.eventId) return describeDependency(ev, null, props.lang)
-  const refEvent = props.events.find(e => e.id === dep.eventId)
-  return describeDependency(ev, refEvent || null, props.lang)
+  const depText = dep?.eventId
+    ? describeDependency(ev, props.events.find(e => e.id === dep.eventId) || null, props.lang)
+    : null
+
+  const count = dailyCountByEvent.value.get(bar.evId)
+  if (!count) return depText || ''
+  const dailyText = props.lang === 'en'
+    ? `${count} daily event${count === 1 ? '' : 's'} linked`
+    : `${count} evento${count === 1 ? '' : 's'} del daily vinculado${count === 1 ? '' : 's'}`
+  return depText ? `${depText}\n${dailyText}` : dailyText
 }
 
 // ── Day overflow modal ────────────────────────────────────────────────────────
@@ -626,6 +652,7 @@ function formatOverflowDate(dateStr) {
 .cal-day-today { background: rgba(32,167,137,.07) !important; }
 .cal-day-weekend { background: rgba(0,0,0,.08); }
 .cal-day-holiday { background: rgba(245,158,11,.04); }
+.cal-day-focused { background: rgba(32,167,137,.13) !important; outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .cal-day-num {
   font-size: .74rem; font-weight: 600; color: var(--text); line-height: 1;
@@ -666,6 +693,12 @@ function formatOverflowDate(dateStr) {
 .bar-arrow-right { margin-left: auto; }
 .cal-ev-bar.bar-dragging  { opacity: .4; cursor: grabbing; }
 .cal-ev-bar.bar-dragover  { outline: 2px solid rgba(0,0,0,.5); outline-offset: -1px; filter: brightness(1.15); }
+@keyframes bar-save-pulse {
+  0%   { opacity: 1;   filter: brightness(1); }
+  35%  { opacity: .55; filter: brightness(1.2); }
+  100% { opacity: 1;   filter: brightness(1); }
+}
+.cal-ev-bar.bar-saving { animation: bar-save-pulse .65s ease-out; pointer-events: none; }
 .cal-day.cal-day-droptarget         { background: rgba(32,167,137,.13)  !important; outline: 2px solid var(--accent); outline-offset: -2px; }
 .cal-day.cal-day-droptarget-invalid { background: rgba(239,68,68,.08)   !important; outline: 2px solid #ef4444;      outline-offset: -2px; }
 
@@ -705,6 +738,16 @@ function formatOverflowDate(dateStr) {
   font-size: .52rem; flex-shrink: 0; margin-right: 3px;
   pointer-events: none; color: inherit;
   display: inline-flex; align-items: center;
+}
+
+.bar-daily-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(0,0,0,.35);
+  flex-shrink: 0; margin-left: 4px; pointer-events: none;
+  align-self: center;
+}
+.cal-ev-bar.bar-key .bar-daily-dot {
+  background: rgba(255,255,255,.55);
 }
 
 .cal-ev-bar.bar-holiday {

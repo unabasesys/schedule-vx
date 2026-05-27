@@ -9,7 +9,7 @@
         </div>
         <div class="panel-content">
           <h2 class="panel-product">Calendar</h2>
-          <p class="panel-tagline">Crea y gestiona calendarios de producción audiovisual de forma profesional.</p>
+          <p class="panel-tagline">{{ isEN ? 'Organize production calendars for creative industry projects.' : 'Organiza calendarios de producción para proyectos de la industria creativa.' }}</p>
         </div>
         <div class="panel-dots">
           <span class="dot"></span>
@@ -20,8 +20,16 @@
 
       <!-- Right panel -->
       <div class="auth-panel-right">
-        <h1 class="auth-title">Crear cuenta</h1>
-        <p class="auth-subtitle">Registrate en Calendar by unabase</p>
+
+        <!-- Language toggle -->
+        <div class="lang-toggle">
+          <button :class="{ active: !isEN }" @click="setLang('es')">ES</button>
+          <span class="lang-sep">·</span>
+          <button :class="{ active: isEN }" @click="setLang('en')">EN</button>
+        </div>
+
+        <h1 class="auth-title">{{ isEN ? 'Create account' : 'Crear cuenta' }}</h1>
+        <p class="auth-subtitle">{{ isEN ? 'Sign up for Calendar by unabase' : 'Registrate en Calendar by unabase' }}</p>
 
         <div id="google-btn" class="google-btn-wrap"></div>
         <div class="divider"><span>o</span></div>
@@ -29,42 +37,42 @@
         <form class="auth-form" @submit.prevent="handleSubmit">
           <div class="field-row">
             <div class="field">
-              <label for="firstName">Nombre</label>
+              <label for="firstName">{{ isEN ? 'First name' : 'Nombre' }}</label>
               <input id="firstName" v-model="form.firstName" type="text" :placeholder="isEN ? 'Ryan' : 'Gael'" autocomplete="given-name" required />
             </div>
             <div class="field">
-              <label for="lastName">Apellido</label>
-              <input id="lastName" v-model="form.lastName" type="text" :placeholder="isEN ? 'Reynolds' : 'García'" autocomplete="family-name" />
+              <label for="lastName">{{ isEN ? 'Last name' : 'Apellido' }}</label>
+              <input id="lastName" v-model="form.lastName" type="text" :placeholder="isEN ? 'Reynolds' : 'Garcia'" autocomplete="family-name" />
             </div>
           </div>
 
           <div class="field">
-            <label for="email">Email</label>
-            <input id="email" v-model="form.email" type="email" placeholder="tu@email.com" autocomplete="email" required />
+            <label for="email">{{ isEN ? 'Email address' : 'Email' }}</label>
+            <input id="email" v-model="form.email" type="email" placeholder="you@email.com" autocomplete="email" required />
           </div>
 
           <div class="field">
-            <label for="password">Contraseña</label>
-            <input id="password" v-model="form.password" type="password" placeholder="Mínimo 8 caracteres" autocomplete="new-password" required minlength="8" />
+            <label for="password">{{ isEN ? 'Password' : 'Contraseña' }}</label>
+            <input id="password" v-model="form.password" type="password" :placeholder="isEN ? 'At least 8 characters' : 'Mínimo 8 caracteres'" autocomplete="new-password" required minlength="8" />
           </div>
 
           <div class="field">
-            <label for="confirm">Confirmar contraseña</label>
-            <input id="confirm" v-model="form.confirm" type="password" placeholder="Repetí tu contraseña" autocomplete="new-password" required />
+            <label for="confirm">{{ isEN ? 'Confirm password' : 'Confirmar contraseña' }}</label>
+            <input id="confirm" v-model="form.confirm" type="password" :placeholder="isEN ? 'Repeat your password' : 'Repite tu contraseña'" autocomplete="new-password" required />
           </div>
 
           <div v-if="localError" class="auth-error">{{ localError }}</div>
           <div v-else-if="authStore.error" class="auth-error">{{ authStore.error }}</div>
 
           <button type="submit" class="btn-primary" :disabled="authStore.loading">
-            <span v-if="authStore.loading">Creando cuenta...</span>
-            <span v-else>Crear cuenta</span>
+            <span v-if="authStore.loading">{{ isEN ? 'Creating account...' : 'Creando cuenta...' }}</span>
+            <span v-else>{{ isEN ? 'Create account' : 'Crear cuenta' }}</span>
           </button>
         </form>
 
         <p class="auth-footer">
-          ¿Ya tenés cuenta?
-          <NuxtLink to="/login" class="link-accent">Iniciá sesión</NuxtLink>
+          {{ isEN ? 'Already have an account?' : '¿Ya tienes cuenta?' }}
+          <NuxtLink to="/login" class="link-accent">{{ isEN ? 'Sign in' : 'Inicia sesión' }}</NuxtLink>
         </p>
       </div>
 
@@ -89,19 +97,25 @@ const localError = ref(null)
 const lang       = ref('es')
 const isEN       = computed(() => lang.value === 'en')
 
+function setLang(l) {
+  lang.value = l
+  localStorage.setItem('ub_lang', l)
+}
+
 onMounted(() => {
   authStore.error = null
   lang.value = localStorage.getItem('ub_lang') || 'es'
+  if (route.query.email) form.email = route.query.email
 })
 
 const handleSubmit = async () => {
   localError.value = null
   if (form.password !== form.confirm) {
-    localError.value = 'Las contraseñas no coinciden.'
+    localError.value = isEN.value ? 'Passwords do not match.' : 'Las contraseñas no coinciden.'
     return
   }
   if (form.password.length < 8) {
-    localError.value = 'La contraseña debe tener al menos 8 caracteres.'
+    localError.value = isEN.value ? 'Password must be at least 8 characters.' : 'La contraseña debe tener al menos 8 caracteres.'
     return
   }
   const ok = await authStore.register({
@@ -109,6 +123,7 @@ const handleSubmit = async () => {
     lastName:  form.lastName,
     email:     form.email,
     password:  form.password,
+    lang:      lang.value,
   })
   if (ok) {
     const inviteToken = route.query.inviteToken
@@ -129,7 +144,7 @@ onMounted(() => {
     window.google.accounts.id.initialize({
       client_id: clientId,
       callback: async ({ credential }) => {
-        const ok = await authStore.loginWithGoogle(credential)
+        const ok = await authStore.loginWithGoogle(credential, lang.value)
         if (ok) {
           const inviteToken = route.query.inviteToken
           if (inviteToken) await authStore.acceptInvitation(inviteToken)
@@ -217,7 +232,33 @@ onMounted(() => {
   padding: 36px 40px;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
+
+.lang-toggle {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.lang-toggle button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  letter-spacing: .5px;
+  color: var(--muted);
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color .12s;
+}
+.lang-toggle button.active { color: var(--accent); }
+.lang-toggle button:hover  { color: var(--text); }
+.lang-sep { font-size: 11px; color: var(--border); }
 
 .auth-title {
   font-size: 28px;

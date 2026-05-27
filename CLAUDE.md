@@ -16,8 +16,8 @@ La propuesta no es introducir una herramienta completamente nueva, sino una evol
 
 **Objetivo del producto:** Permitir que usuarios de producción creen, editen, organicen y exporten calendarios de producción de manera rápida, intuitiva, consistente y profesional.
 
-**Stack:** Nuxt 3 · Vue 3 · Pinia · Supabase · dayjs · jsPDF · i18n (es/en)
-**Modo:** Client-only (SSR desactivado) · localStorage-first · Supabase solo para sharing
+**Stack:** Nuxt 3 · Vue 3 · Pinia · dayjs · jsPDF · i18n (es/en)
+**Modo:** Client-only (SSR desactivado) · MongoDB via Express backend
 
 ---
 
@@ -57,9 +57,8 @@ La propuesta no es introducir una herramienta completamente nueva, sino una evol
 ```
 schedule-nuxt/
 ├── pages/
-│   ├── index.vue              # Redirect → /schedule
-│   ├── schedule/index.vue     # App principal
-│   └── share/index.vue        # Vista pública compartida (read-only)
+│   ├── index.vue              # Redirect → /calendar
+│   └── calendar/index.vue     # App principal
 ├── components/
 │   ├── schedule/              # Calendario y eventos
 │   │   ├── CalendarView.vue   # Contenedor del mes con navegación
@@ -72,7 +71,6 @@ schedule-nuxt/
 │   ├── modals/
 │   │   ├── ProjectModal.vue   # Crear/editar proyecto
 │   │   ├── CopyModal.vue      # Duplicar proyecto
-│   │   ├── ShareDropdown.vue  # Panel de link compartido
 │   │   └── HelpModal.vue      # Ayuda
 │   ├── holidays/
 │   │   └── HolidaysPanel.vue  # Panel de feriados por país
@@ -82,12 +80,11 @@ schedule-nuxt/
 │       └── SettingsModal.vue  # Configuración del estudio
 ├── stores/                    # Estado global (Pinia)
 │   ├── global.js              # UI state: vista activa, filtros, modales
-│   ├── projects.js            # Proyectos, eventos, templates (~480 líneas)
+│   ├── projects.js            # Proyectos, eventos, templates
 │   ├── settings.js            # Configuración del estudio y usuarios
 │   ├── holidays.js            # Caché de feriados (Nager.Date API)
 │   └── weather.js             # Caché de clima (Open-Meteo API)
 ├── composables/
-│   ├── useSupabase.js         # Cliente Supabase + funciones de sharing
 │   ├── usePersist.js          # Wrapper de localStorage
 │   ├── useDependencyEngine.js # Motor de cálculo de fechas por dependencias
 │   └── usePdfExport.js        # Exportación a PDF con jsPDF
@@ -132,7 +129,7 @@ Representación operativa y versionable del proyecto. Contiene: eventos, feriado
   id, client, agency, name, director, photographer, ep,
   status: 'competing' | 'awarded' | 'archived',
   color, lang: 'es' | 'en',
-  version, hasChanges, shareToken, shareActive, shareViews,
+  version, hasChanges,
   events: Event[], stages: Stage[], groups: Group[],
   holidays: Holiday[], cities: City[]
 }
@@ -210,10 +207,9 @@ Ver carpeta `/docs/` para documentación detallada de cada flujo.
 
 ## 10. Estado y Persistencia
 
-- **Todo se guarda en localStorage** mediante `usePersist.js`
-- Claves: `ub_projects`, `ub_templates`, `ub_studio`, `ub_selected`, `ub_lang`, `ub_weekstart`, `ub_tempunit`, `ub_dateformat`, `ub_company`, `ub_users`, `ub_logo`, `ub_org_cities`, `ub_org_default_holidays`
-- **Supabase** solo se usa para proyectos compartidos (tabla `shared_projects`)
-- No hay backend propio; la app funciona 100% offline excepto sharing y APIs externas
+- Los proyectos y templates se persisten en el **backend (MongoDB via Express)** mediante `useApi()`
+- El estado de UI y preferencias de sesión se mantienen en memoria (Pinia)
+- **Claves de localStorage** (preferencias locales): `ub_selected`, `ub_lang`, `ub_weekstart`, `ub_tempunit`, `ub_dateformat`
 
 ---
 
@@ -223,7 +219,7 @@ Ver carpeta `/docs/` para documentación detallada de cada flujo.
 |-----|-----|-------|
 | Nager.Date | Feriados por país/año | Sin clave |
 | Open-Meteo | Clima por coordenadas | Sin clave |
-| Supabase | Sharing de proyectos | `.env`: `NUXT_PUBLIC_SB_URL`, `NUXT_PUBLIC_SB_KEY` |
+| Express backend | Proyectos, templates, auth | `.env`: `NUXT_PUBLIC_API_URL` |
 
 ---
 
@@ -333,7 +329,7 @@ Ambos proyectos están en el escritorio del Mac:
 
 | Proyecto | Carpeta | Puerto | Comando |
 |----------|---------|--------|---------|
-| Front (Nuxt 3) | `/Users/jorge/Desktop/schedule-vx` | 3001 | `npm run dev` |
+| Front (Nuxt 3) | `/Users/jorge/Desktop/schedule-vx` | 3000 | `npm run dev` |
 | Back (Node/Express) | `/Users/jorge/Desktop/scheduleBack` | 4000 | `npm run dev` |
 
 ---

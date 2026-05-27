@@ -1,5 +1,9 @@
 <template>
-  <div :class="['dir', editing && 'dir--editing', item?.internalOnly && !editing && 'dir--internal']">
+  <div
+    ref="dirRef"
+    :class="['dir', editing && 'dir--editing', item?.internalOnly && !editing && 'dir--internal']"
+    @click="handleDirClick"
+  >
 
     <!-- ── Display mode ────────────────────────────────────────────────────── -->
     <template v-if="!editing">
@@ -12,9 +16,12 @@
 
       <div class="dir-content">
         <div class="dir-title-row">
-          <span v-if="item.internalOnly" class="dir-lock" title="Internal only">🔒</span>
+          <svg v-if="item.internalOnly" class="dir-lock" title="Internal only" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="7" width="10" height="8" rx="1.5"/>
+            <path d="M5 7V5a3 3 0 0 1 6 0v2"/>
+          </svg>
           <span class="dir-title">{{ item.title }}</span>
-          <span v-if="item.duration" class="dir-duration">{{ item.duration }}</span>
+          <span v-if="item.duration" class="dir-duration">{{ fmtDuration(item.duration) }}</span>
         </div>
         <div v-if="item.locationName" class="dir-meta">
           <span class="dir-meta-icon">📍</span>
@@ -24,9 +31,18 @@
             target="_blank"
             rel="noopener"
             class="dir-loc-link"
+            @click.stop
           >{{ item.locationName }}</a>
           <span v-else>{{ item.locationName }}</span>
-          <span v-if="item.locationAddress" class="dir-address">{{ item.locationAddress }}</span>
+          <a
+            v-if="item.locationAddress && item.locationGoogleMapsUrl"
+            :href="item.locationGoogleMapsUrl"
+            target="_blank"
+            rel="noopener"
+            class="dir-address dir-address-link"
+            @click.stop
+          >{{ item.locationAddress }}</a>
+          <span v-else-if="item.locationAddress" class="dir-address">{{ item.locationAddress }}</span>
         </div>
         <div v-if="item.participants" class="dir-meta">
           <span class="dir-meta-icon">👥</span>
@@ -36,23 +52,43 @@
         <div v-if="relatedEventName" class="dir-related">
           <span class="dir-related-label">{{ isEN ? 'Related event' : 'Evento relacionado' }}:</span>
           {{ relatedEventName }}
+          <span v-if="relatedDateConflict" class="dir-related-conflict" :title="isEN ? 'This daily event\'s date differs from the related calendar event' : 'La fecha de este Daily Event no coincide con el evento del calendario'">
+            · {{ isEN ? 'possible date conflict' : 'posible conflicto de fechas' }}
+          </span>
         </div>
         <div v-if="item.department" class="dir-dept">{{ deptDisplayName(item.department) }}</div>
       </div>
 
       <div v-if="!readOnly" class="dir-actions">
-        <button class="dir-act-btn" @click="startEdit" :title="isEN ? 'Edit' : 'Editar'">✎</button>
+        <button
+          v-if="!confirmDel"
+          class="dir-act-btn"
+          @click.stop="$emit('duplicate')"
+          :title="isEN ? 'Duplicate' : 'Duplicar'"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
         <button
           v-if="!confirmDel"
           class="dir-act-btn dir-act-btn--del"
-          @click="confirmDel = true"
+          @click.stop="confirmDel = true"
           :title="isEN ? 'Delete' : 'Eliminar'"
-        >⌫</button>
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            <path d="M10 11v6M14 11v6"/>
+            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+          </svg>
+        </button>
         <template v-else>
-          <button class="dir-del-confirm" @click="$emit('delete')">
+          <button class="dir-del-confirm" @click.stop="$emit('delete')">
             {{ isEN ? 'Delete' : 'Eliminar' }}
           </button>
-          <button class="dir-del-cancel" @click="confirmDel = false">
+          <button class="dir-del-cancel" @click.stop="confirmDel = false">
             {{ isEN ? 'Cancel' : 'Cancelar' }}
           </button>
         </template>
@@ -63,48 +99,10 @@
     <template v-else>
       <div class="dir-form">
 
-        <!-- Date (shown only for new items) -->
-        <div v-if="isNew" class="dir-form-row">
-          <label class="dir-form-label">{{ isEN ? 'Date' : 'Fecha' }} *</label>
-          <input type="date" v-model="form.date" class="dir-input" />
-        </div>
-
-        <!-- Time -->
+        <!-- Date -->
         <div class="dir-form-row">
-          <label class="dir-form-label">{{ isEN ? 'Time' : 'Hora' }}</label>
-          <div class="dir-time-wrap">
-            <!-- Type toggle -->
-            <div class="dir-time-type">
-              <button
-                :class="['dir-time-type-btn', form.timeType === 'specific_time' && 'active']"
-                @click="setTimeType('specific_time')"
-              >{{ isEN ? 'Time' : 'Hora' }}</button>
-              <button
-                :class="['dir-time-type-btn', form.timeType === 'time_label' && 'active']"
-                @click="setTimeType('time_label')"
-              >Label</button>
-              <button
-                :class="['dir-time-type-btn', !form.timeType && 'active']"
-                @click="setTimeType(null)"
-              >—</button>
-            </div>
-            <!-- Specific time input -->
-            <input
-              v-if="form.timeType === 'specific_time'"
-              type="time"
-              v-model="form.specificTime"
-              class="dir-input dir-input--time"
-            />
-            <!-- Label options -->
-            <div v-if="form.timeType === 'time_label'" class="dir-label-opts">
-              <button
-                v-for="lbl in ['TBD','AM','PM','All Day']"
-                :key="lbl"
-                :class="['dir-label-btn', form.timeLabel === lbl && 'active']"
-                @click="form.timeLabel = lbl"
-              >{{ lbl }}</button>
-            </div>
-          </div>
+          <label class="dir-form-label">{{ isEN ? 'Date' : 'Fecha' }} *</label>
+          <input type="date" v-model="form.date" class="dir-input dir-input--half" />
         </div>
 
         <!-- Title -->
@@ -119,6 +117,31 @@
             @keydown.enter="save"
             @keydown.esc="cancel"
           />
+        </div>
+
+        <!-- Time -->
+        <div class="dir-form-row">
+          <label class="dir-form-label">{{ isEN ? 'Time' : 'Hora' }}</label>
+          <div class="dir-time-wrap">
+            <div class="dir-time-type">
+              <button
+                :class="['dir-time-type-btn', form.timeType === 'specific_time' && 'active']"
+                @click="setTimeType('specific_time')"
+              >{{ isEN ? 'Time' : 'Hora' }}</button>
+              <button
+                v-for="lbl in ['TBD','AM','PM','All Day']"
+                :key="lbl"
+                :class="['dir-time-type-btn', form.timeType === 'time_label' && form.timeLabel === lbl && 'active']"
+                @click="setLabel(lbl)"
+              >{{ lbl }}</button>
+            </div>
+            <input
+              v-if="form.timeType === 'specific_time'"
+              type="time"
+              v-model="form.specificTime"
+              class="dir-input dir-input--time"
+            />
+          </div>
         </div>
 
         <!-- Duration -->
@@ -227,7 +250,15 @@
               :class="['dir-internal-btn', form.internalOnly && 'active']"
               @click="form.internalOnly = !form.internalOnly"
             >
-              🔒 {{ form.internalOnly
+              <svg v-if="form.internalOnly" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="7" width="10" height="8" rx="1.5"/>
+                <path d="M5 7V5a3 3 0 0 1 6 0v2"/>
+              </svg>
+              <svg v-else width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="7" width="10" height="8" rx="1.5"/>
+                <path d="M5 7V4a3 3 0 0 1 5.83-1"/>
+              </svg>
+              {{ form.internalOnly
                 ? (isEN ? 'Internal — hidden from client PDF' : 'Interno — oculto en PDF de cliente')
                 : (isEN ? 'Visible to client' : 'Visible para cliente') }}
             </button>
@@ -237,14 +268,15 @@
 
         <!-- Form actions -->
         <div class="dir-form-actions">
-          <button class="dir-form-btn dir-form-btn--cancel" @click="cancel">
+          <button v-if="!isNew" class="dir-form-btn dir-form-btn--delete" @click.stop="$emit('delete')">
+            {{ isEN ? 'Delete' : 'Eliminar' }}
+          </button>
+          <button class="dir-form-btn dir-form-btn--cancel" @click.stop="cancel">
             {{ isEN ? 'Cancel' : 'Cancelar' }}
           </button>
-          <button
-            class="dir-form-btn dir-form-btn--save"
-            :disabled="!form.title.trim()"
-            @click="save"
-          >{{ isEN ? 'Save' : 'Guardar' }}</button>
+          <button class="dir-form-btn dir-form-btn--save" @click.stop="save" :disabled="!form.title.trim()">
+            {{ isEN ? 'Save' : 'Guardar' }}
+          </button>
         </div>
 
       </div>
@@ -268,7 +300,7 @@ const props = defineProps({
   readOnly:    { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update', 'delete', 'save', 'cancel'])
+const emit = defineEmits(['update', 'delete', 'duplicate', 'save', 'cancel'])
 
 const isEN     = computed(() => props.lang === 'en')
 const titleRef = ref(null)
@@ -277,6 +309,24 @@ const titleRef = ref(null)
 const editing    = ref(props.isNew)
 const confirmDel = ref(false)
 const moreOpen   = ref(false)
+const dirRef     = ref(null)
+
+function onDocClick() {
+  if (form.title.trim()) save()
+  else cancel()
+}
+
+function handleOutsideClick(e) {
+  const path = e.composedPath()
+  if (dirRef.value && path.includes(dirRef.value)) return
+  onDocClick()
+}
+
+watch(editing, (val) => {
+  if (!val) document.removeEventListener('click', handleOutsideClick)
+}, { immediate: true })
+
+onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
 
 function initForm() {
   const i = props.item || {}
@@ -284,7 +334,7 @@ function initForm() {
   if (hasMore && !props.isNew) moreOpen.value = true
   return {
     date:                   props.initialDate || i.date || '',
-    timeType:               i.timeType              || null,
+    timeType:               i.timeType              || 'time_label',
     specificTime:           i.specificTime          || '',
     timeLabel:              i.timeLabel             || 'TBD',
     title:                  i.title                 || '',
@@ -309,19 +359,20 @@ onMounted(() => {
 // ── Time type logic ───────────────────────────────────────────────────────────
 function setTimeType(type) {
   form.timeType = type
-  if (type === null) {
-    form.specificTime = ''
-    form.timeLabel    = 'TBD'
-  }
-  if (type === 'time_label' && !form.timeLabel) form.timeLabel = 'TBD'
+  if (type === 'specific_time') form.timeLabel = form.timeLabel || 'TBD'
+}
+
+function setLabel(lbl) {
+  form.timeType  = 'time_label'
+  form.timeLabel = lbl
 }
 
 // ── Display time ─────────────────────────────────────────────────────────────
 const displayTime = computed(() => {
   if (!props.item) return ''
   if (props.item.timeType === 'specific_time') return fmt12h(props.item.specificTime)
-  if (props.item.timeType === 'time_label')    return props.item.timeLabel || '—'
-  return '—'
+  if (props.item.timeType === 'time_label')    return props.item.timeLabel || 'TBD'
+  return 'TBD'
 })
 
 // Secondary timezone conversions — grouped by converted time
@@ -362,7 +413,14 @@ const relatedEventsGrouped = computed(() => {
   const noStage       = byStage['_none']?.length ? ['_none'] : []
   return [...knownStages, ...unknownStages, ...noStage].map(s => ({
     key: s,
-    label: labels[s] || (s === '_none' ? (props.lang === 'en' ? 'Other' : 'Otros') : s),
+    label: labels[s] || (s === '_none'
+      ? (props.lang === 'en' ? 'Other' : 'Otros')
+      : (() => {
+          const st = (props.project?.stages || []).find(x => x.id === s || x.key === s)
+          if (!st) return s
+          return (props.lang === 'en' ? st.nameEN : st.name) || st.name || s
+        })()
+    ),
     events: byStage[s].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
   }))
 })
@@ -372,6 +430,17 @@ const relatedEventName = computed(() => {
   const ev = (props.project?.events || []).find(e => e.id === props.item.relatedCalendarEventId)
   if (!ev) return null
   return props.lang === 'en' ? (ev.nameEN || ev.name) : ev.name
+})
+
+const relatedDateConflict = computed(() => {
+  if (!props.item?.relatedCalendarEventId || !props.item?.date) return false
+  const ev = (props.project?.events || []).find(e => e.id === props.item.relatedCalendarEventId)
+  if (!ev?.date) return false
+  const dur = Number(ev.duration) || 1
+  const evEnd = ev.date && dur > 1
+    ? new Date(new Date(ev.date).getTime() + (dur - 1) * 86400000).toISOString().slice(0, 10)
+    : ev.date
+  return props.item.date < ev.date || props.item.date > evEnd
 })
 
 // ── Department options — shared with project departments (groups) ─────────────
@@ -386,10 +455,25 @@ function deptDisplayName(val) {
   return val  // backward compat: show raw string if no match
 }
 
+function fmtDuration(val) {
+  if (!val) return ''
+  const trimmed = String(val).trim()
+  const n = Number(trimmed)
+  if (!isNaN(n) && isFinite(n) && trimmed === String(n)) {
+    return n === 1 ? '1 HR' : `${trimmed} HRS`
+  }
+  return trimmed
+}
+
 // ── Actions ───────────────────────────────────────────────────────────────────
+function handleDirClick(e) {
+  if (!editing.value && !props.readOnly) startEdit()
+}
+
 function startEdit() {
   Object.assign(form, initForm())
   editing.value = true
+  document.addEventListener('click', handleOutsideClick)
   nextTick(() => titleRef.value?.focus())
 }
 
@@ -457,7 +541,10 @@ function save() {
   border-bottom: 1px solid rgba(255,255,255,.04);
   transition: background .1s;
   min-height: 44px;
+  cursor: pointer;
+  position: relative;
 }
+.dir--editing { cursor: default; }
 .dir:hover:not(.dir--editing) { background: rgba(255,255,255,.025); }
 .dir--internal { background: rgba(255,160,32,.04); }
 .dir--editing {
@@ -488,11 +575,15 @@ function save() {
 .dir-content { flex: 1; min-width: 0; }
 .dir-title-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 7px;
   flex-wrap: wrap;
 }
-.dir-lock { font-size: .75rem; }
+.dir-lock {
+  flex-shrink: 0;
+  opacity: .55;
+  color: var(--warning);
+}
 .dir-title {
   font-size: .85rem;
   font-weight: 600;
@@ -508,9 +599,9 @@ function save() {
 }
 .dir-meta {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 5px;
-  margin-top: 3px;
+  margin-top: 6px;
   font-size: .73rem;
   color: var(--muted);
   flex-wrap: wrap;
@@ -519,6 +610,8 @@ function save() {
 .dir-loc-link { color: var(--accent); text-decoration: none; }
 .dir-loc-link:hover { text-decoration: underline; }
 .dir-address { color: var(--muted); opacity: .7; font-size: .68rem; }
+.dir-address-link { color: var(--accent); text-decoration: none; opacity: 1; }
+.dir-address-link:hover { text-decoration: underline; }
 .dir-notes {
   margin-top: 4px;
   font-size: .72rem;
@@ -532,6 +625,11 @@ function save() {
   color: var(--muted);
 }
 .dir-related-label { opacity: .6; }
+.dir-related-conflict {
+  color: #e05252;
+  opacity: .75;
+  font-style: italic;
+}
 .dir-dept {
   display: inline-block;
   margin-top: 4px;
@@ -566,6 +664,9 @@ function save() {
   font-size: .72rem;
   padding: 3px 7px;
   transition: all .13s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .dir-act-btn:hover { border-color: var(--accent); color: var(--accent); }
 .dir-act-btn--del:hover { border-color: var(--danger); color: var(--danger); }
@@ -641,21 +742,6 @@ function save() {
 }
 .dir-time-type-btn:hover { border-color: var(--text); color: var(--text); }
 .dir-time-type-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.1); }
-.dir-label-opts { display: flex; gap: 4px; flex-wrap: wrap; }
-.dir-label-btn {
-  padding: 4px 10px;
-  border: 1.5px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-size: .72rem;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all .12s;
-}
-.dir-label-btn:hover { border-color: var(--text); color: var(--text); }
-.dir-label-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.1); }
 
 /* More options */
 .dir-more-toggle {
@@ -683,6 +769,9 @@ function save() {
 
 /* Internal only toggle */
 .dir-internal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 5px 12px;
   border: 1.5px solid var(--border);
   border-radius: 6px;
@@ -722,6 +811,13 @@ function save() {
   color: var(--muted);
 }
 .dir-form-btn--cancel:hover { border-color: var(--text); color: var(--text); }
+.dir-form-btn--delete {
+  background: transparent;
+  border: 1.5px solid transparent;
+  color: rgba(239,68,68,.5);
+  margin-right: auto;
+}
+.dir-form-btn--delete:hover { border-color: var(--danger); color: var(--danger); }
 .dir-form-btn--save {
   background: var(--accent);
   border: 1.5px solid var(--accent);

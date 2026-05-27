@@ -34,8 +34,8 @@
         </div>
       </div>
 
-      <!-- Location (new project only) -->
-      <div v-if="!isEdit" style="margin-top:10px;position:relative;">
+      <!-- Location -->
+      <div style="margin-top:10px;position:relative;">
         <div class="field">
           <label>{{ lang === 'en' ? 'Location' : 'Locación' }} <span style="font-weight:400;color:var(--muted)">{{ lang === 'en' ? '(optional)' : '(opcional)' }}</span></label>
           <div v-if="selectedCity" class="pm-loc-selected">
@@ -107,6 +107,24 @@
         </div>
       </div>
 
+      <!-- Week start & temp unit (always shown) -->
+      <div style="margin-top:10px;display:flex;gap:10px;">
+        <div class="field" style="flex:1;">
+          <label>{{ lang === 'en' ? 'Week starts' : 'Semana inicia' }}</label>
+          <select v-model="form.weekStart" class="pm-select">
+            <option value="sun">{{ lang === 'en' ? 'Sunday' : 'Domingo' }}</option>
+            <option value="mon">{{ lang === 'en' ? 'Monday' : 'Lunes' }}</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1;">
+          <label>{{ lang === 'en' ? 'Temperature' : 'Temperatura' }}</label>
+          <select v-model="form.tempUnit" class="pm-select">
+            <option value="C">Celsius (°C)</option>
+            <option value="F">Fahrenheit (°F)</option>
+          </select>
+        </div>
+      </div>
+
       <!-- Template (new project only) -->
       <div v-if="!isEdit" style="margin-top:10px;">
         <div class="field">
@@ -136,6 +154,7 @@ import { PALETTE } from '~/utils/constants'
 
 const projectsStore = useProjectsStore()
 const globalStore   = useGlobalStore()
+const settingsStore = useSettingsStore()
 const { $toast }    = useNuxtApp()
 
 const props = defineProps({
@@ -163,13 +182,18 @@ const form = reactive({
   status:       editingProject.value?.status       || 'competing',
   color:        editingProject.value?.color        || PALETTE[0],
   templateId:   '',
+  weekStart:    editingProject.value?.weekStart    || globalStore.weekStart || 'sun',
+  tempUnit:     editingProject.value?.tempUnit     || globalStore.tempUnit  || 'C',
 })
 
 const clientInputRef = ref(null)
 
 const citySearch    = ref('')
 const citySuggestions = ref([])
-const selectedCity  = ref(null)
+const firstCity     = editingProject.value?.cities?.[0]
+const selectedCity  = ref(firstCity
+  ? { id: `${firstCity.lat}_${firstCity.lon}`, name: firstCity.name, region: '', lat: firstCity.lat, lon: firstCity.lon }
+  : null)
 let cityTimer       = null
 
 async function searchCity() {
@@ -219,11 +243,22 @@ async function save() {
     return
   }
   if (isEdit.value) {
+    const proj = editingProject.value
+    const cityUpdate = selectedCity.value ? (() => {
+      const rest = (proj?.cities || []).slice(1)
+      return { cities: [
+        { name: selectedCity.value.name, lat: selectedCity.value.lat, lon: selectedCity.value.lon, weatherData: {}, sunrise: '', sunset: '' },
+        ...rest,
+      ]}
+    })() : {}
     projectsStore.updateProject(props.editingId, {
       client: form.client, agency: form.agency, name: form.name,
       director: form.director, photographer: form.photographer, ep: form.ep, agencyProducer: form.agencyProducer,
       status: form.status, color: form.color,
+      ...cityUpdate,
     })
+    projectsStore.setProjectWeekStart(props.editingId, form.weekStart)
+    projectsStore.setProjectTempUnit(props.editingId, form.tempUnit)
   } else {
     projectsStore.createProject({
       ...form,
@@ -274,6 +309,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .pm-loc-item:hover { background: #f0faf8; }
 .pm-loc-item strong { color: var(--text); font-weight: 700; }
 .pm-loc-item span { color: var(--muted); font-size: .66rem; }
+
+.pm-select {
+  width: 100%; padding: 6px 10px; border-radius: 7px; border: 1.5px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: .76rem; font-family: inherit;
+  cursor: pointer; appearance: auto;
+}
+.pm-select:focus { outline: none; border-color: var(--accent); }
 
 .status-btn-row {
   display: flex; gap: 6px;

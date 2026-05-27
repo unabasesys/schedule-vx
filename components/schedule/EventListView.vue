@@ -11,6 +11,11 @@
       <!-- Display filters -->
       <button
         class="ev-filter-btn"
+        :class="{ active: evFilter === 'all' }"
+        @click="setFilter('all')"
+      >{{ L.filterAll }}</button>
+      <button
+        class="ev-filter-btn"
         :class="{ active: evFilter === 'keydates', 'keydates-btn': true }"
         @click="setFilter('keydates')"
       >★ {{ L.filterKeyDates }}</button>
@@ -21,19 +26,14 @@
       >{{ L.filterActive }}</button>
       <button
         class="ev-filter-btn"
-        :class="{ active: evFilter === 'notcompleted' }"
-        @click="setFilter('notcompleted')"
-      >{{ L.filterNotCompleted }}</button>
-      <button
-        class="ev-filter-btn"
         :class="{ active: evFilter === 'internal' }"
         @click="setFilter('internal')"
       >{{ L.filterInternalOnly }}</button>
       <button
         class="ev-filter-btn"
-        :class="{ active: evFilter === 'all' }"
-        @click="setFilter('all')"
-      >{{ L.filterAll }}</button>
+        :class="{ active: evFilter === 'notcompleted' }"
+        @click="setFilter('notcompleted')"
+      >{{ L.filterNotCompleted }}</button>
 
       <div class="ev-toolbar-sep"></div>
 
@@ -63,11 +63,6 @@
           :class="{ 'ev-save-tmpl-btn--active': (project.holidays || []).length > 0 }"
           @click="$emit('toggle-holidays')"
         >{{ L.holidays }}</button>
-        <button
-          class="ev-save-tmpl-btn"
-          :disabled="!(project.events || []).length"
-          @click="saveAsTemplate"
-        >＋ Template</button>
       </div>
     </div>
 
@@ -106,14 +101,6 @@
     <!-- Conflicts bar -->
     <div v-if="hasConflicts" class="conflicts-bar">
       ⚠ {{ conflicts.length }} {{ L.brokenDeps }}
-    </div>
-
-    <!-- Column header bar -->
-    <div class="ev-col-header">
-      <div class="ev-col-actions">{{ L.colActions }}</div>
-      <div class="ev-col-name">{{ L.colEvent }}</div>
-      <div class="ev-col-dates">{{ L.colDates }}</div>
-      <div v-show="showDepCol" class="ev-col-dep">{{ L.colDep }}</div>
     </div>
 
     <!-- Event rows -->
@@ -179,7 +166,7 @@
                   @dblclick.stop="!readOnly && startRenameStage(stage)"
                 >{{ stage.name }}</span>
               </template>
-              <span class="ev-stage-count">{{ stage.totalEvs }}</span>
+              <span class="ev-stage-count">{{ stage.totalEvs }} {{ lang === 'en' ? 'Events' : 'Eventos' }}</span>
             </div>
             <div v-if="!readOnly" class="stage-hdr-actions">
               <!-- ON/OFF toggle -->
@@ -387,7 +374,7 @@ const LABELS = {
     filterActive:   'Solo activos',
     filterKeyDates: 'Fechas clave',
     filterNotCompleted: 'No completadas',
-    filterInternalOnly: 'Internal Only',
+    filterInternalOnly: 'Solo internos',
     holidays:       'Feriados',
     groupsTitle:    'Departamentos',
     groupPlaceholder: 'Nombre del departamento',
@@ -415,7 +402,9 @@ const LABELS = {
     btnApply:       'Aplicar',
     toastSaved:     'Template guardado',
     toastMoved:     'Calendario movido',
-    promptTemplate: 'Nombre del template:',
+    promptTemplate:      'Guardar este calendario como template',
+    promptTemplateLabel: 'Nombre del template',
+    promptTemplatePh:    'Escribe el nombre del template',
     emptyTitle:   '¿Partiste sin template? Perfecto.',
     emptyBody1:   'Entonces este calendario lo puedes armar 100% a tu manera.\n\nLo primero es crear una Etapa, porque ahí es donde viven los eventos.\nDesde ahí puedes ir construyendo tu calendario poco a poco, agregando todas las etapas y eventos que necesites, y cambiando el orden cuando quieras.',
     emptyBody2:   'También puedes usar Departamentos para conectar eventos de distintas etapas.\nSi prendes o apagas un departamento, todos los eventos vinculados cambian contigo.',
@@ -434,7 +423,7 @@ const LABELS = {
     filterActive:   'Active only',
     filterKeyDates: 'Key dates',
     filterNotCompleted: 'Not completed',
-    filterInternalOnly: 'Internal Only',
+    filterInternalOnly: 'Internal only',
     holidays:       'Holidays',
     groupsTitle:    'Departments',
     groupPlaceholder: 'Department name',
@@ -462,7 +451,9 @@ const LABELS = {
     btnApply:       'Apply',
     toastSaved:     'Template saved',
     toastMoved:     'Calendar moved',
-    promptTemplate: 'Template name:',
+    promptTemplate:      'Save this calendar as a template',
+    promptTemplateLabel: 'Template name',
+    promptTemplatePh:    'Enter template name',
     emptyTitle:   'Starting without a template? Perfect.',
     emptyBody1:   'This calendar is yours to build your own way.\n\nThe first step is to create a Stage, because that\'s where events live.\nFrom there, you can build your calendar step by step, adding as many stages and events as you need, and changing the order whenever you want.',
     emptyBody2:   'You can also use Departments to connect events from different stages.\nWhen you turn a department on or off, all linked events follow.',
@@ -740,6 +731,8 @@ function onStageDrop(stageKey) {
 async function saveAsTemplate() {
   const name = await useDialog().prompt({
     title:        L.value.promptTemplate,
+    label:        L.value.promptTemplateLabel,
+    placeholder:  L.value.promptTemplatePh,
     defaultValue: props.project.name || props.project.client || 'Template',
     confirmLabel: 'OK',
     cancelLabel:  props.lang === 'en' ? 'Cancel' : 'Cancelar',
@@ -789,8 +782,8 @@ function createEventInStage(stageKey) {
     id: uid(), name: defaultName, nameEN: defaultName,
     stage: stageKey, active: true, date: '', dateMode: 'manual', duration: 1, durDayType: 'calendar',
     dep: { active: false, eventId: '', relation: 'after', days: 1, broken: false },
-    locked: false, notes: '', order: props.project.events.length,
-    completed: false, keyDate: false, internal: false, whenToUse: '', whenToUseEN: '', groups: [],
+    notes: '', order: props.project.events.length,
+    completed: false, keyDate: false, internal: false, groups: [],
   }
   projectsStore.addEvent(props.project.id, ev)
   evFilter.value = 'active'
@@ -975,22 +968,6 @@ watch(stageColorPickerId, (val) => {
   display: flex; align-items: center; gap: 6px; flex-shrink: 0;
 }
 
-/* ── Column header bar ── */
-.ev-col-header {
-  display: flex; align-items: center; gap: 0;
-  background: var(--bg); border-bottom: 1px solid rgba(255,255,255,.06);
-  flex-shrink: 0; overflow: hidden;
-}
-.ev-col-header > div {
-  padding: 5px 10px; font-size: .60rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .45px; color: var(--muted);
-}
-.ev-col-actions { flex: 0 0 124px; border-right: 1px solid var(--border); }
-.ev-col-name    { flex: 1 1 0; min-width: 0; border-right: 1px solid var(--border); }
-/* Must match ev-dates fixed width in EventRow.vue exactly */
-.ev-col-dates   { flex: 0 0 328px; border-right: 1px solid var(--border); }
-/* Must match ev-dep-section fixed width in EventRow.vue */
-.ev-col-dep     { flex: 0 0 420px; padding-left: 12px; }
 
 /* ── Rows container ── */
 .ev-list-scroll { flex: 1; overflow: auto; }

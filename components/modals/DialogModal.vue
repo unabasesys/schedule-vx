@@ -5,15 +5,33 @@
         <div class="dlg-title">{{ state.title }}</div>
         <div v-if="state.body" class="dlg-body">{{ state.body }}</div>
         <div v-if="state.type === 'prompt'" class="dlg-input-wrap">
+          <label v-if="state.label" class="dlg-label">{{ state.label }}</label>
           <input
             ref="inputRef"
             v-model="inputVal"
             class="dlg-input"
+            :placeholder="state.placeholder || ''"
             @keydown.enter.prevent="onConfirm"
             @keydown.esc.stop="dismiss"
           />
         </div>
-        <div class="dlg-actions">
+        <!-- Multi-choice layout -->
+        <div v-if="state.type === 'choice'" class="dlg-choices">
+          <button
+            v-for="c in state.choices"
+            :key="c.value"
+            class="dlg-choice-btn"
+            :class="{ 'dlg-choice-primary': c.primary }"
+            @click="_resolve(c.value)"
+          >
+            {{ c.label }}
+          </button>
+          <div class="dlg-actions" style="margin-top:4px;">
+            <button class="dlg-cancel" @click="dismiss">{{ state.cancelLabel }}</button>
+          </div>
+        </div>
+        <!-- Standard confirm / alert / prompt layout -->
+        <div v-else class="dlg-actions">
           <button v-if="state.type !== 'alert'" class="dlg-cancel" @click="dismiss">
             {{ state.cancelLabel }}
           </button>
@@ -96,6 +114,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 .dlg-title + .dlg-input-wrap { margin-top: 6px; }
 
 .dlg-input-wrap { margin-bottom: 20px; }
+.dlg-label { display: block; font-size: .75rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
 
 .dlg-input {
   width: 100%; padding: 7px 10px; box-sizing: border-box;
@@ -131,4 +150,22 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 }
 .dlg-confirm.dlg-danger:hover { background: #dc2020; }
 .dlg-confirm.dlg-danger:focus { outline: 2px solid var(--danger, #ef4444); outline-offset: 2px; }
+
+.dlg-choices {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 20px;
+}
+.dlg-choice-btn {
+  width: 100%; padding: 9px 16px; border-radius: 7px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2, rgba(255,255,255,.06));
+  color: var(--text); font-size: .78rem; font-weight: 600;
+  cursor: pointer; font-family: inherit; text-align: left;
+  transition: all .13s;
+}
+.dlg-choice-btn:hover { border-color: var(--muted); background: rgba(255,255,255,.1); }
+.dlg-choice-btn.dlg-choice-primary {
+  background: var(--accent, #20a789); color: #fff; border-color: transparent;
+}
+.dlg-choice-btn.dlg-choice-primary:hover { filter: brightness(1.1); }
 </style>

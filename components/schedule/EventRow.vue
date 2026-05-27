@@ -124,12 +124,6 @@
         <span class="ev-group-icon">{{ L.groupsBtn }}</span>
         <span v-if="eventGroupIds.length" class="ev-group-count">{{ eventGroupIds.length }}</span>
       </button>
-
-      <button
-        v-if="event.whenToUse || event.whenToUseEN"
-        class="ev-info-btn"
-        :title="lang === 'en' ? event.whenToUseEN : event.whenToUse"
-      >ℹ</button>
     </div>
 
     <!-- Group menu — teleported to body to avoid overflow clipping -->
@@ -187,6 +181,7 @@
         class="ev-date-label"
         :class="{ 'ev-date-auto': event.dateMode === 'auto', 'ev-date-broken': event.dep?.broken }"
         :title="L.startDate"
+        @click="!readOnly && openDatePicker()"
       >
         <span class="ev-date-text">{{ formattedStartDate || '— / — / —' }}</span>
         <input
@@ -628,7 +623,7 @@ function updateDate(val) {
 }
 
 function updateDuration(val) {
-  update({ duration: val, days: val })
+  update({ duration: val })
 }
 
 async function updateDurDayType(dt) {
@@ -782,11 +777,7 @@ function updateDepAnchor(anchor) {
 }
 .ev-name-input:focus { background: var(--surface-2); border-radius: 4px; padding: 1px 4px; }
 
-.ev-info-btn {
-  background: none; border: none; cursor: pointer; color: var(--muted);
-  font-size: .7rem; padding: 1px 3px; flex-shrink: 0; line-height: 1;
-}
-.ev-info-btn:hover { color: var(--accent); }
+
 
 /* ── ③ Duration & Dates ── */
 .ev-dates {
@@ -924,7 +915,7 @@ function updateDepAnchor(anchor) {
 .ev-dep-days {
   width: 38px; border: 1.5px solid var(--border); border-radius: 5px;
   padding: 3px 4px; font-size: .72rem; font-family: inherit;
-  text-align: center; outline: none; color: var(--text);
+  text-align: center; outline: none; color: var(--text); background: var(--surface-2);
 }
 .ev-dep-days:focus { border-color: var(--accent); }
 

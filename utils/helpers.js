@@ -119,8 +119,9 @@ export function convertTimezone(dateStr, timeHHMM, fromTz, toTz) {
     const shown = new Intl.DateTimeFormat('en-US', {
       timeZone: fromTz, hour: '2-digit', minute: '2-digit', hour12: false,
     }).format(naiveUTC)
-    const [sh, sm] = shown.split(':').map(Number)
-    const diffMin  = (h * 60 + mi) - (sh * 60 + sm)
+    const [shRaw, sm] = shown.split(':').map(Number)
+    const sh      = shRaw === 24 ? 0 : shRaw  // Intl returns "24:00" for midnight
+    const diffMin = (h * 60 + mi) - (sh * 60 + sm)
     const realUTC  = new Date(naiveUTC.getTime() + diffMin * 60000)
     return new Intl.DateTimeFormat('en-US', {
       timeZone: toTz, hour: '2-digit', minute: '2-digit', hour12: false,

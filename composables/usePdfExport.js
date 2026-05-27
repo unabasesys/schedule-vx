@@ -220,8 +220,8 @@ export function usePdfExport() {
 
       // ┌─ ZONE A — INSTITUTIONAL HEADER ──────────────────────────────────────┐
       // Logo (left) — preserve aspect ratio, max height 9mm, max width 30mm
-      const LOGO_MAX_H = 9
-      const LOGO_MAX_W = 30
+      const LOGO_MAX_H = 7.65
+      const LOGO_MAX_W = 25.5
       let orgNameX = M
       if (settingsStore.logo) {
         try {

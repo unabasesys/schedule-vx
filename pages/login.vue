@@ -9,7 +9,7 @@
         </div>
         <div class="panel-content">
           <h2 class="panel-product">Calendar</h2>
-          <p class="panel-tagline">Crea y gestiona calendarios de producción audiovisual de forma profesional.</p>
+          <p class="panel-tagline">{{ isEN ? 'Organize production calendars for creative industry projects.' : 'Organiza calendarios de producción para proyectos de la industria creativa.' }}</p>
         </div>
         <div class="panel-dots">
           <span class="dot active"></span>
@@ -20,8 +20,16 @@
 
       <!-- Right panel -->
       <div class="auth-panel-right">
-        <h1 class="auth-title">Sign In</h1>
-        <p class="auth-subtitle">Sign in to Calendar by unabase</p>
+
+        <!-- Language toggle -->
+        <div class="lang-toggle">
+          <button :class="{ active: !isEN }" @click="setLang('es')">ES</button>
+          <span class="lang-sep">·</span>
+          <button :class="{ active: isEN }" @click="setLang('en')">EN</button>
+        </div>
+
+        <h1 class="auth-title">{{ isEN ? 'Sign In' : 'Iniciar sesión' }}</h1>
+        <p class="auth-subtitle">{{ isEN ? 'Sign in to Calendar by unabase' : 'Ingresa a Calendar by unabase' }}</p>
 
         <!-- Google sign-in -->
         <div id="google-btn" class="google-btn-wrap"></div>
@@ -29,19 +37,19 @@
 
         <form class="auth-form" @submit.prevent="handleSubmit">
           <div class="field">
-            <label for="email">Email Address</label>
+            <label for="email">{{ isEN ? 'Email address' : 'Email' }}</label>
             <input
               id="email"
               v-model="form.email"
               type="email"
-              placeholder="tu@email.com"
+              placeholder="you@email.com"
               autocomplete="email"
               required
             />
           </div>
 
           <div class="field">
-            <label for="password">Password</label>
+            <label for="password">{{ isEN ? 'Password' : 'Contraseña' }}</label>
             <div class="input-wrap">
               <input
                 id="password"
@@ -67,22 +75,26 @@
           <div class="form-row">
             <label class="remember-me">
               <input type="checkbox" v-model="rememberMe" />
-              <span>Keep me signed in</span>
+              <span>{{ isEN ? 'Keep me signed in' : 'Mantener sesión iniciada' }}</span>
             </label>
-            <NuxtLink to="/forgot-password" class="link-accent">Forgot your password?</NuxtLink>
+            <NuxtLink :to="{ path: '/forgot-password', query: form.email ? { email: form.email } : {} }" class="link-accent">
+              {{ isEN ? 'Forgot your password?' : '¿Olvidaste tu contraseña?' }}
+            </NuxtLink>
           </div>
 
           <div v-if="authStore.error" class="auth-error">{{ authStore.error }}</div>
 
           <button type="submit" class="btn-primary" :disabled="authStore.loading">
-            <span v-if="authStore.loading">Signing in...</span>
-            <span v-else>Sign In</span>
+            <span v-if="authStore.loading">{{ isEN ? 'Signing in...' : 'Ingresando...' }}</span>
+            <span v-else>{{ isEN ? 'Sign In' : 'Iniciar sesión' }}</span>
           </button>
         </form>
 
         <p class="auth-footer">
-          Don't have an account yet?
-          <NuxtLink to="/register" class="link-accent">Create an account here</NuxtLink>
+          {{ isEN ? "Don't have an account yet?" : '¿No tienes cuenta?' }}
+          <NuxtLink :to="{ path: '/register', query: form.email ? { email: form.email } : {} }" class="link-accent">
+            {{ isEN ? 'Create an account here' : 'Crea una cuenta aquí' }}
+          </NuxtLink>
         </p>
       </div>
 
@@ -105,6 +117,17 @@ if (authStore.isLoggedIn) {
 const form         = reactive({ email: '', password: '' })
 const showPassword = ref(false)
 const rememberMe   = ref(false)
+const lang         = ref('es')
+const isEN         = computed(() => lang.value === 'en')
+
+function setLang(l) {
+  lang.value = l
+  localStorage.setItem('ub_lang', l)
+}
+
+onMounted(() => {
+  lang.value = localStorage.getItem('ub_lang') || 'es'
+})
 
 const handleSubmit = async () => {
   const ok = await authStore.login(form)
@@ -230,10 +253,37 @@ onMounted(() => {
   width: 28px;
 }
 
+/* ── Language toggle ────────────────────────────────────────────────────── */
+.lang-toggle {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.lang-toggle button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  letter-spacing: .5px;
+  color: var(--muted);
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color .12s;
+}
+.lang-toggle button.active { color: var(--accent); }
+.lang-toggle button:hover  { color: var(--text); }
+.lang-sep { font-size: 11px; color: var(--border); }
+
 /* ── Right panel ────────────────────────────────────────────────────────── */
 .auth-panel-right {
   flex: 1;
   background: var(--surface);
+  position: relative;
   padding: 44px 40px;
   display: flex;
   flex-direction: column;

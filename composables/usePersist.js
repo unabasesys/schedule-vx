@@ -2,6 +2,8 @@
 // All project and org data lives on the server.
 
 const SIDEBAR_KEY = 'ub_sidebar_collapsed'
+const VIEW_KEY    = 'ub_current_view'
+const VALID_VIEWS = ['cal', 'list', 'daily', 'tmpl']
 
 export function usePersist() {
   function getSidebarCollapsed() {
@@ -14,5 +16,16 @@ export function usePersist() {
     localStorage.setItem(SIDEBAR_KEY, val ? '1' : '0')
   }
 
-  return { getSidebarCollapsed, setSidebarCollapsed }
+  function getView() {
+    if (typeof localStorage === 'undefined') return 'cal'
+    const v = localStorage.getItem(VIEW_KEY)
+    return VALID_VIEWS.includes(v) ? v : 'cal'
+  }
+
+  function setView(val) {
+    if (typeof localStorage === 'undefined') return
+    localStorage.setItem(VIEW_KEY, val)
+  }
+
+  return { getSidebarCollapsed, setSidebarCollapsed, getView, setView }
 }

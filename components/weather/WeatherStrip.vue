@@ -1,5 +1,5 @@
 <template>
-  <div class="weather-strip" v-if="project.cities?.length">
+  <div class="weather-strip">
     <div
       v-for="(city, idx) in project.cities"
       :key="idx"
@@ -17,7 +17,7 @@
         </span>
         <span class="weather-source" :class="{ stats: getWeather(idx)?._isStats }">
           {{ getWeather(idx)?._isStats
-            ? (lang === 'en' ? 'hist.' : 'hist.')
+            ? 'hist.'
             : (lang === 'en' ? 'fcst.' : 'pron.') }}
         </span>
       </template>
@@ -104,7 +104,9 @@ watch(newCitySuggestions, (list) => {
 })
 
 watch(showAddCity, (open) => {
-  if (!open) {
+  if (open) {
+    nextTick(() => cityInputRef.value?.focus())
+  } else {
     newCitySearch.value      = ''
     newCitySuggestions.value = []
   }
@@ -239,7 +241,8 @@ function addCity(s) {
 .weather-add-wrap { flex-shrink: 0; }
 .weather-add-input {
   padding: 5px 9px; border: 1.5px solid var(--accent); border-radius: 7px;
-  font-size: .76rem; font-family: inherit; outline: none; color: var(--text); width: 160px;
+  font-size: .76rem; font-family: inherit; outline: none; color: var(--text);
+  background: var(--surface-2); width: 160px;
 }
 </style>
 

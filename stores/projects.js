@@ -28,8 +28,6 @@ function fixEvent(ev, maps) {
   if (!ev.dep) ev.dep = { active: false, eventId: '', relation: 'after', days: 1, broken: false }
   if (!ev.nameEN)     ev.nameEN     = ev.name || ''
   if (!ev.groups)     ev.groups     = []
-  if (!ev.whenToUse)  ev.whenToUse  = ''
-  if (!ev.whenToUseEN) ev.whenToUseEN = ''
   if (!ev.dateMode)   ev.dateMode   = 'manual'
   if (!ev.durDayType) ev.durDayType = 'calendar'
   if (ev.keyDate       == null) ev.keyDate       = false
@@ -51,8 +49,6 @@ function fixEvent(ev, maps) {
       if (ev.name === entry.nameEN || ev.name === ev.nameEN) ev.name = entry.name
       ev.nameEN = entry.nameEN || entry.name
     }
-    if (!ev.whenToUse)   ev.whenToUse   = entry.whenToUse   || ''
-    if (!ev.whenToUseEN) ev.whenToUseEN = entry.whenToUseEN || ''
   }
 }
 
@@ -73,9 +69,6 @@ export function migrateProjects(projects, templates, lang = 'es') {
     if (!proj.cities)   proj.cities  = []
     if (proj.version == null)     proj.version    = 0
     if (proj.hasChanges == null)  proj.hasChanges  = false
-    if (!proj.shareToken)         proj.shareToken  = null
-    if (proj.shareActive == null) proj.shareActive = false
-    if (proj.shareViews == null)  proj.shareViews  = 0
     if (proj.hidden == null)      proj.hidden      = false
     if (!proj.lang)               proj.lang        = lang
     if (proj.photographer == null) proj.photographer = ''
@@ -122,9 +115,8 @@ function eventsFromTemplate(tmpl) {
         days:     te.dep?.days     ?? 1,
         broken:   false,
       },
-      locked: false, notes: '', order: te.order ?? i,
+      notes: '', order: te.order ?? i,
       completed: false, keyDate: false, internal: false,
-      whenToUse: te.whenToUse || '', whenToUseEN: te.whenToUseEN || '',
       groups: te.groups || [],
     }
   })
@@ -135,7 +127,9 @@ function eventsFromTemplate(tmpl) {
 }
 
 // ── API helpers (module-level) ────────────────────────────────────────────────
-const _syncTimers = new Map()
+const _syncTimers             = new Map()
+const _dailySyncTimers        = new Map()
+let   _unloadListenerRegistered = false
 
 const isMongoId = (id) => /^[0-9a-f]{24}$/i.test(id || '')
 
@@ -161,30 +155,42 @@ export const useProjectsStore = defineStore('projects', {
 
     localOnlyProjects: (s) => s.projects.filter(p => !isMongoId(p.id)),
 
-    filteredProjects: (s) => (filter, search = '') => {
-      let list = s.projects.filter(p => p.isActive !== false)
-      if (filter === 'archived') {
-        list = s.projects.filter(p => p.status === 'archived')
-      } else if (filter === 'active') {
-        list = s.projects.filter(p => p.status !== 'archived' && p.isActive !== false)
+    // Plain (non-factory) getter — Pinia correctly tracks s.projects and proj.updatedAt
+    // as reactive dependencies. Re-evaluates whenever any project's updatedAt changes,
+    // which propagates down to filteredProjects and then to the sidebar computed.
+    projectsSortedByUpdated: (s) => [...s.projects].sort((a, b) => {
+      const ta = Date.parse(a.updatedAt || a.createdAt || '') || 0
+      const tb = Date.parse(b.updatedAt || b.createdAt || '') || 0
+      if (tb !== ta) return tb - ta
+      return (b.id || '').localeCompare(a.id || '')
+    }),
+
+    // Regular function (not arrow) so 'this' accesses the store's other getters.
+    // Accessing this.projectsSortedByUpdated in the outer scope registers it as a
+    // Pinia-level dependency — when the sorted list changes, this getter re-evaluates
+    // and returns a new inner function, causing AppSidebar's computed to re-run.
+    filteredProjects(s) {
+      const sorted = this.projectsSortedByUpdated
+      return (filter, search = '') => {
+        let list = sorted.filter(p => p.isActive !== false)
+        if (filter === 'archived') {
+          list = sorted.filter(p => p.status === 'archived')
+        } else if (filter === 'active') {
+          list = sorted.filter(p => p.status !== 'archived' && p.isActive !== false)
+        }
+        if (search) {
+          const q = search.toLowerCase()
+          list = list.filter(p =>
+            (p.name         || '').toLowerCase().includes(q) ||
+            (p.client       || '').toLowerCase().includes(q) ||
+            (p.agency       || '').toLowerCase().includes(q) ||
+            (p.director     || '').toLowerCase().includes(q) ||
+            (p.photographer || '').toLowerCase().includes(q) ||
+            (p.ep           || '').toLowerCase().includes(q)
+          )
+        }
+        return list
       }
-      if (search) {
-        const q = search.toLowerCase()
-        list = list.filter(p =>
-          (p.name         || '').toLowerCase().includes(q) ||
-          (p.client       || '').toLowerCase().includes(q) ||
-          (p.agency       || '').toLowerCase().includes(q) ||
-          (p.director     || '').toLowerCase().includes(q) ||
-          (p.photographer || '').toLowerCase().includes(q) ||
-          (p.ep           || '').toLowerCase().includes(q)
-        )
-      }
-      list.sort((a, b) => {
-        const ta = Date.parse(a.updatedAt || a.createdAt || '') || 0
-        const tb = Date.parse(b.updatedAt || b.createdAt || '') || 0
-        return tb - ta
-      })
-      return list
     },
 
     sortedEvents: () => (proj, filter = 'all', filterKey = false, _lang = 'es') => {
@@ -209,9 +215,10 @@ export const useProjectsStore = defineStore('projects', {
       const globalStore   = useGlobalStore()
       const authStore     = useAuthStore()
 
-      // Sidebar collapsed is pure UI state — safe to keep locally
-      const { getSidebarCollapsed } = usePersist()
+      // UI state — safe to keep locally
+      const { getSidebarCollapsed, getView } = usePersist()
       globalStore.sidebarCollapsed = getSidebarCollapsed()
+      globalStore.currentView      = getView()
 
       // Preferences come from the user's schedulePrefs (returned with auth session)
       const prefs = authStore.user?.schedulePrefs || {}
@@ -240,26 +247,28 @@ export const useProjectsStore = defineStore('projects', {
           api.get('/schedule-templates'),
         ])
 
-        // Snapshot SHOW/HIDE state before replacing — backend may not store this field
-        const localHidden = new Map()
-        this.projects.forEach(p => {
-          if (p.hidden != null) {
-            localHidden.set(p.id, p.hidden)
-            if (p.uid) localHidden.set(p.uid, p.hidden)
-          }
-        })
-
         const normProjects  = apiProjects.map(normalizeDoc)
         const normTemplates = apiTemplates.map(normalizeDoc)
         const globalStore   = useGlobalStore()
 
-        // hidden is a local-only UI preference — always win over whatever the API returns
+        // Apply per-user calendar visibility prefs — each user decides what they see
+        const visibilityMap = authStore.user?.schedulePrefs?.calendarVisibility || {}
         normProjects.forEach(p => {
-          const localHid = localHidden.get(p.id) ?? localHidden.get(p.uid)
-          if (localHid !== undefined) p.hidden = localHid
+          const pref = visibilityMap[p.id] ?? visibilityMap[p.uid]
+          p.hidden = pref !== undefined ? pref : false
         })
 
         migrateProjects(normProjects, normTemplates, globalStore.lang)
+
+        // Preserve local updatedAt when it's newer than the server's value.
+        // This prevents an auth-refresh reload from clobbering unsaved local edits
+        // and reverting the sidebar sort order before the debounced sync fires.
+        normProjects.forEach(serverProj => {
+          const localProj = this.projects.find(p => p.id === serverProj.id)
+          if (localProj && localProj.updatedAt > (serverProj.updatedAt || '')) {
+            serverProj.updatedAt = localProj.updatedAt
+          }
+        })
 
         // API is the single source of truth — replace local state entirely
         this.projects = normProjects
@@ -271,15 +280,17 @@ export const useProjectsStore = defineStore('projects', {
           ...normTemplates,
         ]
 
-        // Select first active project if current selection is gone
+        // Select most recently edited active project if current selection is gone
         if (!this.selectedId || !this.projects.find(p => p.id === this.selectedId)) {
-          const first = this.projects.find(p => p.status !== 'archived' && p.isActive !== false)
-          if (first) this.selectedId = first.id
+          const active = this.projects.filter(p => p.status !== 'archived' && p.isActive !== false)
+          active.sort((a, b) => (Date.parse(b.updatedAt || b.createdAt || '') || 0) - (Date.parse(a.updatedAt || a.createdAt || '') || 0))
+          if (active[0]) this.selectedId = active[0].id
         }
 
         this.migrationPending = false
 
         try { this.seedInitialData() } catch(e) { console.warn('seedInitialData error', e) }
+        this._registerUnloadFlush()
       } catch (err) {
         console.warn('loadFromApi failed:', err)
       } finally {
@@ -296,11 +307,121 @@ export const useProjectsStore = defineStore('projects', {
         const proj = this.projects.find(p => p.id === projId)
         if (!proj) return
         try {
-          await useApi().put(`/projects/${projId}`, proj)
+          const { hidden: _hidden, ...payload } = proj
+          await useApi().put(`/projects/${projId}`, payload)
         } catch (e) {
           console.warn('Project sync failed:', projId, e.message)
         }
       }, 1500))
+    },
+
+    // Immediate PUT — cancels any pending debounce and saves right away.
+    // Use after drag-drop to guarantee the change reaches the server before
+    // any page reload can discard the in-memory state.
+    async syncProjectNow(projId) {
+      if (!isMongoId(projId)) return
+      if (_syncTimers.has(projId)) {
+        clearTimeout(_syncTimers.get(projId))
+        _syncTimers.delete(projId)
+      }
+      const proj = this.projects.find(p => p.id === projId)
+      if (!proj) return
+      try {
+        const { hidden: _hidden, ...payload } = proj
+        await useApi().put(`/projects/${projId}`, payload)
+      } catch (e) {
+        console.warn('Project sync failed:', projId, e.message)
+      }
+    },
+
+    // Registers pagehide + visibilitychange listeners that flush pending debounced syncs
+    // before the page unloads. keepalive:true tells the browser to complete the fetch
+    // even when the page is already navigating away (fixes the "Cmd+R too fast" problem).
+    _registerUnloadFlush() {
+      if (_unloadListenerRegistered) return
+      _unloadListenerRegistered = true
+
+      const config = useRuntimeConfig()
+      const BASE   = config.public.apiUrl
+
+      const flush = () => {
+        let token = '', orgId = ''
+        try {
+          const authStore = useAuthStore()
+          token = authStore.token || ''
+          orgId = authStore.organization?._id || ''
+        } catch { /* auth store unavailable */ }
+
+        const headers = {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` }  : {}),
+          ...(orgId ? { Organization: orgId }               : {}),
+        }
+
+        for (const [projId, timer] of [..._syncTimers]) {
+          clearTimeout(timer)
+          _syncTimers.delete(projId)
+          const proj = this.projects.find(p => p.id === projId)
+          if (!proj) continue
+          const { hidden: _h, ...payload } = proj
+          fetch(`${BASE}/projects/${projId}`, {
+            method: 'PUT', keepalive: true, headers,
+            body: JSON.stringify(payload),
+          }).catch(() => {})
+        }
+
+        for (const [projId, timer] of [..._dailySyncTimers]) {
+          clearTimeout(timer)
+          _dailySyncTimers.delete(projId)
+          const proj = this.projects.find(p => p.id === projId)
+          if (!proj) continue
+          fetch(`${BASE}/projects/${projId}/daily`, {
+            method: 'PATCH', keepalive: true, headers,
+            body: JSON.stringify({ dailySchedule: proj.dailySchedule, dailyConfig: proj.dailyConfig }),
+          }).catch(() => {})
+        }
+      }
+
+      if (typeof window !== 'undefined') {
+        window.addEventListener('pagehide', flush)
+        window.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden') flush()
+        })
+      }
+    },
+
+    // Debounced PATCH for daily-only changes — does NOT bump updatedAt on the server.
+    _scheduleSyncDaily(projId) {
+      if (!isMongoId(projId)) return
+      if (_dailySyncTimers.has(projId)) clearTimeout(_dailySyncTimers.get(projId))
+      _dailySyncTimers.set(projId, setTimeout(async () => {
+        _dailySyncTimers.delete(projId)
+        const proj = this.projects.find(p => p.id === projId)
+        if (!proj) return
+        try {
+          await useApi().patch(`/projects/${projId}/daily`, {
+            dailySchedule: proj.dailySchedule,
+            dailyConfig:   proj.dailyConfig,
+          })
+        } catch (e) {
+          console.warn('Daily sync failed:', projId, e.message)
+        }
+      }, 1500))
+    },
+
+    async _saveCalendarVisibilityPref(projectId, hidden) {
+      const authStore = useAuthStore()
+      if (!authStore?.isLoggedIn) return
+      const current = authStore.user?.schedulePrefs?.calendarVisibility || {}
+      const updated = { ...current, [projectId]: hidden }
+      if (authStore.user?.schedulePrefs) {
+        authStore.user.schedulePrefs.calendarVisibility = updated
+      }
+      try {
+        await useApi().put('/users/me', { schedulePrefs: { calendarVisibility: updated } })
+      } catch (e) {
+        console.warn('Calendar visibility sync failed:', e.message)
+      }
     },
 
     seedInitialData() {
@@ -314,9 +435,8 @@ export const useProjectsStore = defineStore('projects', {
           date: '', dateMode: 'manual',
           duration: te.days || 1, durDayType: 'calendar',
           dep: { active: false, eventId: '', relation: 'after', days: 1, broken: false },
-          locked: false, notes: '', order: i,
+          notes: '', order: i,
           completed: false, keyDate: false,
-          whenToUse: te.whenToUse || '', whenToUseEN: te.whenToUseEN || '',
           groups: te.groups || [],
         }))
         const tmpl = {
@@ -360,7 +480,6 @@ export const useProjectsStore = defineStore('projects', {
           globalStore.calYear  = earliest.getFullYear()
           globalStore.calMonth = earliest.getMonth()
         }
-        globalStore.currentView = 'cal'
       }
       this.save()
     },
@@ -403,13 +522,12 @@ export const useProjectsStore = defineStore('projects', {
         status:         data.status         || 'competing',
         color:        data.color        || '#06CCB4',
         lang,
+        weekStart:    globalStore.weekStart || 'sun',
+        tempUnit:     globalStore.tempUnit  || 'C',
         createdAt:    new Date().toISOString().split('T')[0],
         updatedAt:    new Date().toISOString(),
         version:      0,
         hasChanges:   false,
-        shareToken:   null,
-        shareActive:  false,
-        shareViews:   0,
         stages,
         groups,
         holidays: (() => {
@@ -478,6 +596,22 @@ export const useProjectsStore = defineStore('projects', {
       this._scheduleSyncProject(id)
     },
 
+    setProjectWeekStart(id, weekStart) {
+      const proj = this.projects.find(p => p.id === id)
+      if (!proj) return
+      proj.weekStart = weekStart
+      this.save()
+      this._scheduleSyncProject(id)
+    },
+
+    setProjectTempUnit(id, tempUnit) {
+      const proj = this.projects.find(p => p.id === id)
+      if (!proj) return
+      proj.tempUnit = tempUnit
+      this.save()
+      this._scheduleSyncProject(id)
+    },
+
     deleteProject(id) {
       this.projects = this.projects.filter(p => p.id !== id)
       if (this.selectedId === id) {
@@ -526,8 +660,7 @@ export const useProjectsStore = defineStore('projects', {
       const proj = this.projects.find(p => p.id === id)
       if (!proj) return
       proj.hidden = !proj.hidden
-      this.save()
-      this._scheduleSyncProject(id)
+      this._saveCalendarVisibilityPref(id, proj.hidden)
     },
 
     cycleStatus(id) {
@@ -574,7 +707,6 @@ export const useProjectsStore = defineStore('projects', {
         dailySchedule: opts.clearDates ? [] : JSON.parse(JSON.stringify(src.dailySchedule || [])),
         dailyConfig: JSON.parse(JSON.stringify(src.dailyConfig || { timezones: [] })),
         version:     0, hasChanges: false,
-        shareToken:  null, shareActive: false, shareViews: 0,
         createdAt:   new Date().toISOString().split('T')[0],
         updatedAt:   new Date().toISOString(),
       }
@@ -739,6 +871,10 @@ export const useProjectsStore = defineStore('projects', {
         ;(proj.events || []).forEach(ev => {
           if (ev.stage === stage.key) ev.active = false
         })
+      } else {
+        ;(proj.events || []).forEach(ev => {
+          if (ev.stage === stage.key) ev.active = true
+        })
       }
       proj.hasChanges = true
       proj.updatedAt = new Date().toISOString()
@@ -748,9 +884,10 @@ export const useProjectsStore = defineStore('projects', {
     deleteGroup(projId, groupId) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
+      const grp = proj.groups.find(g => g.id === groupId)
       proj.groups = proj.groups.filter(g => g.id !== groupId)
       proj.events.forEach(ev => {
-        if (ev.groups) ev.groups = ev.groups.filter(gId => gId !== groupId)
+        if (ev.groups) ev.groups = ev.groups.filter(gId => gId !== groupId && gId !== grp?.key)
       })
       proj.hasChanges = true
       proj.updatedAt = new Date().toISOString()
@@ -867,29 +1004,6 @@ export const useProjectsStore = defineStore('projects', {
       }
     },
 
-    // ── Share ─────────────────────────────────────────────────────────────────
-
-    async toggleShare(id) {
-      const proj = this.projects.find(p => p.id === id)
-      if (!proj) return
-      const newActive = !proj.shareActive
-      proj.shareActive = newActive
-      if (newActive && !proj.shareToken) proj.shareToken = uid() + uid()
-      this.save()
-
-      const authStore = useAuthStore()
-      if (authStore?.isLoggedIn && isMongoId(id)) {
-        try {
-          const result = await useApi().patch(`/projects/${id}/share`, { active: newActive })
-          proj.shareToken  = result.shareToken
-          proj.shareActive = result.shareActive
-          proj.shareViews  = result.shareViews
-        } catch (e) {
-          console.warn('toggleShare API failed:', e.message)
-        }
-      }
-    },
-
     // ── Migration (Fase 1c) ───────────────────────────────────────────────────
 
     async importLocalProjects() {
@@ -965,7 +1079,7 @@ export const useProjectsStore = defineStore('projects', {
 
     // ── Daily Schedule ────────────────────────────────────────────────────────
 
-    addDailyItem(projId, item) {
+    addDailyEvent(projId, item) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
       if (!proj.dailySchedule) proj.dailySchedule = []
@@ -973,36 +1087,36 @@ export const useProjectsStore = defineStore('projects', {
       proj.hasChanges = true
       proj.updatedAt = new Date().toISOString()
       this.save()
+      this._scheduleSyncDaily(projId)
     },
 
-    updateDailyItem(projId, itemId, body) {
+    updateDailyEvent(projId, itemId, body) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
       const item = (proj.dailySchedule || []).find(i => i.id === itemId)
       if (!item) return
       Object.assign(item, body)
-      item.updatedAt = new Date().toISOString()
       proj.hasChanges = true
       proj.updatedAt = new Date().toISOString()
       this.save()
+      this._scheduleSyncDaily(projId)
     },
 
-    deleteDailyItem(projId, itemId) {
+    deleteDailyEvent(projId, itemId) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
       proj.dailySchedule = (proj.dailySchedule || []).filter(i => i.id !== itemId)
       proj.hasChanges = true
       proj.updatedAt = new Date().toISOString()
       this.save()
+      this._scheduleSyncDaily(projId)
     },
 
     updateDailyConfig(projId, config) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
       proj.dailyConfig = { ...(proj.dailyConfig || {}), ...config }
-      proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
-      this.save()
+      this._scheduleSyncDaily(projId)
     },
   },
 })

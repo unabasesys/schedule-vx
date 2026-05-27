@@ -16,9 +16,17 @@ export function useDialog() {
     })
   }
 
-  function prompt({ title, body = '', defaultValue = '', confirmLabel = 'OK', cancelLabel = 'Cancelar' } = {}) {
+  function prompt({ title, body = '', label = '', placeholder = '', defaultValue = '', confirmLabel = 'OK', cancelLabel = 'Cancelar' } = {}) {
     return new Promise(resolve => {
-      _state.value = { type: 'prompt', title, body, defaultValue, confirmLabel, cancelLabel, resolve }
+      _state.value = { type: 'prompt', title, body, label, placeholder, defaultValue, confirmLabel, cancelLabel, resolve }
+    })
+  }
+
+  // Multi-choice dialog — resolves with the chosen `value`, or null on cancel.
+  // choices: [{ label, value, primary? }]
+  function choice({ title, body = '', choices = [], cancelLabel = 'Cancelar' } = {}) {
+    return new Promise(resolve => {
+      _state.value = { type: 'choice', title, body, choices, cancelLabel, resolve }
     })
   }
 
@@ -27,5 +35,5 @@ export function useDialog() {
     _state.value = null
   }
 
-  return { state: _state, confirm, alert, prompt, _resolve }
+  return { state: _state, confirm, alert, prompt, choice, _resolve }
 }

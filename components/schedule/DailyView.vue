@@ -15,10 +15,7 @@
 
       <div class="dv-top-right">
         <button v-if="!readOnly" class="dv-top-btn dv-top-btn--accent" @click.stop="openNewItem()">
-          + {{ isEN ? 'Add Item' : 'Agregar Item' }}
-        </button>
-        <button class="dv-top-btn" @click.stop="openPrintModal">
-          ↓ PDF
+          + {{ isEN ? 'Daily event' : 'Evento diario' }}
         </button>
       </div>
     </div>
@@ -62,15 +59,15 @@
       <!-- Empty state -->
       <div v-if="!allGroups.length" class="dv-empty">
         <div class="dv-empty-title">
-          {{ isEN ? 'No daily schedule items yet.' : 'No hay items en el Daily Schedule aún.' }}
+          {{ isEN ? 'No daily events yet.' : 'No hay Daily Events aún.' }}
         </div>
         <div class="dv-empty-sub">
           {{ isEN
-            ? 'Add items to build your operational day-by-day schedule.'
-            : 'Agrega items para construir tu schedule operacional día a día.' }}
+            ? 'Add daily events to build your operational day-by-day schedule.'
+            : 'Agrega Daily Events para construir tu schedule operacional día a día.' }}
         </div>
         <button v-if="!readOnly" class="dv-empty-cta" @click="openNewItem()">
-          + {{ isEN ? 'Add first item' : 'Agregar primer item' }}
+          + {{ isEN ? 'Add first daily event' : 'Agregar primer Daily Event' }}
         </button>
       </div>
 
@@ -81,18 +78,15 @@
             <span class="dv-day-dow">{{ group.dowLabel }}</span>
             <span class="dv-day-date">{{ group.dateLabel }}</span>
           </div>
-          <div v-if="primaryTz" class="dv-day-tz">
-            {{ tzCityName(primaryTz) }}<span v-for="tz in secondaryTzs" :key="tz.tz" class="dv-day-tz-sec"> · {{ tzCityName(tz) }}</span>
-          </div>
           <button
             v-if="!readOnly && addingForDate !== group.date"
             class="dv-day-add"
             @click.stop="openNewItem(group.date)"
-          >+ Item</button>
+          >+</button>
         </div>
 
         <div class="dv-day-items">
-          <DailyItemRow
+          <DailyEventRow
             v-for="item in group.items"
             :key="item.id"
             :item="item"
@@ -101,11 +95,12 @@
             :primary-tz="primaryTz"
             :secondary-tzs="secondaryTzs"
             :read-only="readOnly"
-            @update="body => projectsStore.updateDailyItem(project.id, item.id, body)"
-            @delete="projectsStore.deleteDailyItem(project.id, item.id)"
+            @update="body => projectsStore.updateDailyEvent(project.id, item.id, body)"
+            @delete="projectsStore.deleteDailyEvent(project.id, item.id)"
+            @duplicate="projectsStore.addDailyEvent(project.id, { ...item, id: uid() })"
           />
 
-          <DailyItemRow
+          <DailyEventRow
             v-if="addingForDate === group.date"
             :is-new="true"
             :initial-date="group.date"
@@ -122,55 +117,12 @@
     </div>
 
     <!-- ── Print modal ─────────────────────────────────────────────────────── -->
-    <Teleport to="body">
-      <div v-if="printModalOpen" class="dv-modal-back" @click.self="printModalOpen = false">
-        <div class="dv-modal">
-          <div class="dv-modal-title">
-            {{ isEN ? 'Export Daily Schedule PDF' : 'Exportar Daily Schedule PDF' }}
-          </div>
-
-          <div class="dv-modal-row">
-            <label class="dv-modal-label">{{ isEN ? 'From' : 'Desde' }}</label>
-            <input type="date" v-model="printFrom" class="dv-modal-input" />
-          </div>
-          <div class="dv-modal-row">
-            <label class="dv-modal-label">{{ isEN ? 'To' : 'Hasta' }}</label>
-            <input type="date" v-model="printTo" class="dv-modal-input" />
-          </div>
-          <div class="dv-modal-row">
-            <label class="dv-modal-label">{{ isEN ? 'Type' : 'Tipo' }}</label>
-            <div class="dv-modal-toggle">
-              <button
-                :class="['dv-modal-tog-btn', printType === 'client' && 'active']"
-                @click="printType = 'client'"
-              >{{ isEN ? 'Client-facing' : 'Para cliente' }}</button>
-              <button
-                :class="['dv-modal-tog-btn', printType === 'internal' && 'active']"
-                @click="printType = 'internal'"
-              >{{ isEN ? 'Internal' : 'Interno' }}</button>
-            </div>
-          </div>
-
-          <div class="dv-modal-footer">
-            <button class="dv-modal-btn" @click="printModalOpen = false">
-              {{ isEN ? 'Cancel' : 'Cancelar' }}
-            </button>
-            <button
-              class="dv-modal-btn dv-modal-btn--primary"
-              @click="doExport"
-            >
-              {{ isEN ? 'Export PDF' : 'Exportar PDF' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Teleport>
 
   </div>
 </template>
 
 <script setup>
-import { isoToday } from '~/utils/helpers'
+import { isoToday, uid } from '~/utils/helpers'
 
 const props = defineProps({
   project:  { type: Object, required: true },
@@ -307,33 +259,10 @@ function openNewItem(date = null) {
 }
 function cancelNewItem() { addingForDate.value = null }
 function saveNewItem(item) {
-  projectsStore.addDailyItem(props.project.id, item)
+  projectsStore.addDailyEvent(props.project.id, item)
   addingForDate.value = null
 }
 
-// ── Print modal ───────────────────────────────────────────────────────────────
-const printModalOpen = ref(false)
-const printFrom      = ref('')
-const printTo        = ref('')
-const printType      = ref('client')
-
-function openPrintModal() {
-  const dates = (props.project?.dailySchedule || []).map(i => i.date).filter(Boolean).sort()
-  printFrom.value = dates[0]     || isoToday()
-  printTo.value   = dates[dates.length - 1] || isoToday()
-  printModalOpen.value = true
-}
-
-function doExport() {
-  const params = new URLSearchParams({
-    from: printFrom.value,
-    to:   printTo.value,
-    type: printType.value,
-    lang: props.lang,
-  })
-  window.open(`/print-daily/${props.project.id}?${params.toString()}`, '_blank')
-  printModalOpen.value = false
-}
 </script>
 
 <style scoped>
@@ -518,7 +447,6 @@ function doExport() {
 
 /* ── Date group ── */
 .dv-day {
-  border-bottom: 1px solid var(--border);
 }
 .dv-day-hdr {
   display: flex;
@@ -529,7 +457,6 @@ function doExport() {
   position: sticky;
   top: 0;
   z-index: 10;
-  border-bottom: 1px solid rgba(255,255,255,.05);
 }
 .dv-day-info {
   display: flex;
@@ -575,95 +502,4 @@ function doExport() {
 
 .dv-day-items { padding: 4px 0 6px; }
 
-/* ── Print modal ── */
-.dv-modal-back {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,.55);
-  z-index: 900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.dv-modal {
-  background: var(--surface);
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
-  padding: 24px;
-  width: 340px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.dv-modal-title {
-  font-family: 'Nunito', sans-serif;
-  font-size: .95rem;
-  font-weight: 800;
-  color: var(--text-title);
-}
-.dv-modal-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.dv-modal-label {
-  font-size: .72rem;
-  font-weight: 600;
-  color: var(--muted);
-  width: 60px;
-  flex-shrink: 0;
-}
-.dv-modal-input {
-  flex: 1;
-  background: var(--surface-2);
-  border: 1.5px solid var(--border);
-  border-radius: 6px;
-  padding: 5px 9px;
-  font-size: .78rem;
-  color: var(--text);
-  font-family: inherit;
-}
-.dv-modal-input:focus { outline: none; border-color: var(--accent); }
-.dv-modal-toggle { display: flex; gap: 4px; }
-.dv-modal-tog-btn {
-  padding: 5px 12px;
-  border: 1.5px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
-  font-size: .7rem;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all .15s;
-}
-.dv-modal-tog-btn:hover { border-color: var(--text); color: var(--text); }
-.dv-modal-tog-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.1); }
-.dv-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 4px;
-  border-top: 1px solid var(--border);
-}
-.dv-modal-btn {
-  padding: 6px 16px;
-  border: 1.5px solid var(--border);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-  font-size: .75rem;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all .15s;
-}
-.dv-modal-btn:hover { border-color: var(--text); color: var(--text); }
-.dv-modal-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-.dv-modal-btn--primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
-.dv-modal-btn--primary:disabled { opacity: .5; cursor: not-allowed; }
 </style>

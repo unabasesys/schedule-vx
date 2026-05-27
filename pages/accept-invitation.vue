@@ -69,7 +69,7 @@ onMounted(async () => {
 
   const ok = await authStore.acceptInvitation(token)
   if (ok) {
-    orgName.value = authStore.organization?.name || 'la organización'
+    orgName.value = authStore.joinedOrgName || authStore.organization?.name || 'la organización'
     state.value   = 'success'
   } else {
     errorMsg.value = authStore.error || 'El enlace es inválido o ya expiró.'

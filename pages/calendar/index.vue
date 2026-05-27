@@ -8,25 +8,6 @@
 
     <!-- Header (only when a project is selected) -->
     <div v-if="currentProject" class="main-hdr">
-      <div class="hdr-proj-info">
-        <div class="hdr-proj-name">
-          {{ currentProject.name || currentProject.client }}
-          <span
-            v-if="currentProject.color"
-            class="hdr-proj-dot"
-            :style="{ background: currentProject.color }"
-          ></span>
-          <span v-if="isArchived" class="hdr-archived-badge">
-            {{ globalStore.lang === 'en' ? 'Archived · Read only' : 'Archivado · Solo lectura' }}
-          </span>
-        </div>
-        <div class="hdr-proj-meta">
-          <span v-if="currentProject.client">{{ currentProject.client }}</span>
-          <span v-if="currentProject.client && currentProject.agency" class="meta-sep">·</span>
-          <span v-if="currentProject.agency">{{ currentProject.agency }}</span>
-        </div>
-      </div>
-
       <div class="hdr-center">
         <div class="view-tabs">
           <button
@@ -84,13 +65,13 @@
         </div>
         <div class="no-proj-body">
           {{ globalStore.lang === 'en'
-            ? 'Built for production companies, agencies, creative studios, post teams, and professionals who need to plan with speed, structure, and real production logic. Calendar by unabase combines the familiarity of tools you already know with a workflow that is far more useful for everyday production: stages, key dates, business or calendar days, holidays, weather, templates, versioning, and a clear structure to collaborate better with your team and share beautiful PDFs and live links with your clients.'
-            : 'Diseñado para productoras, agencias, estudios creativos, equipos de post y profesionales que necesitan planificar con rapidez, orden y criterio real de producción. Calendar by unabase combina la familiaridad de herramientas que ya conoces con una lógica mucho más útil para el trabajo diario: stages, key dates, días hábiles o corridos, feriados, weather, templates, versionado y una estructura clara para colaborar mejor con tu equipo y compartir con tus clientes PDFs hermosos y links vivos.' }}
+            ? 'Built for production companies, agencies, creative studios, post teams, and professionals who need to plan with speed, structure, and real production logic. Calendar by unabase combines the familiarity of tools you already know with a workflow that is far more useful for everyday production: stages, key dates, business or calendar days, holidays, weather, templates, versioning, and a clear structure to collaborate better with your team and share beautiful PDFs with your clients.'
+            : 'Diseñado para productoras, agencias, estudios creativos, equipos de post y profesionales que necesitan planificar con rapidez, orden y criterio real de producción. Calendar by unabase combina la familiaridad de herramientas que ya conoces con una lógica mucho más útil para el trabajo diario: stages, key dates, días hábiles o corridos, feriados, weather, templates, versionado y una estructura clara para colaborar mejor con tu equipo y compartir con tus clientes PDFs hermosos.' }}
         </div>
         <div class="no-proj-tagline">
           {{ globalStore.lang === 'en'
-            ? 'Less time building calendars from scratch. More consistency across projects. More clarity to share, present, and execute.'
-            : 'Menos tiempo armando calendarios desde cero. Más consistencia entre proyectos. Más claridad para compartir, presentar y ejecutar.' }}
+            ? 'Less time building calendars from scratch. More consistency across projects. More clarity to present and execute.'
+            : 'Menos tiempo armando calendarios desde cero. Más consistencia entre proyectos. Más claridad para presentar y ejecutar.' }}
         </div>
         <a
           class="no-proj-cta"
@@ -108,7 +89,7 @@
 
     <!-- Event List View -->
     <EventListView
-      v-if="currentProject && globalStore.currentView === 'list'"
+      v-if="currentProject && !currentProject.hidden && globalStore.currentView === 'list'"
       :project="currentProject"
       :lang="globalStore.lang"
       :read-only="isArchived"
@@ -123,14 +104,14 @@
       :lang="globalStore.lang"
       :cal-year="globalStore.calYear"
       :cal-month="globalStore.calMonth"
-      :week-start="globalStore.weekStart"
-      :temp-unit="globalStore.tempUnit"
+      :week-start="currentProject?.weekStart || globalStore.weekStart"
+      :temp-unit="currentProject?.tempUnit || globalStore.tempUnit"
       :read-only="isArchived"
     />
 
     <!-- Daily Schedule View -->
     <DailyView
-      v-if="currentProject && globalStore.currentView === 'daily'"
+      v-if="currentProject && !currentProject.hidden && globalStore.currentView === 'daily'"
       :project="currentProject"
       :lang="globalStore.lang"
       :read-only="isArchived"
@@ -349,10 +330,15 @@ const STAGE_NAMES = {
 }
 
 function tmplStages(tmpl) {
-  const labels = STAGE_NAMES[globalStore.lang] || STAGE_NAMES.es
-  const keys   = [...new Set((tmpl.events || []).map(e => e.stage).filter(Boolean))]
+  const labels    = STAGE_NAMES[globalStore.lang] || STAGE_NAMES.es
+  const stagesMap = {}
+  ;(tmpl.stages || []).forEach(s => {
+    if (s.id)  stagesMap[s.id]  = globalStore.lang === 'en' ? (s.nameEN || s.name) : s.name
+    if (s.key) stagesMap[s.key] = globalStore.lang === 'en' ? (s.nameEN || s.name) : s.name
+  })
+  const keys = [...new Set((tmpl.events || []).map(e => e.stage).filter(Boolean))]
   keys.sort((a, b) => (STAGE_ORDER_MAP[a] ?? 99) - (STAGE_ORDER_MAP[b] ?? 99))
-  return keys.map(k => labels[k] || k).join(' · ')
+  return keys.map(k => labels[k] || stagesMap[k] || '').filter(Boolean).join(' · ')
 }
 
 function tmplGroups(tmpl) {
@@ -452,7 +438,7 @@ function createFromTemplate(tmplId) {
 .view-tab.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.15); }
 .view-tab:hover:not(.active) { border-color: rgba(255,255,255,.2); color: var(--text); }
 
-.hdr-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.hdr-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; }
 .hdr-icon-btn {
   background: none; border: 1.5px solid var(--border); border-radius: 7px;
   padding: 5px 9px; font-size: .8rem; cursor: pointer; color: var(--muted);
