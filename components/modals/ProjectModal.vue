@@ -37,7 +37,7 @@
       <!-- Location -->
       <div style="margin-top:10px;position:relative;">
         <div class="field">
-          <label>{{ lang === 'en' ? 'Location' : 'Locación' }} <span style="font-weight:400;color:var(--muted)">{{ lang === 'en' ? '(optional)' : '(opcional)' }}</span></label>
+          <label>{{ lang === 'en' ? 'Production city' : 'Ciudad de producción' }} <span style="font-weight:400;color:var(--muted)">{{ lang === 'en' ? '(optional)' : '(opcional)' }}</span></label>
           <div v-if="selectedCity" class="pm-loc-selected">
             <span>📍</span>
             <span>{{ selectedCity.name }}<span v-if="selectedCity.region"> · {{ selectedCity.region }}</span></span>
@@ -287,7 +287,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 <style scoped>
 .pm-loc-selected {
   display: flex; align-items: center; gap: 7px; padding: 5px 10px;
-  background: #f0faf8; border: 1.5px solid var(--accent); border-radius: 7px;
+  background: rgba(6,204,180,.08); border: 1.5px solid var(--accent); border-radius: 7px;
   font-size: .76rem; font-weight: 600; color: var(--text);
 }
 .pm-loc-clear {
@@ -306,7 +306,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 1px;
 }
 .pm-loc-item:last-child { border-bottom: none; }
-.pm-loc-item:hover { background: #f0faf8; }
+.pm-loc-item:hover { background: rgba(6,204,180,.08); }
 .pm-loc-item strong { color: var(--text); font-weight: 700; }
 .pm-loc-item span { color: var(--muted); font-size: .66rem; }
 

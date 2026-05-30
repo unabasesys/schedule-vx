@@ -67,10 +67,10 @@
       <!-- Operating Cities -->
       <div style="margin-top:16px;">
         <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;">
-          {{ lang === 'en' ? 'Operating cities' : 'Ciudades de operación' }}
+          {{ lang === 'en' ? 'Default weather cities' : 'Ciudades de clima por defecto' }}
         </div>
         <div style="font-size:.68rem;color:var(--muted);margin-bottom:10px;">
-          {{ lang === 'en' ? 'Default weather locations for new calendars.' : 'Locaciones de clima por defecto para calendarios nuevos.' }}
+          {{ lang === 'en' ? 'Which cities would you like to show by default in the weather widgets for new calendars?' : '¿Qué ciudades querés mostrar por defecto en los widgets de clima de los calendarios nuevos?' }}
         </div>
 
         <!-- Selected chips -->

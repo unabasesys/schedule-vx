@@ -129,10 +129,14 @@
               <div class="item-title">
                 {{ item.title }}<span v-if="item.duration" class="item-title-dur"> ({{ fmtDuration(item.duration) }})</span>
               </div>
-              <div v-if="item.department && deptLabel(item.department)" class="item-dept">{{ deptLabel(item.department) }}</div>
+              <div v-if="itemDeptLabel(item)" class="item-dept">{{ itemDeptLabel(item) }}</div>
             </div>
 
-            <div v-if="item.locationName" class="item-meta-row">
+            <div v-if="item.locationType === 'remote'" class="item-meta-row">
+              <span class="meta-icon">🌐</span>
+              <span>{{ isEN ? 'Remote' : 'Remoto' }}</span>
+            </div>
+            <div v-else-if="item.locationName" class="item-meta-row">
               <span class="meta-icon">📍</span>
               <span>
                 {{ item.locationName }}
@@ -437,12 +441,19 @@ const filteredGroups = computed(() => {
   })
 })
 
-// ── Department label lookup (department stores group id, not display name) ────
+// ── Department label lookup (departments[] stores group keys; legacy single department is an id) ──
 function deptLabel(val) {
   if (!val || !project.value) return ''
   const grp = (project.value.groups || []).find(g => g.id === val || g.name === val || g.key === val)
   if (grp) return (isEN.value ? (grp.nameEN || grp.name) : grp.name) || grp.name || ''
   return val.replace(/^G-/i, '')
+}
+
+function itemDeptLabel(item) {
+  const list = Array.isArray(item.departments) && item.departments.length
+    ? item.departments
+    : (item.department ? [item.department] : [])
+  return list.map(deptLabel).filter(Boolean).join(' · ')
 }
 
 // ── Related event lookup ──────────────────────────────────────────────────────

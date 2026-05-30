@@ -23,7 +23,11 @@
           <span class="dir-title">{{ item.title }}</span>
           <span v-if="item.duration" class="dir-duration">{{ fmtDuration(item.duration) }}</span>
         </div>
-        <div v-if="item.locationName" class="dir-meta">
+        <div v-if="item.locationType === 'remote'" class="dir-meta">
+          <span class="dir-meta-icon">🌐</span>
+          <span>{{ isEN ? 'Remote' : 'Remoto' }}</span>
+        </div>
+        <div v-else-if="item.locationName" class="dir-meta">
           <span class="dir-meta-icon">📍</span>
           <a
             v-if="item.locationGoogleMapsUrl"
@@ -56,10 +60,21 @@
             · {{ isEN ? 'possible date conflict' : 'posible conflicto de fechas' }}
           </span>
         </div>
-        <div v-if="item.department" class="dir-dept">{{ deptDisplayName(item.department) }}</div>
+        <div v-if="itemDepartmentsLabel" class="dir-dept">{{ itemDepartmentsLabel }}</div>
       </div>
 
       <div v-if="!readOnly" class="dir-actions">
+        <button
+          v-if="!confirmDel"
+          class="dir-act-btn"
+          @click.stop="$emit('add-below')"
+          :title="isEN ? 'Add event below' : 'Agregar evento debajo'"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
         <button
           v-if="!confirmDel"
           class="dir-act-btn"
@@ -155,17 +170,6 @@
           />
         </div>
 
-        <!-- Location name -->
-        <div class="dir-form-row">
-          <label class="dir-form-label">{{ isEN ? 'Location' : 'Locación' }}</label>
-          <input
-            type="text"
-            v-model="form.locationName"
-            class="dir-input"
-            :placeholder="isEN ? 'Studio A, Hotel Lobby…' : 'Estudio A, Lobby del Hotel…'"
-          />
-        </div>
-
         <!-- Notes -->
         <div class="dir-form-row">
           <label class="dir-form-label">{{ isEN ? 'Notes' : 'Notas' }}</label>
@@ -187,6 +191,30 @@
           />
         </div>
 
+        <!-- Location -->
+        <div class="dir-form-row">
+          <label class="dir-form-label">{{ isEN ? 'Location' : 'Locación' }}</label>
+          <div class="dir-time-wrap">
+            <div class="dir-time-type">
+              <button
+                :class="['dir-time-type-btn', form.locationType === 'on_location' && 'active']"
+                @click="form.locationType = 'on_location'"
+              >{{ isEN ? 'On location' : 'En locación' }}</button>
+              <button
+                :class="['dir-time-type-btn', form.locationType === 'remote' && 'active']"
+                @click="form.locationType = 'remote'"
+              >{{ isEN ? 'Remote' : 'Remoto' }}</button>
+            </div>
+            <input
+              v-if="form.locationType === 'on_location'"
+              type="text"
+              v-model="form.locationName"
+              class="dir-input"
+              :placeholder="isEN ? 'Studio A, Hotel Lobby…' : 'Estudio A, Lobby del Hotel…'"
+            />
+          </div>
+        </div>
+
         <!-- More options toggle -->
         <button class="dir-more-toggle" @click="moreOpen = !moreOpen">
           <span :class="['dir-more-arrow', moreOpen && 'open']">›</span>
@@ -195,22 +223,24 @@
 
         <div v-if="moreOpen" class="dir-more">
 
-          <!-- Location address -->
-          <div class="dir-form-row">
-            <label class="dir-form-label">{{ isEN ? 'Address' : 'Dirección' }}</label>
-            <input type="text" v-model="form.locationAddress" class="dir-input" />
-          </div>
+          <template v-if="form.locationType === 'on_location'">
+            <!-- Location address -->
+            <div class="dir-form-row">
+              <label class="dir-form-label">{{ isEN ? 'Address' : 'Dirección' }}</label>
+              <input type="text" v-model="form.locationAddress" class="dir-input" />
+            </div>
 
-          <!-- Google Maps URL -->
-          <div class="dir-form-row">
-            <label class="dir-form-label">Maps URL</label>
-            <input
-              type="url"
-              v-model="form.locationGoogleMapsUrl"
-              class="dir-input"
-              placeholder="https://maps.google.com/…"
-            />
-          </div>
+            <!-- Google Maps URL -->
+            <div class="dir-form-row">
+              <label class="dir-form-label">Maps URL</label>
+              <input
+                type="url"
+                v-model="form.locationGoogleMapsUrl"
+                class="dir-input"
+                placeholder="https://maps.google.com/…"
+              />
+            </div>
+          </template>
 
           <!-- Related calendar event -->
           <div class="dir-form-row">
@@ -232,15 +262,19 @@
             </select>
           </div>
 
-          <!-- Department (uses project departments/groups) -->
+          <!-- Departments (uses project departments/groups) -->
           <div class="dir-form-row">
-            <label class="dir-form-label">{{ isEN ? 'Department' : 'Departamento' }}</label>
-            <select v-model="form.department" class="dir-input dir-select">
-              <option value="">{{ isEN ? '— None —' : '— Ninguno —' }}</option>
-              <option v-for="d in deptOptions" :key="d.id" :value="d.id">
-                {{ isEN ? (d.nameEN || d.name) : d.name }}
-              </option>
-            </select>
+            <label class="dir-form-label">{{ isEN ? 'Departments' : 'Departamentos' }}</label>
+            <div class="dir-dept-chips">
+              <button
+                v-for="d in deptOptions"
+                :key="d.id"
+                type="button"
+                class="dir-dept-chip"
+                :class="{ active: form.departments.includes(d.key) }"
+                @click.stop="toggleDept(d.key)"
+              >{{ isEN ? (d.nameEN || d.name) : d.name }}</button>
+            </div>
           </div>
 
           <!-- Internal only -->
@@ -268,7 +302,7 @@
 
         <!-- Form actions -->
         <div class="dir-form-actions">
-          <button v-if="!isNew" class="dir-form-btn dir-form-btn--delete" @click.stop="$emit('delete')">
+          <button v-if="!isNew" class="dir-form-btn dir-form-btn--delete" @click.stop="confirmDelete">
             {{ isEN ? 'Delete' : 'Eliminar' }}
           </button>
           <button class="dir-form-btn dir-form-btn--cancel" @click.stop="cancel">
@@ -290,23 +324,24 @@ import { uid } from '~/utils/helpers'
 import { convertTimezone, fmt12h } from '~/utils/helpers'
 
 const props = defineProps({
-  item:        { type: Object,  default: null },
-  isNew:       { type: Boolean, default: false },
-  initialDate: { type: String,  default: '' },
-  project:     { type: Object,  required: true },
-  lang:        { type: String,  default: 'es' },
-  primaryTz:   { type: Object,  default: null },
-  secondaryTzs:{ type: Array,   default: () => [] },
-  readOnly:    { type: Boolean, default: false },
+  item:         { type: Object,  default: null },
+  isNew:        { type: Boolean, default: false },
+  initialDate:  { type: String,  default: '' },
+  project:      { type: Object,  required: true },
+  lang:         { type: String,  default: 'es' },
+  primaryTz:    { type: Object,  default: null },
+  secondaryTzs: { type: Array,   default: () => [] },
+  readOnly:     { type: Boolean, default: false },
+  startEditing: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update', 'delete', 'duplicate', 'save', 'cancel'])
+const emit = defineEmits(['update', 'delete', 'duplicate', 'save', 'cancel', 'add-below'])
 
 const isEN     = computed(() => props.lang === 'en')
 const titleRef = ref(null)
 
 // ── State ─────────────────────────────────────────────────────────────────────
-const editing    = ref(props.isNew)
+const editing    = ref(props.isNew || props.startEditing)
 const confirmDel = ref(false)
 const moreOpen   = ref(false)
 const dirRef     = ref(null)
@@ -322,15 +357,64 @@ function handleOutsideClick(e) {
   onDocClick()
 }
 
+async function confirmDelete() {
+  if (props.isNew) return
+  const ok = await useDialog().confirm({
+    title:        isEN.value ? 'Delete daily event?' : '¿Eliminar Daily Event?',
+    body:         isEN.value ? 'This action cannot be undone.' : 'Esta acción no se puede deshacer.',
+    confirmLabel: isEN.value ? 'Delete' : 'Eliminar',
+    cancelLabel:  isEN.value ? 'Cancel' : 'Cancelar',
+  })
+  if (!ok) return
+  emit('delete')
+}
+
+// Cmd/Ctrl + Delete or Backspace deletes the event (only when editing an existing one).
+function handleEditKeydown(e) {
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'Backspace' || e.key === 'Delete')) {
+    if (props.isNew) return
+    e.preventDefault()
+    confirmDelete()
+  }
+}
+
 watch(editing, (val) => {
-  if (!val) document.removeEventListener('click', handleOutsideClick)
+  if (val) {
+    document.addEventListener('click', handleOutsideClick)
+    document.addEventListener('keydown', handleEditKeydown)
+  } else {
+    document.removeEventListener('click', handleOutsideClick)
+    document.removeEventListener('keydown', handleEditKeydown)
+  }
 }, { immediate: true })
 
-onBeforeUnmount(() => document.removeEventListener('click', handleOutsideClick))
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleOutsideClick)
+  document.removeEventListener('keydown', handleEditKeydown)
+})
+
+// Normalize a stored department reference (id, key or name) into the group's key.
+// Keeps daily departments[] aligned with calendar event.groups[] (also keys).
+function deptToKey(val) {
+  if (!val) return null
+  const grp = (props.project?.groups || []).find(g => g.id === val || g.key === val || g.name === val)
+  return grp?.key || val
+}
+
+function normalizeDepts(i) {
+  if (Array.isArray(i.departments) && i.departments.length) {
+    return i.departments.map(deptToKey).filter(Boolean)
+  }
+  if (i.department) {
+    const k = deptToKey(i.department)
+    return k ? [k] : []
+  }
+  return []
+}
 
 function initForm() {
   const i = props.item || {}
-  const hasMore = !!(i.locationAddress || i.locationGoogleMapsUrl || i.relatedCalendarEventId || i.department)
+  const hasMore = !!(i.locationAddress || i.locationGoogleMapsUrl || i.relatedCalendarEventId || i.departments?.length || i.department)
   if (hasMore && !props.isNew) moreOpen.value = true
   return {
     date:                   props.initialDate || i.date || '',
@@ -339,21 +423,44 @@ function initForm() {
     timeLabel:              i.timeLabel             || 'TBD',
     title:                  i.title                 || '',
     duration:               i.duration != null ? String(i.duration) : '',
+    locationType:           i.locationType          || 'on_location',
     locationName:           i.locationName          || '',
     locationAddress:        i.locationAddress       || '',
     locationGoogleMapsUrl:  i.locationGoogleMapsUrl || '',
     notes:                  i.notes                 || '',
     participants:           i.participants          || '',
     relatedCalendarEventId: i.relatedCalendarEventId || '',
-    department:             i.department            || '',
+    departments:            normalizeDepts(i),
     internalOnly:           i.internalOnly          || false,
   }
 }
 
 const form = reactive(initForm())
 
+function toggleDept(key) {
+  const idx = form.departments.indexOf(key)
+  if (idx >= 0) form.departments.splice(idx, 1)
+  else form.departments.push(key)
+}
+
+// When the user picks a related calendar event, inherit its departments.
+// Only fires on user-driven changes (initial form value doesn't trigger watch).
+watch(() => form.relatedCalendarEventId, (newId) => {
+  if (!newId) return
+  const ev = (props.project?.events || []).find(e => e.id === newId)
+  if (!ev) return
+  form.departments = [...(ev.groups || [])]
+})
+
 onMounted(() => {
   if (props.isNew) nextTick(() => titleRef.value?.focus())
+  if (props.startEditing && !props.isNew) {
+    nextTick(() => {
+      dirRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      titleRef.value?.focus()
+      titleRef.value?.select()
+    })
+  }
 })
 
 // ── Time type logic ───────────────────────────────────────────────────────────
@@ -455,6 +562,15 @@ function deptDisplayName(val) {
   return val  // backward compat: show raw string if no match
 }
 
+// Joined label for the collapsed row — handles both new departments[] and legacy department.
+const itemDepartmentsLabel = computed(() => {
+  const i = props.item || {}
+  const list = Array.isArray(i.departments) && i.departments.length
+    ? i.departments
+    : (i.department ? [i.department] : [])
+  return list.map(deptDisplayName).filter(Boolean).join(' · ')
+})
+
 function fmtDuration(val) {
   if (!val) return ''
   const trimmed = String(val).trim()
@@ -489,6 +605,13 @@ function cancel() {
 function save() {
   if (!form.title.trim()) return
   const now = new Date().toISOString()
+  const isRemote = form.locationType === 'remote'
+  const locFields = {
+    locationType:          form.locationType,
+    locationName:          isRemote ? '' : form.locationName.trim(),
+    locationAddress:       isRemote ? '' : form.locationAddress.trim(),
+    locationGoogleMapsUrl: isRemote ? '' : form.locationGoogleMapsUrl.trim(),
+  }
   if (props.isNew) {
     emit('save', {
       id:                     uid(),
@@ -498,13 +621,12 @@ function save() {
       timeLabel:              form.timeType === 'time_label'    ? form.timeLabel    : null,
       title:                  form.title.trim(),
       duration:               form.duration.trim(),
-      locationName:           form.locationName.trim(),
-      locationAddress:        form.locationAddress.trim(),
-      locationGoogleMapsUrl:  form.locationGoogleMapsUrl.trim(),
+      ...locFields,
       notes:                  form.notes.trim(),
       participants:           form.participants.trim(),
       relatedCalendarEventId: form.relatedCalendarEventId || null,
-      department:             form.department,
+      departments:            [...form.departments],
+      department:             '',
       internalOnly:           form.internalOnly,
       sortOrder:              null,
       createdAt:              now,
@@ -518,13 +640,12 @@ function save() {
       timeLabel:              form.timeType === 'time_label'    ? form.timeLabel    : null,
       title:                  form.title.trim(),
       duration:               form.duration.trim(),
-      locationName:           form.locationName.trim(),
-      locationAddress:        form.locationAddress.trim(),
-      locationGoogleMapsUrl:  form.locationGoogleMapsUrl.trim(),
+      ...locFields,
       notes:                  form.notes.trim(),
       participants:           form.participants.trim(),
       relatedCalendarEventId: form.relatedCalendarEventId || null,
-      department:             form.department,
+      departments:            [...form.departments],
+      department:             '',
       internalOnly:           form.internalOnly,
     })
     editing.value = false
@@ -786,6 +907,29 @@ function save() {
 }
 .dir-internal-btn:hover { border-color: var(--warning); color: var(--warning); }
 .dir-internal-btn.active { border-color: var(--warning); color: var(--warning); background: rgba(255,161,32,.08); }
+
+/* Department chips (multi-select) */
+.dir-dept-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dir-dept-chip {
+  padding: 5px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .13s;
+}
+.dir-dept-chip:hover { border-color: var(--accent); color: var(--accent); }
+.dir-dept-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.08); }
 
 /* Form actions */
 .dir-form-actions {
