@@ -3,6 +3,12 @@
 
     <!-- ── Top bar ─────────────────────────────────────────────────────────── -->
     <div class="dv-top">
+      <button v-if="!readOnly" class="dv-new-event-btn" @click.stop="openNewItem()">
+        + {{ isEN ? 'Daily event' : 'Evento diario' }}
+      </button>
+
+      <div v-if="!readOnly" class="dv-top-sep"></div>
+
       <button class="dv-tz-btn" @click.stop="tzPanelOpen = !tzPanelOpen">
         <span class="dv-tz-icon">◷</span>
         <span v-if="primaryTz" class="dv-tz-text">
@@ -12,11 +18,37 @@
         <span v-else class="dv-tz-placeholder">{{ isEN ? 'Set timezone' : 'Configurar zona horaria' }}</span>
         <span class="dv-tz-caret" :class="{ open: tzPanelOpen }">›</span>
       </button>
+    </div>
 
-      <div class="dv-top-right">
-        <button v-if="!readOnly" class="dv-top-btn dv-top-btn--accent" @click.stop="openNewItem()">
-          + {{ isEN ? 'Daily event' : 'Evento diario' }}
+    <!-- ── Departments filter chips ────────────────────────────────────────── -->
+    <div v-if="activeGroups.length || !readOnly" class="dv-groups-panel">
+      <span class="dv-groups-panel-title">{{ isEN ? 'Departments' : 'Departamentos' }}</span>
+      <div class="dv-groups-chips">
+        <button
+          v-for="grp in activeGroups"
+          :key="grp.id"
+          class="dv-group-chip"
+          :class="{ active: selectedGroups.includes(grp.key) }"
+          @click="toggleGroup(grp.key)"
+        >
+          <span class="dv-group-chip-name">{{ isEN ? (grp.nameEN || grp.name) : grp.name }}</span>
+          <span v-if="!readOnly" class="dv-group-chip-x" @click.stop="deleteGroup(grp.id)" :title="isEN ? 'Delete' : 'Eliminar'">×</span>
         </button>
+
+        <!-- Inline add-group form -->
+        <form v-if="addingGroup" class="dv-group-add-form" @submit.prevent="confirmAddGroup">
+          <input
+            ref="groupNameInput"
+            v-model="newGroupName"
+            class="dv-group-add-input"
+            :placeholder="isEN ? 'Department name' : 'Nombre del departamento'"
+            maxlength="40"
+            @keydown.escape="cancelAddGroup"
+          />
+          <button type="submit" class="dv-group-add-confirm">✓</button>
+          <button type="button" class="dv-group-add-cancel" @click="cancelAddGroup">×</button>
+        </form>
+        <button v-else-if="!readOnly" class="dv-group-add-btn" @click="startAddGroup">＋</button>
       </div>
     </div>
 
@@ -86,22 +118,36 @@
         </div>
 
         <div class="dv-day-items">
-          <DailyEventRow
-            v-for="item in group.items"
-            :key="item.id"
-            :item="item"
-            :project="project"
-            :lang="lang"
-            :primary-tz="primaryTz"
-            :secondary-tzs="secondaryTzs"
-            :read-only="readOnly"
-            @update="body => projectsStore.updateDailyEvent(project.id, item.id, body)"
-            @delete="projectsStore.deleteDailyEvent(project.id, item.id)"
-            @duplicate="projectsStore.addDailyEvent(project.id, { ...item, id: uid() })"
-          />
+          <template v-for="item in group.items" :key="item.id">
+            <DailyEventRow
+              :item="item"
+              :project="project"
+              :lang="lang"
+              :primary-tz="primaryTz"
+              :secondary-tzs="secondaryTzs"
+              :read-only="readOnly"
+              :start-editing="item.id === justDuplicatedId"
+              @update="body => { projectsStore.updateDailyEvent(project.id, item.id, body); if (justDuplicatedId === item.id) justDuplicatedId = null }"
+              @delete="() => { projectsStore.deleteDailyEvent(project.id, item.id); if (justDuplicatedId === item.id) justDuplicatedId = null }"
+              @cancel="() => { if (justDuplicatedId === item.id) justDuplicatedId = null }"
+              @duplicate="duplicateItem(item)"
+              @add-below="addBelow(item)"
+            />
+            <DailyEventRow
+              v-if="addingAfterId === item.id"
+              :is-new="true"
+              :initial-date="group.date"
+              :project="project"
+              :lang="lang"
+              :primary-tz="primaryTz"
+              :secondary-tzs="secondaryTzs"
+              @save="saveNewItem"
+              @cancel="cancelNewItem"
+            />
+          </template>
 
           <DailyEventRow
-            v-if="addingForDate === group.date"
+            v-if="addingForDate === group.date && !addingAfterId"
             :is-new="true"
             :initial-date="group.date"
             :project="project"
@@ -216,11 +262,61 @@ function sortItems(items) {
   })
 }
 
+// ── Departments filter ───────────────────────────────────────────────────────
+const selectedGroups = ref([])
+
+const activeGroups = computed(() =>
+  (props.project?.groups || []).filter(g => g.active !== false)
+)
+
+function toggleGroup(key) {
+  const idx = selectedGroups.value.indexOf(key)
+  if (idx >= 0) selectedGroups.value.splice(idx, 1)
+  else selectedGroups.value.push(key)
+}
+
+const addingGroup    = ref(false)
+const newGroupName   = ref('')
+const groupNameInput = ref(null)
+
+function startAddGroup() {
+  addingGroup.value  = true
+  newGroupName.value = ''
+  nextTick(() => groupNameInput.value?.focus())
+}
+function confirmAddGroup() {
+  const name = newGroupName.value.trim()
+  if (name) projectsStore.addGroup(props.project.id, name)
+  cancelAddGroup()
+}
+function cancelAddGroup() {
+  addingGroup.value  = false
+  newGroupName.value = ''
+}
+function deleteGroup(groupId) {
+  // If we were filtering by this group, deselect it first
+  const grp = props.project.groups?.find(g => g.id === groupId)
+  if (grp) {
+    const idx = selectedGroups.value.indexOf(grp.key)
+    if (idx >= 0) selectedGroups.value.splice(idx, 1)
+  }
+  projectsStore.deleteGroup(props.project.id, groupId)
+}
+
 // ── Items grouping ────────────────────────────────────────────────────────────
 const groupedDays = computed(() => {
   const groups = {}
   ;(props.project?.dailySchedule || []).forEach(item => {
     if (!item.date) return
+    if (selectedGroups.value.length) {
+      // Daily items store departments as group keys (or legacy ids); accept both.
+      const depts = Array.isArray(item.departments) ? item.departments : []
+      const match = depts.some(dKey => {
+        const grp = props.project.groups?.find(g => g.id === dKey || g.key === dKey)
+        return grp && selectedGroups.value.includes(grp.key)
+      })
+      if (!match) return
+    }
     if (!groups[item.date]) groups[item.date] = []
     groups[item.date].push(item)
   })
@@ -235,6 +331,7 @@ const groupedDays = computed(() => {
 })
 
 const addingForDate = ref(null)
+const addingAfterId = ref(null)
 
 // allGroups merges existing date groups + a temp group for a new date being created
 const allGroups = computed(() => {
@@ -256,11 +353,35 @@ const allGroups = computed(() => {
 
 function openNewItem(date = null) {
   addingForDate.value = date || isoToday()
+  addingAfterId.value = null
 }
-function cancelNewItem() { addingForDate.value = null }
+function cancelNewItem() {
+  addingForDate.value = null
+  addingAfterId.value = null
+}
 function saveNewItem(item) {
   projectsStore.addDailyEvent(props.project.id, item)
   addingForDate.value = null
+  addingAfterId.value = null
+}
+
+// Inline "+ below" — opens a new-item form directly below the clicked event row.
+function addBelow(item) {
+  addingForDate.value = item.date
+  addingAfterId.value = item.id
+}
+
+// Tracks the id of the just-duplicated event so its row opens in edit mode.
+const justDuplicatedId = ref(null)
+
+function duplicateItem(item) {
+  const newId = uid()
+  const suffix = isEN.value ? ' (Copy)' : ' (Copia)'
+  const baseTitle = item.title || ''
+  // Avoid stacking " (Copy) (Copy)" if the user duplicates a copy.
+  const newTitle = baseTitle.endsWith(suffix) ? baseTitle : baseTitle + suffix
+  projectsStore.addDailyEvent(props.project.id, { ...item, id: newId, title: newTitle })
+  justDuplicatedId.value = newId
 }
 
 </script>
@@ -278,12 +399,11 @@ function saveNewItem(item) {
 .dv-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 8px 20px;
   background: var(--header-bg);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  gap: 12px;
+  gap: 10px;
 }
 .dv-tz-btn {
   display: flex;
@@ -312,6 +432,28 @@ function saveNewItem(item) {
   display: inline-block;
 }
 .dv-tz-caret.open { transform: rotate(90deg); }
+.dv-new-event-btn {
+  padding: 4px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: .68rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--text);
+  font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dv-new-event-btn:hover { background: var(--accent-dark); }
+
+.dv-top-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
 .dv-top-right { display: flex; gap: 6px; flex-shrink: 0; }
 .dv-top-btn {
   padding: 5px 12px;
@@ -328,6 +470,56 @@ function saveNewItem(item) {
 .dv-top-btn:hover { border-color: var(--text); color: var(--text); }
 .dv-top-btn--accent { border-color: var(--accent); color: var(--accent); }
 .dv-top-btn--accent:hover { background: rgba(32,167,137,.15); }
+
+/* ── Departments filter panel ── */
+.dv-groups-panel {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 16px; border-bottom: 1px solid rgba(255,255,255,.06);
+  background: var(--bg); flex-shrink: 0; overflow-x: auto;
+}
+.dv-groups-panel-title {
+  font-size: .64rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .4px; color: var(--muted); flex-shrink: 0;
+}
+.dv-groups-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.dv-group-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px 3px 11px; border: 1.5px solid var(--border); border-radius: 20px;
+  font-size: .64rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
+  font-family: inherit; transition: all .15s;
+}
+.dv-group-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
+.dv-group-chip:hover:not(.active) { border-color: var(--text); color: var(--text); }
+.dv-group-chip-name { line-height: 1; }
+.dv-group-chip-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%; font-size: .68rem; line-height: 1;
+  color: var(--muted); transition: all .13s; flex-shrink: 0;
+}
+.dv-group-chip-x:hover { background: rgba(239,68,68,.12); color: var(--danger); }
+
+.dv-group-add-form { display: inline-flex; align-items: center; gap: 3px; }
+.dv-group-add-input {
+  height: 24px; padding: 0 8px; border: 1.5px solid var(--accent); border-radius: 20px;
+  font-size: .64rem; font-family: inherit; outline: none; color: var(--text);
+  width: 120px; background: var(--surface);
+}
+.dv-group-add-confirm, .dv-group-add-cancel {
+  width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border);
+  font-size: .70rem; line-height: 1; cursor: pointer; background: var(--surface);
+  color: var(--muted); font-family: inherit; display: flex; align-items: center;
+  justify-content: center; transition: all .15s; padding: 0;
+}
+.dv-group-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.08); }
+.dv-group-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: rgba(234,78,73,.12); }
+
+.dv-group-add-btn {
+  width: 22px; height: 22px; border-radius: 50%; border: 1.5px dashed var(--border);
+  font-size: .82rem; line-height: 1; cursor: pointer; background: transparent;
+  color: var(--muted); font-family: inherit; display: flex; align-items: center;
+  justify-content: center; transition: all .15s; padding: 0;
+}
+.dv-group-add-btn:hover { border-color: var(--accent); color: var(--accent); border-style: solid; }
 
 /* ── Timezone panel ── */
 .dv-tz-panel {

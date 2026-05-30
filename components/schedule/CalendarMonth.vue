@@ -334,7 +334,7 @@ function onBarsLayerDrop(e, week) {
 const BASE_TOP  = 6          // px from top of events layer to first lane
 const LANE_H    = 23         // px per lane
 const COL_W     = 100 / 7   // % width per day column
-const MIN_H     = 110        // min height of events layer when no bars
+const MIN_H     = 70         // min height of events layer when no bars
 const MAX_LANES = 6          // visible lanes before +more overflow
 const MORE_ROW  = 20         // height reserved for the +more badge row
 

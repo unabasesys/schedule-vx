@@ -1,17 +1,36 @@
 <template>
   <div class="cal-wrap">
-    <!-- Navigation -->
-    <div class="cal-nav">
-      <div style="display:flex;align-items:center;gap:6px;z-index:1;"></div>
-    </div>
+    <!-- Departments filter chips -->
+    <div v-if="activeGroups.length || !readOnly" class="cal-groups-panel">
+      <span class="cal-groups-panel-title">{{ lang === 'en' ? 'Departments' : 'Departamentos' }}</span>
+      <div class="cal-groups-chips">
+        <button
+          v-for="grp in activeGroups"
+          :key="grp.id"
+          class="cal-group-chip"
+          :class="{ active: selectedGroups.includes(grp.key) }"
+          @click="toggleGroup(grp.key)"
+        >
+          <span class="cal-group-chip-name">{{ lang === 'en' ? (grp.nameEN || grp.name) : grp.name }}</span>
+          <span v-if="!readOnly" class="cal-group-chip-x" @click.stop="deleteGroup(grp.id)" :title="lang === 'en' ? 'Delete' : 'Eliminar'">×</span>
+        </button>
 
-    <!-- Weather strip -->
-    <WeatherStrip
-      :project="project"
-      :temp-unit="tempUnit"
-      :lang="lang"
-      :date-str="focusDate"
-    />
+        <!-- Inline add-group form -->
+        <form v-if="addingGroup" class="cal-group-add-form" @submit.prevent="confirmAddGroup">
+          <input
+            ref="groupNameInput"
+            v-model="newGroupName"
+            class="cal-group-add-input"
+            :placeholder="lang === 'en' ? 'Department name' : 'Nombre del departamento'"
+            maxlength="40"
+            @keydown.escape="cancelAddGroup"
+          />
+          <button type="submit" class="cal-group-add-confirm">✓</button>
+          <button type="button" class="cal-group-add-cancel" @click="cancelAddGroup">×</button>
+        </form>
+        <button v-else-if="!readOnly" class="cal-group-add-btn" @click="startAddGroup">＋</button>
+      </div>
+    </div>
 
     <!-- Calendar grid — one column per month, scrollable -->
     <div class="cal-scroll">
@@ -23,8 +42,8 @@
           class="cal-month-col"
         >
           <div class="cal-month-label-row">
+            <button v-if="idx === 0" class="cal-prev-month-btn" @click="addPrevMonth" :title="lang === 'en' ? 'Add previous month' : 'Agregar mes anterior'">−</button>
             <div class="cal-month-label">{{ monthTitle(m.year, m.month) }}</div>
-            <button v-if="idx === 0" class="add-month-btn add-month-btn--prev" @click="addPrevMonth" :title="lang === 'en' ? 'Add previous month' : 'Agregar mes anterior'">−</button>
           </div>
           <CalendarMonth
             :year="m.year"
@@ -352,6 +371,46 @@ function monthTitle(y, m) {
   return `${months[m]} ${String(y).slice(-2)}`
 }
 
+// ── Departments filter ───────────────────────────────────────────────────────
+const selectedGroups = ref([])
+
+const activeGroups = computed(() =>
+  (props.project?.groups || []).filter(g => g.active !== false)
+)
+
+function toggleGroup(key) {
+  const idx = selectedGroups.value.indexOf(key)
+  if (idx >= 0) selectedGroups.value.splice(idx, 1)
+  else selectedGroups.value.push(key)
+}
+
+const addingGroup    = ref(false)
+const newGroupName   = ref('')
+const groupNameInput = ref(null)
+
+function startAddGroup() {
+  addingGroup.value  = true
+  newGroupName.value = ''
+  nextTick(() => groupNameInput.value?.focus())
+}
+function confirmAddGroup() {
+  const name = newGroupName.value.trim()
+  if (name) projectsStore.addGroup(props.project.id, name)
+  cancelAddGroup()
+}
+function cancelAddGroup() {
+  addingGroup.value  = false
+  newGroupName.value = ''
+}
+function deleteGroup(groupId) {
+  const grp = props.project.groups?.find(g => g.id === groupId)
+  if (grp) {
+    const idx = selectedGroups.value.indexOf(grp.key)
+    if (idx >= 0) selectedGroups.value.splice(idx, 1)
+  }
+  projectsStore.deleteGroup(props.project.id, groupId)
+}
+
 // Merge active events from all visible projects.
 // Each event is tagged with _projId and _projColor for rendering and editing.
 const coloredEvents = computed(() => {
@@ -370,6 +429,13 @@ const coloredEvents = computed(() => {
     ;(proj.stages || []).forEach(s => { if (s.color) stageColorMap[s.key] = s.color })
     ;(proj.events || [])
       .filter(e => e.active && e.date && !hiddenStageKeys.has(e.stage))
+      .filter(e => {
+        if (!selectedGroups.value.length) return true
+        return e.groups?.some(gId => {
+          const grp = proj.groups?.find(g => g.id === gId || g.key === gId)
+          return grp && selectedGroups.value.includes(grp.key)
+        })
+      })
       .forEach(e => merged.push({
         ...e,
         _projId:     proj.id,
@@ -890,6 +956,11 @@ function onEvModalKeydown(e) {
       e.preventDefault()
       confirmEvModal()
     }
+  } else if ((e.metaKey || e.ctrlKey) && (e.key === 'Backspace' || e.key === 'Delete')) {
+    if (evModalMode.value === 'edit') {
+      e.preventDefault()
+      deleteEvModal()
+    }
   }
 }
 
@@ -912,11 +983,6 @@ onUnmounted(() => {
   display: flex; flex-direction: column; flex: 1; overflow: hidden;
 }
 
-.cal-nav {
-  display: flex; align-items: center; gap: 8px; padding: 8px 16px;
-  background: var(--header-bg); border-bottom: 1px solid rgba(255,255,255,.06); flex-shrink: 0;
-  position: relative;
-}
 .cal-nav-btn {
   background: none; border: 1.5px solid var(--border); border-radius: 6px;
   padding: 4px 10px; font-size: .85rem; cursor: pointer; color: var(--muted); line-height: 1;
@@ -928,25 +994,78 @@ onUnmounted(() => {
 }
 .hdr-icon-btn:hover { border-color: var(--accent); color: var(--accent); }
 
-.cal-scroll { flex: 1; overflow: auto; padding: 16px 20px; }
-.cal-main-grid {
-  display: flex; flex-direction: column; gap: 28px; min-width: 600px;
+/* ── Departments filter panel (shared style with Events/Daily) ── */
+.cal-groups-panel {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 16px; border-bottom: 1px solid rgba(255,255,255,.06);
+  background: var(--bg); flex-shrink: 0; overflow-x: auto;
 }
-.cal-month-col { display: flex; flex-direction: column; gap: 10px; }
+.cal-groups-panel-title {
+  font-size: .64rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .4px; color: var(--muted); flex-shrink: 0;
+}
+.cal-groups-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.cal-group-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px 3px 11px; border: 1.5px solid var(--border); border-radius: 20px;
+  font-size: .64rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
+  font-family: inherit; transition: all .15s;
+}
+.cal-group-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
+.cal-group-chip:hover:not(.active) { border-color: var(--text); color: var(--text); }
+.cal-group-chip-name { line-height: 1; }
+.cal-group-chip-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; border-radius: 50%; font-size: .68rem; line-height: 1;
+  color: var(--muted); transition: all .13s; flex-shrink: 0;
+}
+.cal-group-chip-x:hover { background: rgba(239,68,68,.12); color: var(--danger); }
+.cal-group-add-form { display: inline-flex; align-items: center; gap: 3px; }
+.cal-group-add-input {
+  height: 24px; padding: 0 8px; border: 1.5px solid var(--accent); border-radius: 20px;
+  font-size: .64rem; font-family: inherit; outline: none; color: var(--text);
+  width: 120px; background: var(--surface);
+}
+.cal-group-add-confirm, .cal-group-add-cancel {
+  width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border);
+  font-size: .70rem; line-height: 1; cursor: pointer; background: var(--surface);
+  color: var(--muted); font-family: inherit; display: flex; align-items: center;
+  justify-content: center; transition: all .15s; padding: 0;
+}
+.cal-group-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.08); }
+.cal-group-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: rgba(234,78,73,.12); }
+.cal-group-add-btn {
+  width: 22px; height: 22px; border-radius: 50%; border: 1.5px dashed var(--border);
+  font-size: .82rem; line-height: 1; cursor: pointer; background: transparent;
+  color: var(--muted); font-family: inherit; display: flex; align-items: center;
+  justify-content: center; transition: all .15s; padding: 0;
+}
+.cal-group-add-btn:hover { border-color: var(--accent); color: var(--accent); border-style: solid; }
+
+.cal-scroll { flex: 1; overflow: auto; padding: 8px 20px; }
+.cal-main-grid {
+  display: flex; flex-direction: column; gap: 20px; min-width: 600px;
+}
+.cal-month-col { display: flex; flex-direction: column; gap: 4px; }
 .cal-month-label {
-  font-family: 'Nunito', sans-serif; font-size: 1.1rem; font-weight: 800;
-  color: var(--text); padding: 0 2px; letter-spacing: -.2px;
+  font-family: 'Nunito', sans-serif; font-size: .95rem; font-weight: 800;
+  color: var(--text); letter-spacing: -.2px; line-height: 1;
 }
 
 .add-month-wrap {
-  display: flex; justify-content: center; padding: 20px 0 8px;
+  display: flex; justify-content: center; padding: 12px 0 4px;
 }
 .cal-month-label-row {
-  position: relative; display: flex; align-items: center; min-height: 44px;
+  display: flex; align-items: center; gap: 8px; min-height: 24px; padding: 0 2px;
 }
-.add-month-btn--prev {
-  position: absolute; left: 50%; transform: translateX(-50%);
+.cal-prev-month-btn {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1.5px solid var(--border); background: none;
+  color: var(--muted); font-size: .95rem; line-height: 1;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: border-color .15s, color .15s; padding: 0; flex-shrink: 0;
 }
+.cal-prev-month-btn:hover { border-color: var(--accent); color: var(--accent); }
 .add-month-btn {
   width: 34px; height: 34px; border-radius: 50%;
   border: 1.5px solid var(--border); background: none;
