@@ -134,7 +134,7 @@
                         v-for="ev in day.pointEvents"
                         :key="ev._id"
                         class="pill"
-                        :style="pillStyle(ev.type, ev.keyDate)"
+                        :style="pillStyle(ev)"
                       >
                         <span v-if="ev.keyDate" class="pill-star">★</span>
                         <span class="pill-text" :class="{ 'pill-holiday': ev.type === 'holiday' }">{{ ev.label }}</span>
@@ -257,6 +257,9 @@ onMounted(async () => {
       settingsStore.fetchOrg().catch(e => console.warn('print: fetchOrg failed', e)),
     ])
     project.value = proj
+    // The calendar's own language/week-start override the user prefs, same as in-app
+    if (proj.lang)      lang.value         = proj.lang
+    if (proj.weekStart) weekStartCfg.value = proj.weekStart
     orgName.value = settingsStore.studioName || authStore.organization?.name || 'Mi Productora'
     orgLogo.value = settingsStore.logo || authStore.organization?.imgUrl || ''
 
@@ -500,7 +503,7 @@ const exportEvents = computed(() => {
       const segs = buildBusinessSegments(ev.date, dur, holidayDates)
       segs.forEach((seg, si) => {
         result.push({
-          kind: 'span', type, start: seg.start, end: seg.end, label,
+          kind: 'span', type, stage: ev.stage, start: seg.start, end: seg.end, label,
           _id: ev.id + '_s' + si, keyDate: !!ev.keyDate,
           _forceContLeft:  si > 0,                  // viene de segmento anterior
           _forceContRight: si < segs.length - 1,    // continúa en segmento siguiente
@@ -508,9 +511,9 @@ const exportEvents = computed(() => {
       })
     } else if (dur > 1) {
       const end = calendarEnd(ev.date, dur)
-      result.push({ kind: 'span', type, start: ev.date, end, label, _id: ev.id, keyDate: !!ev.keyDate })
+      result.push({ kind: 'span', type, stage: ev.stage, start: ev.date, end, label, _id: ev.id, keyDate: !!ev.keyDate })
     } else {
-      result.push({ kind: 'point', type, date: ev.date, label, _id: ev.id, keyDate: !!ev.keyDate, order: ev.order ?? 0 })
+      result.push({ kind: 'point', type, stage: ev.stage, date: ev.date, label, _id: ev.id, keyDate: !!ev.keyDate, order: ev.order ?? 0 })
     }
   }
 
@@ -687,26 +690,32 @@ const pages = computed(() => {
   })
 })
 
-// ── Style helpers — all colors derived from the project's color ────────────────
-function typeStyle(type) {
-  const hex = project.value?.color || '#2A4F9E'
+// ── Style helpers — stage color when set, project color as fallback ────────────
+const stageColorByKey = computed(() => {
+  const map = {}
+  for (const s of project.value?.stages || []) if (s.color) map[s.key] = s.color
+  return map
+})
+
+function typeStyle(type, stageKey) {
+  const hex = stageColorByKey.value[stageKey] || project.value?.color || '#2A4F9E'
 
   if (type === 'holiday') return { bg: '#e8e8e8', fg: '#888888', dot: '#aaaaaa', solid: false }
   if (type === 'delivery') return { bg: '#111111', fg: '#ffffff', dot: '#111111', solid: true }
 
-  // shoot → full project color (solid)
+  // shoot → full stage/project color (solid)
   if (type === 'shoot') return { bg: hex, fg: '#ffffff', dot: hex, solid: true }
 
-  // all other types → light tint bg, darkened project color for text/dot
+  // all other types → light tint bg, darkened stage/project color for text/dot
   const fg  = darken(hex, 0.70)
   const bg  = tint(hex, 0.14)
   const dot = hex
   return { bg, fg, dot, solid: false }
 }
 
-function pillStyle(type, keyDate) {
-  if (keyDate) return { background: '#111', color: '#fff' }
-  const s = typeStyle(type)
+function pillStyle(ev) {
+  if (ev.keyDate) return { background: '#111', color: '#fff' }
+  const s = typeStyle(ev.type, ev.stage)
   return { background: s.bg, color: s.fg }
 }
 
@@ -725,7 +734,7 @@ function spanBarStyle(span) {
     }
   }
 
-  const s    = typeStyle(span.type)
+  const s    = typeStyle(span.type, span.stage)
   const base = {
     left:       `calc(${left}% + 3px)`,
     width:      `calc(${width}% - 6px)`,

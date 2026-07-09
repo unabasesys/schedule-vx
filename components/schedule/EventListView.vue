@@ -971,7 +971,9 @@ watch(stageColorPickerId, (val) => {
 
 /* ── Rows container ── */
 .ev-list-scroll { flex: 1; overflow: auto; }
-.ev-rows { display: flex; flex-direction: column; }
+/* Bottom padding lets the last rows scroll up so the native date picker
+   (~330px tall) has room below them — see openDatePicker() in EventRow */
+.ev-rows { display: flex; flex-direction: column; padding-bottom: 340px; }
 
 .ev-stage-count { font-size: .65rem; color: var(--muted); }
 
@@ -996,7 +998,7 @@ watch(stageColorPickerId, (val) => {
 .move-amount-input {
   width: 80px; padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 7px;
   font-size: .82rem; font-family: inherit; outline: none; text-align: center;
-  color: var(--text);
+  color: var(--text); background: var(--bg);
 }
 .move-amount-input:focus { border-color: var(--accent); }
 

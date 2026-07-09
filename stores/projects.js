@@ -823,31 +823,29 @@ export const useProjectsStore = defineStore('projects', {
       this.save()
     },
 
-    moveStageUp(projId, stageId) {
+    // Swap with the *visible* neighbor: the list hides inactive stages, so
+    // swapping with a hidden one looks like the arrow did nothing. Orders are
+    // re-normalized with the same sort criterion the views use, which also
+    // fixes stages sharing a duplicate/missing order value.
+    _moveStage(projId, stageId, dir) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
-      const sorted = [...proj.stages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      const idx = sorted.findIndex(s => s.id === stageId)
-      if (idx <= 0) return
-      const [a, b] = [sorted[idx], sorted[idx - 1]]
-      ;[a.order, b.order] = [b.order, a.order]
+      const sorted = [...proj.stages]
+        .sort((a, b) => (a.order ?? STAGE_ORDER[a.key] ?? 99) - (b.order ?? STAGE_ORDER[b.key] ?? 99))
+      sorted.forEach((s, i) => { s.order = i })
+      const visible = sorted.filter(s => s.active !== false)
+      const idx  = visible.findIndex(s => s.id === stageId)
+      const nIdx = dir === 'up' ? idx - 1 : idx + 1
+      if (idx < 0 || nIdx < 0 || nIdx >= visible.length) return
+      ;[visible[idx].order, visible[nIdx].order] = [visible[nIdx].order, visible[idx].order]
       proj.hasChanges = true
       proj.updatedAt = new Date().toISOString()
       this.save()
     },
 
-    moveStageDown(projId, stageId) {
-      const proj = this.projects.find(p => p.id === projId)
-      if (!proj) return
-      const sorted = [...proj.stages].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-      const idx = sorted.findIndex(s => s.id === stageId)
-      if (idx < 0 || idx >= sorted.length - 1) return
-      const [a, b] = [sorted[idx], sorted[idx + 1]]
-      ;[a.order, b.order] = [b.order, a.order]
-      proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
-      this.save()
-    },
+    moveStageUp(projId, stageId)   { this._moveStage(projId, stageId, 'up') },
+
+    moveStageDown(projId, stageId) { this._moveStage(projId, stageId, 'down') },
 
     setStageColor(projId, stageId, color) {
       const proj = this.projects.find(p => p.id === projId)

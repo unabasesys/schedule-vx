@@ -130,7 +130,7 @@ El logo se obtiene de `settingsStore.logo` (base64 guardado en localStorage).
 ## Consideraciones
 
 - Solo se exportan eventos con `active = true`.
-- El idioma del PDF sigue el parámetro `lang` pasado — puede diferir del idioma de la UI.
+- El idioma del PDF sigue el idioma del calendario (`project.lang`); si el proyecto no lo define, cae a las preferencias del usuario. Lo mismo aplica al inicio de semana (`project.weekStart`).
 - El formato de fecha en el PDF usa el configurado por la organización.
 - No requiere conexión a internet; todo se genera en el cliente.
 - Los feriados pueden incluirse o excluirse visualmente del PDF según preferencia del usuario.

@@ -53,6 +53,12 @@
               : (lang === 'en' ? 'Open the current official version.' : 'Abre la versión oficial actual.') }}
           </div>
         </button>
+
+        <div class="share-section-note">
+          {{ lang === 'en'
+            ? "The PDF is generated in the calendar's language, not the language of this view."
+            : 'El PDF se genera en el idioma del calendario, no en el idioma de esta vista.' }}
+        </div>
       </div>
 
       <!-- ── Daily Schedule PDF ── -->
@@ -254,6 +260,10 @@ function onKeyDown(e) {
 }
 .share-action-desc {
   font-size: .68rem; color: var(--muted); line-height: 1.4;
+}
+.share-section-note {
+  font-size: .66rem; color: var(--muted); line-height: 1.4;
+  font-style: italic; margin-top: 6px; padding: 0 2px;
 }
 
 /* ── Daily Schedule form ── */

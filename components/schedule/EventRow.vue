@@ -190,7 +190,7 @@
           class="ev-date-native"
           :value="event.date"
           :disabled="readOnly"
-          @change="!readOnly && updateDate($event.target.value)"
+          @change="!readOnly && onDatePicked($event)"
         />
       </div>
       <span class="ev-dates-arrow">→</span>
@@ -538,8 +538,24 @@ const formattedStartDate = computed(() => formatDate(props.event.date))
 const formattedEndDate   = computed(() => formatDate(endDate.value))
 
 const datePickerInput = ref(null)
+
+// Safari's native picker drops below the input and doesn't flip when there is
+// no room, so rows near the viewport bottom get a cut-off calendar. Scroll the
+// list just enough to fit it before opening (synchronous, keeps user activation).
+const PICKER_HEIGHT = 330
 function openDatePicker() {
-  try { datePickerInput.value?.showPicker() } catch { datePickerInput.value?.click() }
+  const el = datePickerInput.value
+  if (!el) return
+  const spaceBelow = window.innerHeight - el.getBoundingClientRect().bottom
+  if (spaceBelow < PICKER_HEIGHT) {
+    el.closest('.ev-list-scroll')?.scrollBy({ top: PICKER_HEIGHT - spaceBelow })
+  }
+  try { el.showPicker() } catch { el.click() }
+}
+
+function onDatePicked(e) {
+  updateDate(e.target.value)
+  e.target.blur() // Safari keeps the native picker open after selecting a day
 }
 
 // ── Mutations ─────────────────────────────────────────────────────────────────
