@@ -36,6 +36,11 @@ export const useAuthStore = defineStore('auth', {
           this.user          = JSON.parse(raw)
           this.organization  = org  ? JSON.parse(org)  : null
           this.organizations = orgs ? JSON.parse(orgs) : []
+          // Hydrate settings from the cached org so the real name/logo render
+          // immediately on reload; fetchOrg() refreshes them right after.
+          if (this.organization) {
+            useSettingsStore()._applyOrgToStore(this.organization)
+          }
         } catch {
           this.logout()
         }

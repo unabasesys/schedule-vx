@@ -4,10 +4,12 @@ const API = () => useRuntimeConfig().public.apiUrl
 
 export const useSettingsStore = defineStore('settings', {
   state: () => ({
-    studioName: 'Mi Productora',
+    // Empty until the real org is known (cached or fetched) — a hardcoded
+    // placeholder here flashes on every reload before the org name arrives.
+    studioName: '',
     logo: null,
     company: {
-      name: 'Mi Productora',
+      name: '',
       logo: '',
       website: '',
     },
