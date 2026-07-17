@@ -30,6 +30,7 @@ Contenedor principal de la vista de calendario. Superficie de trabajo principal 
 - Botón PDF (con opciones: Draft o Nueva Versión Oficial)
 - Panel de clima (`WeatherStrip`)
 - Quick-add de eventos (doble click en día vacío)
+  - Al escribir el nombre (2+ letras), sugiere eventos del calendario actual **sin fecha** que coincidan; elegir uno le asigna la fecha del día clickeado (el evento conserva su duración, etapa y grupos, y se activa). También se puede seguir y crear un evento nuevo.
 - Muestra uno o dos meses en paralelo (`CalendarMonth`)
 - Botón de feriados → abre `HolidaysPanel`
 

@@ -102,7 +102,28 @@
         <!-- Name -->
         <div class="field">
           <label>{{ lang === 'en' ? 'Name' : 'Nombre' }}</label>
-          <input ref="evModalNameRef" v-model="evModalName" type="text" @keydown.enter="confirmEvModal" />
+          <div class="ev-name-wrap">
+            <input ref="evModalNameRef" v-model="evModalName" type="text" autocomplete="off" @keydown.enter="confirmEvModal" />
+            <div v-if="evSuggestions.length" class="ev-suggest-panel">
+              <div class="ev-suggest-hint">
+                {{ lang === 'en' ? 'Events without a date — pick one to assign it this date' : 'Eventos sin fecha — elige uno para asignarle esta fecha' }}
+              </div>
+              <button
+                v-for="s in evSuggestions"
+                :key="s.id"
+                type="button"
+                class="ev-suggest-item"
+                @click="selectSuggestion(s)"
+              >
+                <span class="ev-suggest-name">{{ lang === 'en' ? (s.nameEN || s.name) : s.name }}</span>
+                <span class="ev-suggest-stage">{{ suggestionStageLabel(s.stage) }}</span>
+              </button>
+            </div>
+          </div>
+          <div v-if="evModalLinkId" class="ev-suggest-linked">
+            <span>{{ lang === 'en' ? 'Existing event — it will receive this date' : 'Evento existente — se le asignará esta fecha' }}</span>
+            <button type="button" class="ev-suggest-unlink" @click="unlinkSuggestion" :title="lang === 'en' ? 'Create a new event instead' : 'Crear un evento nuevo en su lugar'">×</button>
+          </div>
         </div>
 
         <!-- Stage -->
@@ -274,6 +295,49 @@ const evModalTo       = ref('')
 const evModalToManual = ref(false)
 const evModalGroups   = ref([])
 const evModalNameRef  = ref(null)
+
+// ── Undated-event suggestions (create mode) ────────────────────────────────────
+// Typing a name while creating from a day double-click offers the project's
+// events that still have no date, so the clicked date can be assigned to one
+// of them instead of creating a duplicate.
+const evModalLinkId       = ref(null)  // existing undated event receiving the date
+const evModalLinkBaseName = ref('')    // prefilled name — detects if the user edited it
+
+const normSearch = s => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+const evSuggestions = computed(() => {
+  if (evModalMode.value !== 'create' || evModalLinkId.value) return []
+  const q = normSearch(evModalName.value.trim())
+  if (q.length < 2) return []
+  return (props.project.events || [])
+    .filter(e => !e.date)
+    .filter(e => normSearch(e.name).includes(q) || normSearch(e.nameEN).includes(q))
+    .slice(0, 8)
+})
+
+function selectSuggestion(ev) {
+  evModalLinkId.value       = ev.id
+  evModalName.value         = props.lang === 'en' ? (ev.nameEN || ev.name) : ev.name
+  evModalLinkBaseName.value = evModalName.value
+  evModalStage.value    = ev.stage || evModalStage.value
+  evModalDays.value     = ev.duration || 1
+  evModalDayType.value  = ev.durDayType || 'calendar'
+  evModalKeyDate.value  = ev.keyDate  || false
+  evModalInternal.value = ev.internal || false
+  evModalGroups.value   = [...(ev.groups || [])]
+  evModalTo.value       = calcTo(evModalFrom.value, evModalDays.value, evModalDayType.value)
+}
+
+function unlinkSuggestion() {
+  evModalLinkId.value       = null
+  evModalLinkBaseName.value = ''
+}
+
+function suggestionStageLabel(key) {
+  const s = (props.project.stages || []).find(st => st.key === key)
+  if (!s) return ''
+  return props.lang === 'en' ? (s.nameEN || s.name) : s.name
+}
 
 // Live reference to the event being edited (reads from the store so toggles/removes
 // on the dependency update the explanation without closing the modal).
@@ -593,6 +657,7 @@ function onDayClick(dateStr) {
   evModalMode.value     = 'create'
   evModalId.value       = ''
   evModalName.value     = ''
+  unlinkSuggestion()
   evModalStage.value    = firstStage?.key || 'pre'
   evModalDays.value     = 1
   evModalDayType.value  = 'calendar'
@@ -611,6 +676,7 @@ function onEventClick(ev) {
   evModalMode.value     = 'edit'
   evModalId.value       = ev.id
   evModalProjId.value   = ev._projId || props.project.id   // track owning project
+  unlinkSuggestion()
   evModalName.value     = props.lang === 'en' ? (ev.nameEN || ev.name) : ev.name
   evModalStage.value    = ev.stage || 'pre'
   evModalDays.value     = ev.duration || 1
@@ -691,7 +757,28 @@ async function confirmEvModal() {
   const name    = evModalName.value.trim() || (props.lang === 'en' ? 'New event' : 'Nuevo evento')
   const projId  = evModalMode.value === 'create' ? props.project.id : evModalProjId.value
   const ownerProj = allProjects.value.find(p => p.id === projId) || props.project
-  if (evModalMode.value === 'create') {
+  if (evModalMode.value === 'create' && evModalLinkId.value) {
+    // Assign the clicked date to an existing undated event. It keeps its own
+    // identity; the name only travels if the user actually edited it (which
+    // marks it customized, per the bilingual-names decoupling rule).
+    const target = (ownerProj.events || []).find(e => e.id === evModalLinkId.value)
+    const body = {
+      date: evModalFrom.value, dateMode: 'manual', active: true,
+      stage:      evModalStage.value,
+      duration:   Math.max(1, evModalDays.value || 1),
+      durDayType: evModalDayType.value,
+      keyDate:    evModalKeyDate.value,
+      internal:   evModalInternal.value,
+      groups:     evModalGroups.value,
+    }
+    if (target?.dep?.active) body.dep = { ...target.dep, active: false }
+    if (evModalName.value.trim() && name !== evModalLinkBaseName.value) {
+      if (props.lang === 'en') body.nameEN = name
+      else                     body.name   = name
+      body.nameCustomized = true
+    }
+    projectsStore.updateEvent(projId, evModalLinkId.value, body)
+  } else if (evModalMode.value === 'create') {
     const ev = {
       id: uid(), name, nameEN: name,
       stage: evModalStage.value, active: true,
@@ -1182,4 +1269,33 @@ onUnmounted(() => {
 .ev-dep-actions .btn-small {
   padding: 5px 10px; font-size: .68rem;
 }
+
+/* ── Undated-event suggestions in the create modal ── */
+.ev-name-wrap { position: relative; }
+.ev-name-wrap input { width: 100%; }
+.ev-suggest-panel {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
+  background: var(--surface); border: 1.5px solid var(--border); border-radius: 8px;
+  overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.ev-suggest-hint {
+  font-size: .62rem; color: var(--muted); padding: 6px 10px 4px;
+}
+.ev-suggest-item {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  width: 100%; padding: 7px 10px; background: none; border: none; cursor: pointer;
+  font-family: inherit; font-size: .78rem; color: var(--text); text-align: left;
+}
+.ev-suggest-item:hover { background: var(--surface-2); }
+.ev-suggest-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-suggest-stage { font-size: .64rem; color: var(--muted); flex-shrink: 0; }
+.ev-suggest-linked {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+  font-size: .68rem; color: var(--accent);
+}
+.ev-suggest-unlink {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: .8rem; padding: 0 2px; line-height: 1;
+}
+.ev-suggest-unlink:hover { color: var(--text); }
 </style>
