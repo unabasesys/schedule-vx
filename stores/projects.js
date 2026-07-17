@@ -302,17 +302,30 @@ export const useProjectsStore = defineStore('projects', {
     _scheduleSyncProject(projId) {
       if (!isMongoId(projId)) return
       if (_syncTimers.has(projId)) clearTimeout(_syncTimers.get(projId))
-      _syncTimers.set(projId, setTimeout(async () => {
+      _syncTimers.set(projId, setTimeout(() => {
         _syncTimers.delete(projId)
-        const proj = this.projects.find(p => p.id === projId)
-        if (!proj) return
-        try {
-          const { hidden: _hidden, ...payload } = proj
-          await useApi().put(`/projects/${projId}`, payload)
-        } catch (e) {
-          console.warn('Project sync failed:', projId, e.message)
-        }
+        this.syncProjectNow(projId)
       }, 1500))
+    },
+
+    // Immediate sync — flushes any pending debounce first. Await this before
+    // opening the print pages: they re-fetch the project from the API, so a
+    // debounced sync still in flight makes the PDF render stale data
+    // (classic symptom: PDF one version behind the app).
+    async syncProjectNow(projId) {
+      if (!isMongoId(projId)) return
+      if (_syncTimers.has(projId)) {
+        clearTimeout(_syncTimers.get(projId))
+        _syncTimers.delete(projId)
+      }
+      const proj = this.projects.find(p => p.id === projId)
+      if (!proj) return
+      try {
+        const { hidden: _hidden, ...payload } = proj
+        await useApi().put(`/projects/${projId}`, payload)
+      } catch (e) {
+        console.warn('Project sync failed:', projId, e.message)
+      }
     },
 
     // Immediate PUT — cancels any pending debounce and saves right away.

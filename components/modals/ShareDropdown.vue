@@ -136,9 +136,21 @@ function toggleOpen() {
   open.value = !open.value
 }
 
-function downloadDraft() {
-  window.open(`/print/${props.project.id}?draft=1`, '_blank')
+// The print pages re-fetch the project from the API, so the current state
+// must reach the server BEFORE the tab loads (a debounced sync still in
+// flight makes the PDF render stale data — e.g. one version behind).
+// The tab opens blank synchronously (inside the user gesture, so Safari
+// doesn't block the popup) and gets pointed to the URL after the sync.
+async function openPrintTab(url) {
+  const w = window.open('about:blank', '_blank')
+  await projectsStore.syncProjectNow(props.project.id)
+  if (w) w.location = url
+  else   window.open(url, '_blank')
   open.value = false
+}
+
+function downloadDraft() {
+  openPrintTab(`/print/${props.project.id}?draft=1`)
 }
 
 
@@ -146,8 +158,7 @@ function downloadNewVersion() {
   if (props.project.hasChanges) {
     projectsStore.bumpVersion(props.project.id)
   }
-  window.open(`/print/${props.project.id}?draft=0`, '_blank')
-  open.value = false
+  openPrintTab(`/print/${props.project.id}?draft=0`)
 }
 
 
@@ -158,16 +169,7 @@ function openDailyPreview() {
     type: dailyType.value,
     lang: globalStore.lang,
   })
-  // Append a temporary anchor to body so Safari doesn't cancel navigation
-  // when the dropdown is removed from DOM in the same tick
-  const a = document.createElement('a')
-  a.href   = `/print-daily/${props.project.id}?${params}`
-  a.target = '_blank'
-  a.rel    = 'noopener noreferrer'
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  open.value = false
+  openPrintTab(`/print-daily/${props.project.id}?${params}`)
 }
 
 // Close on outside click or ESC
