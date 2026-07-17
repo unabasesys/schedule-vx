@@ -88,8 +88,10 @@
     </div>
 
     <!-- Event List View -->
+    <!-- `hidden` only removes the project from the calendar overlay — the
+         selected project's own Events/Daily lists must always render -->
     <EventListView
-      v-if="currentProject && !currentProject.hidden && globalStore.currentView === 'list'"
+      v-if="currentProject && globalStore.currentView === 'list'"
       :project="currentProject"
       :lang="globalStore.lang"
       :read-only="isArchived"
@@ -111,7 +113,7 @@
 
     <!-- Daily Schedule View -->
     <DailyView
-      v-if="currentProject && !currentProject.hidden && globalStore.currentView === 'daily'"
+      v-if="currentProject && globalStore.currentView === 'daily'"
       :project="currentProject"
       :lang="globalStore.lang"
       :read-only="isArchived"
