@@ -115,14 +115,14 @@
               'stage-collapsed':   collapsedStages.has(stage.key),
               'stage-drop-target': !readOnly && dropIndicator === 'stage:' + stage.key,
             }"
-            @dragover.prevent="!readOnly && onStageDragOver(stage.key)"
+            @dragover.prevent="!readOnly && !stage._orphan && onStageDragOver(stage.key)"
             @dragleave="dropIndicator = null"
-            @drop.prevent="!readOnly && onStageDrop(stage.key)"
+            @drop.prevent="!readOnly && !stage._orphan && onStageDrop(stage.key)"
           >
             <div class="stage-hdr-left" @click="editingStageId !== stage.id && toggleCollapse(stage.key)" style="cursor:pointer;user-select:none">
               <span class="stage-collapse-arrow">{{ collapsedStages.has(stage.key) ? '▶' : '▼' }}</span>
               <!-- Stage color dot -->
-              <div v-if="!readOnly" class="stage-color-wrap" @click.stop>
+              <div v-if="!readOnly && !stage._orphan" class="stage-color-wrap" @click.stop>
                 <button
                   class="stage-color-dot"
                   :style="{ background: stage.color || project.color || '#20a789' }"
@@ -162,13 +162,13 @@
                 <span
                   class="stage-badge"
                   :class="'stage-' + stage.key"
-                  :title="!readOnly ? (lang === 'en' ? 'Double-click to rename' : 'Doble clic para renombrar') : ''"
-                  @dblclick.stop="!readOnly && startRenameStage(stage)"
+                  :title="!readOnly && !stage._orphan ? (lang === 'en' ? 'Double-click to rename' : 'Doble clic para renombrar') : ''"
+                  @dblclick.stop="!readOnly && !stage._orphan && startRenameStage(stage)"
                 >{{ stage.name }}</span>
               </template>
               <span class="ev-stage-count">{{ stage.totalEvs }} {{ lang === 'en' ? 'Events' : 'Eventos' }}</span>
             </div>
-            <div v-if="!readOnly" class="stage-hdr-actions">
+            <div v-if="!readOnly && !stage._orphan" class="stage-hdr-actions">
               <!-- ON/OFF toggle -->
               <button
                 class="stage-visibility-btn"
@@ -205,9 +205,9 @@
                 'ev-drop-above': !readOnly && dropIndicator === ev.id + ':above',
                 'ev-drop-below': !readOnly && dropIndicator === ev.id + ':below',
               }"
-              @dragover.prevent="!readOnly && onEvDragOver($event, ev, stage.key)"
+              @dragover.prevent="!readOnly && !stage._orphan && onEvDragOver($event, ev, stage.key)"
               @dragleave="dropIndicator = null"
-              @drop.prevent="!readOnly && onEvDrop($event, ev, stage.key)"
+              @drop.prevent="!readOnly && !stage._orphan && onEvDrop($event, ev, stage.key)"
             >
               <EventRow
                 :key="ev.id"
@@ -631,7 +631,7 @@ const stagesWithEvents = computed(() => {
   const stages = [...(props.project.stages || [])].filter(s => s.active !== false)
   stages.sort((a, b) => (a.order ?? STAGE_ORDER[a.key] ?? 99) - (b.order ?? STAGE_ORDER[b.key] ?? 99))
 
-  return stages.map((stage, idx) => {
+  const result = stages.map((stage, idx) => {
     const stageEvs = filteredEvents.value
       .filter(e => e.stage === stage.key)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
@@ -641,6 +641,27 @@ const stagesWithEvents = computed(() => {
     const totalEvs = (props.project.events || []).filter(e => e.stage === stage.key).length
     return { ...stage, name, events: stageEvs, totalEvs, isFirst: idx === 0, isLast: idx === stages.length - 1 }
   })
+
+  // Events whose stage key matches no stage in the project would be invisible
+  // here while the calendar still shows them — surface them in a synthetic
+  // section so they can be dragged into a real stage.
+  const knownKeys = new Set((props.project.stages || []).map(s => s.key))
+  const isOrphan  = e => !e.stage || !knownKeys.has(e.stage)
+  const orphanEvs = filteredEvents.value
+    .filter(isOrphan)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+  if (orphanEvs.length) {
+    result.push({
+      id: '__orphan', key: '__orphan', _orphan: true,
+      name: props.lang === 'en' ? 'No stage' : 'Sin etapa',
+      color: null, visible: true, active: true,
+      events: orphanEvs,
+      totalEvs: (props.project.events || []).filter(isOrphan).length,
+      isFirst: false, isLast: false,
+    })
+  }
+
+  return result
 })
 
 // ── List drag-and-drop (reorder within / move between stages) ────────────────
