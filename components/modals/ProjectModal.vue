@@ -182,7 +182,7 @@ const form = reactive({
   status:       editingProject.value?.status       || 'competing',
   color:        editingProject.value?.color        || PALETTE[0],
   templateId:   '',
-  weekStart:    editingProject.value?.weekStart    || globalStore.weekStart || 'sun',
+  weekStart:    editingProject.value?.weekStart    || settingsStore.orgWeekStart || globalStore.weekStart || 'sun',
   tempUnit:     editingProject.value?.tempUnit     || globalStore.tempUnit  || 'C',
 })
 
@@ -259,6 +259,8 @@ async function save() {
     })
     projectsStore.setProjectWeekStart(props.editingId, form.weekStart)
     projectsStore.setProjectTempUnit(props.editingId, form.tempUnit)
+    // Flush now — the debounced sync dies if the user reloads right after saving
+    projectsStore.syncProjectNow(props.editingId)
   } else {
     projectsStore.createProject({
       ...form,

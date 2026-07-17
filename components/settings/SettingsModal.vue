@@ -64,6 +64,21 @@
         </div>
       </div>
 
+      <!-- Default week start (org-wide; each calendar can override it) -->
+      <div class="settings-row" style="margin-top:8px;">
+        <span class="settings-label">{{ L.weekStartLabel }}</span>
+        <div class="date-fmt-toggle">
+          <button
+            :class="{ active: localWeekStart === 'sun' }"
+            @click="localWeekStart = 'sun'"
+          >{{ lang === 'en' ? 'Sunday' : 'Domingo' }}</button>
+          <button
+            :class="{ active: localWeekStart === 'mon' }"
+            @click="localWeekStart = 'mon'"
+          >{{ lang === 'en' ? 'Monday' : 'Lunes' }}</button>
+        </div>
+      </div>
+
       <!-- Operating Cities -->
       <div style="margin-top:16px;">
         <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;">
@@ -277,6 +292,7 @@ const form = reactive({
 
 const localLang       = ref(globalStore.lang || 'es')
 const localDateFormat = ref(globalStore.dateFormat || 'DD/MM/AA')
+const localWeekStart  = ref(props.creationMode ? 'sun' : (settingsStore.orgWeekStart || 'sun'))
 const inviteEmail     = ref('')
 const inviteError     = ref('')
 const inviteSuccess   = ref('')
@@ -529,6 +545,7 @@ async function save() {
     settingsStore.setStudioName(form.name)
     settingsStore.setOrgCities(localOrgCities.value)
     settingsStore.setOrgDefaultHolidays(localOrgDefaultHolidays.value)
+    settingsStore.setOrgWeekStart(localWeekStart.value)
     if (form.logo && form.logo.startsWith('data:')) {
       const url = await settingsStore.uploadLogoToApi(form.logo)
       if (url) form.logo = url
@@ -540,6 +557,7 @@ async function save() {
         scheduleSettings: {
           cities:          localOrgCities.value,
           defaultHolidays: localOrgDefaultHolidays.value,
+          weekStart:       localWeekStart.value,
         },
       }),
       settingsStore.saveUserPrefsToApi({
@@ -561,6 +579,7 @@ async function save() {
   settingsStore.setStudioName(form.name)
   settingsStore.setOrgCities(localOrgCities.value)
   settingsStore.setOrgDefaultHolidays(localOrgDefaultHolidays.value)
+  settingsStore.setOrgWeekStart(localWeekStart.value)
   globalStore.setLang(localLang.value)
   globalStore.setDateFormat(localDateFormat.value)
   projectsStore.save()
@@ -579,6 +598,7 @@ async function save() {
         scheduleSettings: {
           cities:          localOrgCities.value,
           defaultHolidays: localOrgDefaultHolidays.value,
+          weekStart:       localWeekStart.value,
         },
       }),
       settingsStore.saveUserPrefsToApi({

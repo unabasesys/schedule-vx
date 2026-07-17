@@ -16,6 +16,7 @@ export const useSettingsStore = defineStore('settings', {
     users: [],
     orgCities:          [],
     orgDefaultHolidays: [],
+    orgWeekStart:       'sun',   // org-wide default; calendars can override
   }),
 
   actions: {
@@ -58,6 +59,10 @@ export const useSettingsStore = defineStore('settings', {
       this.orgDefaultHolidays = countries
     },
 
+    setOrgWeekStart(ws) {
+      this.orgWeekStart = ws === 'mon' ? 'mon' : 'sun'
+    },
+
     // ── API sync ───────────────────────────────────────────────────────────
 
     async fetchOrg() {
@@ -85,6 +90,7 @@ export const useSettingsStore = defineStore('settings', {
       this.logo = org.imgUrl || null
       this.orgCities          = org.scheduleSettings?.cities          || []
       this.orgDefaultHolidays = org.scheduleSettings?.defaultHolidays || []
+      this.orgWeekStart       = org.scheduleSettings?.weekStart       || 'sun'
       if (org.users?.length) {
         const seen = new Set()
         this.users = org.users

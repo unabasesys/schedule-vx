@@ -257,7 +257,8 @@ onMounted(async () => {
       settingsStore.fetchOrg().catch(e => console.warn('print: fetchOrg failed', e)),
     ])
     project.value = proj
-    // The calendar's own language/week-start override the user prefs, same as in-app
+    // Inheritance chain, same as in-app: calendar → org default → user prefs
+    if (settingsStore.orgWeekStart) weekStartCfg.value = settingsStore.orgWeekStart
     if (proj.lang)      lang.value         = proj.lang
     if (proj.weekStart) weekStartCfg.value = proj.weekStart
     orgName.value = settingsStore.studioName || authStore.organization?.name || 'Mi Productora'

@@ -106,7 +106,7 @@
       :lang="globalStore.lang"
       :cal-year="globalStore.calYear"
       :cal-month="globalStore.calMonth"
-      :week-start="currentProject?.weekStart || globalStore.weekStart"
+      :week-start="currentProject?.weekStart || settingsStore.orgWeekStart || globalStore.weekStart"
       :temp-unit="currentProject?.tempUnit || globalStore.tempUnit"
       :read-only="isArchived"
     />
@@ -264,6 +264,7 @@ definePageMeta({ middleware: 'auth' })
 const { locale } = useI18n()
 const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()
+const settingsStore = useSettingsStore()
 
 const { currentProject } = storeToRefs(projectsStore)
 
