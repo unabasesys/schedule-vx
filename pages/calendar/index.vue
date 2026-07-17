@@ -256,6 +256,11 @@
       v-if="globalStore.helpOpen"
       @close="globalStore.closeHelp()"
     />
+    <SuggestModal v-if="globalStore.suggestOpen" />
+    <WhatsNewModal v-if="globalStore.whatsNewOpen" />
+
+    <!-- One-time "what's new" card, shown until the current version is seen -->
+    <WhatsNewToast />
   </div>
 </template>
 

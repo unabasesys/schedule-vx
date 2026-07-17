@@ -23,6 +23,8 @@ export const useGlobalStore = defineStore('global', {
     copySourceId:      null,
     settingsOpen:      false,
     helpOpen:          false,
+    suggestOpen:       false,
+    whatsNewOpen:      false,
     sidebarCollapsed:  false,
   }),
 
@@ -98,5 +100,9 @@ export const useGlobalStore = defineStore('global', {
     closeSettings() { this.settingsOpen = false },
     openHelp()    { this.helpOpen = true },
     closeHelp()   { this.helpOpen = false },
+    openSuggest()  { this.suggestOpen = true },
+    closeSuggest() { this.suggestOpen = false },
+    openWhatsNew()  { this.whatsNewOpen = true },
+    closeWhatsNew() { this.whatsNewOpen = false },
   },
 })

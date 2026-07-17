@@ -112,6 +112,12 @@
       @click="globalStore.setView('tmpl')"
     >Templates</button>
 
+    <!-- Sugerir una idea — mismo flujo que en Relations -->
+    <button class="sb-suggest-btn" @click="globalStore.openSuggest()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/></svg>
+      {{ globalStore.lang === 'en' ? 'Suggest an idea' : 'Sugerir una idea' }}
+    </button>
+
     <button class="sb-logout-btn" @click="logout">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -121,10 +127,17 @@
       {{ globalStore.lang === 'en' ? 'Sign out' : 'Cerrar sesión' }}
     </button>
 
+    <!-- App version + last update — opens the what's-new history -->
+    <button class="sb-version-btn" @click="globalStore.openWhatsNew()">
+      {{ APP_VERSION_SHORT }} · {{ globalStore.lang === 'en' ? 'updated' : 'actualizado' }} {{ formatVersionDate(globalStore.lang) }}
+    </button>
+
   </aside>
 </template>
 
 <script setup>
+import { APP_VERSION_SHORT, formatVersionDate } from '~/utils/changelog'
+
 const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()
 const authStore     = useAuthStore()
@@ -365,4 +378,21 @@ async function saveAsTemplate(id) {
   flex-shrink: 0;
 }
 .sb-logout-btn:hover { color: rgba(255,255,255,.6); background: rgba(255,255,255,.06); }
+
+.sb-suggest-btn {
+  margin: 0 12px 10px; padding: 9px 11px; border-radius: 10px; cursor: pointer; font-family: inherit;
+  display: flex; align-items: center; gap: 10px; text-align: left;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+  color: rgba(255,255,255,.55); font-size: .78rem; font-weight: 600; flex-shrink: 0;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.sb-suggest-btn svg { color: var(--accent); flex-shrink: 0; }
+.sb-suggest-btn:hover { background: rgba(32,167,137,.12); color: #fff; border-color: var(--accent); }
+
+.sb-version-btn {
+  margin: 0 12px 12px; padding: 0; background: none; border: none; cursor: pointer;
+  font-family: inherit; font-size: .64rem; font-weight: 600; text-align: center;
+  color: rgba(255,255,255,.28); flex-shrink: 0; transition: color .15s;
+}
+.sb-version-btn:hover { color: rgba(255,255,255,.6); }
 </style>
