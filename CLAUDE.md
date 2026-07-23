@@ -210,6 +210,7 @@ Ver carpeta `/docs/` para documentación detallada de cada flujo.
 - Los proyectos y templates se persisten en el **backend (MongoDB via Express)** mediante `useApi()`
 - El estado de UI y preferencias de sesión se mantienen en memoria (Pinia)
 - **Claves de localStorage** (preferencias locales): `ub_selected`, `ub_lang`, `ub_weekstart`, `ub_tempunit`, `ub_dateformat`
+- **Concurrencia entre usuarios (aviso de conflicto):** cada proyecto lleva un contador `rev` gestionado por el servidor. Cada guardado (`_putProject` en `projects.js`) envía `baseRev`; el backend (`dao.update`) solo aplica el cambio si `rev` sigue igual y lo incrementa atómicamente. Si otro usuario guardó primero, el servidor responde **409** con el documento vigente y el front (`_handleConflict`) pausa el autoguardado y ofrece al usuario recargar la versión más reciente o seguir con la suya sin guardar. Los guardados por proyecto están serializados (`_inFlight`) para no enviar un `baseRev` obsoleto. Esto reemplazó el antiguo "último que guarda pisa al otro" que causaba pérdida silenciosa de eventos en edición simultánea.
 
 ---
 
@@ -387,6 +388,7 @@ scheduleBack/
 
 ## 18. Puntos de Atención
 
+- **Guardado y concurrencia:** todo PUT de proyecto pasa por `_putProject()` (nunca hagas un `useApi().put('/projects/:id')` suelto): ese método adjunta `baseRev`, adopta el `rev` que devuelve el servidor y maneja el 409. El PUT del backend maneja `rev`/`updatedAt`/`createdAt` (están en `PROTECTED`, el cliente no los dicta). El PATCH `/daily` **no** tiene guard de concurrencia todavía (menor riesgo; pendiente si se necesita).
 - El motor de dependencias (`useDependencyEngine.js`) hace un sort topológico; cualquier cambio en lógica de fechas debe respetar el orden de resolución.
 - `stores/projects.js` es el archivo más crítico (~480 líneas). Cambios deben ser quirúrgicos.
 - La versión legacy en `calendario-produccion.html` tiene lógica de negocio útil como referencia, pero no se modifica.

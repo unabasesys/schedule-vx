@@ -27,7 +27,12 @@ export const useApi = () => {
       throw new Error('Sesión expirada. Por favor iniciá sesión nuevamente.')
     }
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.error || `Error ${res.status}`)
+    if (!res.ok) {
+      const err = new Error(data.error || `Error ${res.status}`)
+      err.status = res.status
+      err.data   = data
+      throw err
+    }
     return data
   }
 

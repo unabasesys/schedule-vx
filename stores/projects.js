@@ -68,6 +68,7 @@ export function migrateProjects(projects, templates, lang = 'es') {
     if (!proj.disabledHolidays) proj.disabledHolidays = []
     if (!proj.cities)   proj.cities  = []
     if (proj.version == null)     proj.version    = 0
+    if (proj.rev == null)         proj.rev         = 0
     if (proj.hasChanges == null)  proj.hasChanges  = false
     if (proj.hidden == null)      proj.hidden      = false
     if (!proj.lang)               proj.lang        = lang
@@ -129,6 +130,7 @@ function eventsFromTemplate(tmpl) {
 // ── API helpers (module-level) ────────────────────────────────────────────────
 const _syncTimers             = new Map()
 const _dailySyncTimers        = new Map()
+const _inFlight               = new Set()   // projIds with a PUT in flight — serializes saves so we never send a stale baseRev
 let   _unloadListenerRegistered = false
 
 const isMongoId = (id) => /^[0-9a-f]{24}$/i.test(id || '')
@@ -301,10 +303,12 @@ export const useProjectsStore = defineStore('projects', {
     // Debounced PUT for a single project to the API
     _scheduleSyncProject(projId) {
       if (!isMongoId(projId)) return
+      const proj = this.projects.find(p => p.id === projId)
+      if (proj?.conflicted) return   // autosave paused until the user reloads
       if (_syncTimers.has(projId)) clearTimeout(_syncTimers.get(projId))
       _syncTimers.set(projId, setTimeout(() => {
         _syncTimers.delete(projId)
-        this.syncProjectNow(projId)
+        this._putProject(projId)
       }, 1500))
     },
 
@@ -318,32 +322,108 @@ export const useProjectsStore = defineStore('projects', {
         clearTimeout(_syncTimers.get(projId))
         _syncTimers.delete(projId)
       }
+      await this._putProject(projId)
+    },
+
+    // The single writer for project PUTs. Carries baseRev (optimistic
+    // concurrency), adopts the server-assigned rev on success, and on a 409
+    // conflict hands off to the conflict flow instead of overwriting. Saves are
+    // serialized per project so an in-flight PUT can't be followed by another
+    // one carrying a now-stale baseRev.
+    async _putProject(projId) {
+      if (!isMongoId(projId)) return
       const proj = this.projects.find(p => p.id === projId)
-      if (!proj) return
+      if (!proj || proj.conflicted) return
+
+      // Another save for this project is still in flight — retry shortly so we
+      // send the freshly-adopted rev rather than a stale one.
+      if (_inFlight.has(projId)) {
+        if (_syncTimers.has(projId)) clearTimeout(_syncTimers.get(projId))
+        _syncTimers.set(projId, setTimeout(() => {
+          _syncTimers.delete(projId)
+          this._putProject(projId)
+        }, 400))
+        return
+      }
+
+      _inFlight.add(projId)
       try {
-        const { hidden: _hidden, ...payload } = proj
-        await useApi().put(`/projects/${projId}`, payload)
+        const { hidden: _hidden, conflicted: _conflicted, ...payload } = proj
+        payload.baseRev = proj.rev ?? 0
+        const updated = normalizeDoc(await useApi().put(`/projects/${projId}`, payload))
+        const live = this.projects.find(p => p.id === projId)
+        if (live) {
+          live.rev = updated.rev
+          if ((updated.updatedAt || '') > (live.updatedAt || '')) live.updatedAt = updated.updatedAt
+        }
       } catch (e) {
-        console.warn('Project sync failed:', projId, e.message)
+        if (e.status === 409) {
+          await this._handleConflict(projId, e.data?.project)
+        } else {
+          console.warn('Project sync failed:', projId, e.message)
+        }
+      } finally {
+        _inFlight.delete(projId)
       }
     },
 
-    // Immediate PUT — cancels any pending debounce and saves right away.
-    // Use after drag-drop to guarantee the change reaches the server before
-    // any page reload can discard the in-memory state.
-    async syncProjectNow(projId) {
-      if (!isMongoId(projId)) return
-      if (_syncTimers.has(projId)) {
-        clearTimeout(_syncTimers.get(projId))
-        _syncTimers.delete(projId)
-      }
+    // Someone else saved this calendar first. Pause autosave immediately (so
+    // nothing clobbers their work) and let the user choose: load the fresh
+    // server version, or keep editing locally without saving.
+    async _handleConflict(projId, serverProject) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
-      try {
-        const { hidden: _hidden, ...payload } = proj
-        await useApi().put(`/projects/${projId}`, payload)
-      } catch (e) {
-        console.warn('Project sync failed:', projId, e.message)
+
+      proj.conflicted = true
+      if (_syncTimers.has(projId)) { clearTimeout(_syncTimers.get(projId)); _syncTimers.delete(projId) }
+
+      const globalStore = useGlobalStore()
+      const en = globalStore.lang === 'en'
+      const { choice } = useDialog()
+      const pick = await choice({
+        title: en ? 'Someone else saved changes' : 'Otra persona guardó cambios',
+        body: en
+          ? 'Another user saved this calendar while you were editing. To avoid overwriting their work, choose how to continue:'
+          : 'Otra persona guardó este calendario mientras lo editabas. Para no pisar su trabajo, elegí cómo seguir:',
+        choices: [
+          { label: en ? 'Load the latest version' : 'Ver la versión más reciente', value: 'reload', primary: true },
+          { label: en ? 'Keep mine (stop saving)'  : 'Seguir con la mía (no guardar)', value: 'keep' },
+        ],
+      })
+
+      if (pick === 'reload') {
+        this._adoptServerProject(projId, serverProject)
+      } else {
+        // Stay paused. Let the user know their edits won't persist until reload.
+        try {
+          useNuxtApp().$toast(
+            en ? 'Your changes will not be saved until you reload the page.'
+               : 'Tus cambios no se guardarán hasta que recargues la página.',
+            { type: 'error' },
+          )
+        } catch { /* toast unavailable */ }
+      }
+    },
+
+    // Replace the local copy of a project with the authoritative server copy.
+    _adoptServerProject(projId, serverProject) {
+      const idx = this.projects.findIndex(p => p.id === projId)
+      if (idx === -1) return
+      const globalStore = useGlobalStore()
+
+      const finish = (doc) => {
+        migrateProjects([doc], [], globalStore.lang)
+        doc.hidden     = this.projects[idx]?.hidden ?? false   // per-user, not part of the shared doc
+        doc.conflicted = false
+        this.projects[idx] = doc
+      }
+
+      if (serverProject) {
+        finish(normalizeDoc(serverProject))
+      } else {
+        useApi().get(`/projects/${projId}`)
+          .then(fresh => finish(normalizeDoc(fresh)))
+          .catch(e => console.warn('Reload after conflict failed:', e.message))
       }
     },
 
@@ -375,8 +455,9 @@ export const useProjectsStore = defineStore('projects', {
           clearTimeout(timer)
           _syncTimers.delete(projId)
           const proj = this.projects.find(p => p.id === projId)
-          if (!proj) continue
-          const { hidden: _h, ...payload } = proj
+          if (!proj || proj.conflicted) continue
+          const { hidden: _h, conflicted: _c, ...payload } = proj
+          payload.baseRev = proj.rev ?? 0   // carries the guard: a stale flush is rejected, never clobbers
           fetch(`${BASE}/projects/${projId}`, {
             method: 'PUT', keepalive: true, headers,
             body: JSON.stringify(payload),
@@ -476,7 +557,7 @@ export const useProjectsStore = defineStore('projects', {
         const authStore = useAuthStore()
         if (authStore?.isLoggedIn) {
           this.projects
-            .filter(p => p.hasChanges && isMongoId(p.id))
+            .filter(p => p.hasChanges && isMongoId(p.id) && !p.conflicted)
             .forEach(p => this._scheduleSyncProject(p.id))
         }
       } catch { /* auth store may not be available during init */ }
