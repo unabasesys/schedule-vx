@@ -54,6 +54,23 @@
           </div>
         </button>
 
+        <!-- Client-facing vs internal (locked events) — applies to Draft & Version -->
+        <div class="daily-row" style="margin-top:2px;">
+          <label class="daily-label">{{ lang === 'en' ? 'Events' : 'Eventos' }}</label>
+          <div class="daily-toggle">
+            <button
+              :class="['daily-tog-btn', calType === 'client' && 'active']"
+              :title="lang === 'en' ? 'Only open events (client view)' : 'Solo eventos abiertos (vista cliente)'"
+              @click="calType = 'client'"
+            >{{ lang === 'en' ? 'Client view' : 'Vista cliente' }}</button>
+            <button
+              :class="['daily-tog-btn', calType === 'internal' && 'active']"
+              :title="lang === 'en' ? 'Include internal (locked) events' : 'Incluye los eventos internos (candado)'"
+              @click="calType = 'internal'"
+            >{{ lang === 'en' ? 'Internal' : 'Interno' }}</button>
+          </div>
+        </div>
+
         <div class="share-section-note">
           {{ lang === 'en'
             ? "The PDF is generated in the calendar's language, not the language of this view."
@@ -118,12 +135,14 @@ const wrapEl       = ref(null)
 const dailyFrom    = ref('')
 const dailyTo      = ref('')
 const dailyType    = ref('client')
+const calType      = ref('client')   // 'client' | 'internal' — controls the calendar PDF
 
 const hasDailyEvents = computed(() =>
   (props.project?.dailySchedule || []).some(i => i.date)
 )
 
 watch(open, (val) => {
+  if (val) calType.value = 'client'
   if (val && hasDailyEvents.value) {
     const dates = (props.project?.dailySchedule || []).map(i => i.date).filter(Boolean).sort()
     dailyFrom.value = dates[0]
@@ -150,7 +169,7 @@ async function openPrintTab(url) {
 }
 
 function downloadDraft() {
-  openPrintTab(`/print/${props.project.id}?draft=1`)
+  openPrintTab(`/print/${props.project.id}?draft=1&type=${calType.value}`)
 }
 
 
@@ -158,7 +177,7 @@ function downloadNewVersion() {
   if (props.project.hasChanges) {
     projectsStore.bumpVersion(props.project.id)
   }
-  openPrintTab(`/print/${props.project.id}?draft=0`)
+  openPrintTab(`/print/${props.project.id}?draft=0&type=${calType.value}`)
 }
 
 

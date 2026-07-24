@@ -98,7 +98,7 @@
             ? 'Add daily events to build your operational day-by-day schedule.'
             : 'Agrega Daily Events para construir tu schedule operacional día a día.' }}
         </div>
-        <button v-if="!readOnly" class="dv-empty-cta" @click="openNewItem()">
+        <button v-if="!readOnly" class="dv-empty-cta" @click.stop="openNewItem()">
           + {{ isEN ? 'Add first daily event' : 'Agregar primer Daily Event' }}
         </button>
       </div>

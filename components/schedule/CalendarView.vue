@@ -161,7 +161,7 @@
         <div class="field field--spaced ev-days-row">
           <div class="ev-days-input">
             <label>{{ lang === 'en' ? 'Days' : 'Días' }}</label>
-            <input v-model.number="evModalDays" type="number" min="1" class="ev-days-num" @input="onDaysChange" />
+            <NumberStepper v-model="evModalDays" :min="1" @change="onDaysChange" />
           </div>
           <div class="qa-daytype-toggle">
             <button :class="{ active: evModalDayType === 'calendar' }" @click="onDayTypeChange('calendar')">

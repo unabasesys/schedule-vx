@@ -77,7 +77,7 @@
               class="color-swatch"
               :class="{ selected: form.color === c }"
               :style="{ background: c }"
-              @click="form.color = c"
+              @click="pickColor(c)"
             ></div>
           </div>
         </div>
@@ -186,6 +186,33 @@ const form = reactive({
   tempUnit:     editingProject.value?.tempUnit     || globalStore.tempUnit  || 'C',
 })
 
+// ── Project color vs. stage colors ────────────────────────────────────────────
+// If the calendar's stages have their own colors, choosing a calendar color
+// would override them (every event falls back to the calendar color). Warn the
+// user before doing so, and only wipe the stage colors on save if they confirm.
+const hasCustomStageColors = computed(() =>
+  isEdit.value && (editingProject.value?.stages || []).some(s => s.color)
+)
+const clearStageColors = ref(false)
+
+async function pickColor(c) {
+  if (hasCustomStageColors.value && !clearStageColors.value) {
+    const ok = await useDialog().confirm({
+      title: lang.value === 'en'
+        ? 'Stages use different colors'
+        : 'Las etapas tienen colores distintos',
+      body: lang.value === 'en'
+        ? 'This calendar’s stages currently use their own colors. If you set a calendar color, those stage colors will be removed and every event will be shown in the selected color. Do you want to continue?'
+        : 'Las etapas de este calendario usan sus propios colores. Si eliges un color de calendario, esos colores por etapa se quitarán y todos los eventos se verán del color seleccionado. ¿Quieres continuar?',
+      confirmLabel: lang.value === 'en' ? 'Yes, use one color' : 'Sí, usar un solo color',
+      cancelLabel:  lang.value === 'en' ? 'Cancel' : 'Cancelar',
+    })
+    if (!ok) return
+    clearStageColors.value = true
+  }
+  form.color = c
+}
+
 const clientInputRef = ref(null)
 
 const citySearch    = ref('')
@@ -259,6 +286,9 @@ async function save() {
     })
     projectsStore.setProjectWeekStart(props.editingId, form.weekStart)
     projectsStore.setProjectTempUnit(props.editingId, form.tempUnit)
+    // If the user confirmed overriding per-stage colors, wipe them so every
+    // event uses the newly chosen calendar color.
+    if (clearStageColors.value) projectsStore.clearStageColors(props.editingId)
     // Flush now — the debounced sync dies if the user reloads right after saving
     projectsStore.syncProjectNow(props.editingId)
   } else {

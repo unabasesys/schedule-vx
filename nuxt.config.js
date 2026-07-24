@@ -1,7 +1,12 @@
 export default defineNuxtConfig({
   devServer: { port: 3000 },
   app: {
-    head: { title: 'Calendar by unabase' }
+    head: {
+      title: 'Calendar by unabase',
+      link: [
+        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
+      ],
+    }
   },
   ssr: false,
   modules: ['@pinia/nuxt', '@nuxtjs/i18n', '@vueuse/nuxt'],

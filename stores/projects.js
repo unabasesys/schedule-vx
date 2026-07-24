@@ -952,6 +952,20 @@ export const useProjectsStore = defineStore('projects', {
       this.save()
     },
 
+    // Clears every stage's custom color so all events fall back to the project
+    // color. Used when the user sets a calendar color while stages have their
+    // own colors (they confirm the override in ProjectModal first).
+    clearStageColors(projId) {
+      const proj = this.projects.find(p => p.id === projId)
+      if (!proj) return
+      let changed = false
+      ;(proj.stages || []).forEach(s => { if (s.color) { s.color = null; changed = true } })
+      if (!changed) return
+      proj.hasChanges = true
+      proj.updatedAt = new Date().toISOString()
+      this.save()
+    },
+
     toggleStageVisible(projId, stageId) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return

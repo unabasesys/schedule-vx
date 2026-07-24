@@ -222,6 +222,9 @@ const STAGE_TYPE = {
 const route     = useRoute()
 const projectId = computed(() => route.params.id)
 const isDraft   = computed(() => route.query.draft === '1')
+// Internal vs client-facing export: when ?type=internal, locked/internal
+// events are included in the PDF; otherwise (client view, default) they're hidden.
+const includeInternal = computed(() => route.query.type === 'internal')
 
 const project          = ref(null)
 const orgName          = ref('Mi Productora')
@@ -492,7 +495,7 @@ const exportEvents = computed(() => {
 
   // Project events
   for (const ev of p.events || []) {
-    if (!ev.active || !ev.date || ev.internal) continue
+    if (!ev.active || !ev.date || (!includeInternal.value && ev.internal)) continue
     const label   = (isEN.value ? (ev.nameEN || ev.name) : ev.name) || (isEN.value ? '(No title)' : '(Sin título)')
     const type    = STAGE_TYPE[ev.stage] || 'preprod'
     const dur     = ev.duration || 1
