@@ -258,6 +258,7 @@
     />
     <SuggestModal v-if="globalStore.suggestOpen" />
     <WhatsNewModal v-if="globalStore.whatsNewOpen" />
+    <ContactsModal v-if="globalStore.contactsOpen" @close="globalStore.closeContacts()" />
 
     <!-- One-time "what's new" card, shown until the current version is seen -->
     <WhatsNewToast />

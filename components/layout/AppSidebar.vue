@@ -106,6 +106,7 @@
 
     <!-- Bottom actions -->
     <button class="sb-new-btn" @click="openNewProject">{{ globalStore.lang === 'en' ? '+ Calendar' : '+ Calendario' }}</button>
+    <button class="sb-tmpl-btn" @click="globalStore.openContacts()">{{ globalStore.lang === 'en' ? 'Contacts' : 'Contactos' }}</button>
     <button
       class="sb-tmpl-btn"
       :class="{ 'sb-tmpl-btn-active': globalStore.currentView === 'tmpl' }"
