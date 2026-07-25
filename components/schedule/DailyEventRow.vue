@@ -514,6 +514,15 @@ const contactById = computed(() => {
   return m
 })
 
+// Display name of every contact we have resolved at least once. The name of a
+// linked contact lives ONLY in the directory, so if it's deleted (or the directory
+// hasn't loaded) we still need it to rebuild the saved `participants` string —
+// that string is what the collapsed row and the client PDF show.
+const knownNames = reactive({})
+watchEffect(() => {
+  for (const c of contactsStore.contacts) if (c?.id && c.name) knownNames[c.id] = c.name
+})
+
 // Selected participants rendered as removable chips (linked contacts first,
 // then ad-hoc typed names).
 const participantChips = computed(() => {
@@ -583,7 +592,13 @@ function removeParticipant(chip) {
 function onPartEnter() {
   const q = partQuery.value.trim()
   if (!q) return
-  const exact = partMatches.value.find(c => (c.name || '').toLowerCase() === q.toLowerCase())
+  // Look for the exact name across the WHOLE directory, not just the 8 shown:
+  // otherwise typing a full name whose match fell outside the list linked whoever
+  // happened to be first.
+  const picked = new Set(form.pickedIds)
+  const exact = contactsStore.sorted.find(
+    c => c.id && !picked.has(c.id) && (c.name || '').toLowerCase() === q.toLowerCase(),
+  )
   if (exact) return addContact(exact)
   if (partMatches.value.length) return addContact(partMatches.value[0])
   addAdhoc(q)
@@ -592,10 +607,16 @@ function onPartEnter() {
 // Human-readable string persisted alongside the structured fields, so the
 // collapsed row and the client PDF keep rendering with no changes.
 function composeParticipants() {
-  const names = [
-    ...form.pickedIds.map(id => contactById.value[id]?.name).filter(Boolean),
-    ...form.extraNames,
-  ]
+  const resolved = form.pickedIds.map(id => contactById.value[id]?.name || knownNames[id]).filter(Boolean)
+  const names    = [...resolved, ...form.extraNames]
+  if (resolved.length < form.pickedIds.length) {
+    // Some linked contacts couldn't be resolved (deleted from the directory, or the
+    // directory failed to load). Carry over any name already saved that we're not
+    // listing, so saving this row never makes a participant disappear.
+    for (const n of String(props.item?.participants || '').split(',').map(s => s.trim()).filter(Boolean)) {
+      if (!names.includes(n)) names.push(n)
+    }
+  }
   return names.join(', ')
 }
 

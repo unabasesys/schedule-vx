@@ -68,7 +68,7 @@
                     {{ isEN ? 'End' : 'Fin' }}
                     <button class="una-end-clear" @click="clearEnd(i)" :title="isEN ? 'Make it a single day' : 'Dejar en un solo día'">✕</button>
                   </span>
-                  <input class="una-in-date" type="date" v-model="ev.endDate" :min="ev.date" />
+                  <input class="una-in-date" type="date" v-model="ev.endDate" :min="ev.date" @change="onEndChange(i)" />
                 </div>
                 <button
                   v-else
@@ -257,7 +257,10 @@ function cancelNewStage() {
 
 function discardEvent(i) {
   parsed.value.splice(i, 1)
+  // Rows shift down, so an open "new stage" editor must follow its own row —
+  // otherwise ✓ would assign the stage to a different event (or to nothing).
   if (newStageFor.value === i) cancelNewStage()
+  else if (newStageFor.value > i) newStageFor.value -= 1
 }
 
 function addBlankEvent() {
@@ -284,7 +287,15 @@ function daysInclusive(startIso, endIso) {
 
 function onStartChange(i) {
   const ev = parsed.value[i]
+  if (!ev.date) { ev.endDate = ''; return }                      // an end alone means nothing
   if (ev.endDate && ev.endDate < ev.date) ev.endDate = ev.date   // keep end ≥ start
+}
+// `min` on a date input only constrains the picker — a typed earlier date still
+// lands in the model, where daysInclusive() would quietly collapse it to 1 day.
+function onEndChange(i) {
+  const ev = parsed.value[i]
+  if (!ev.date) { ev.endDate = ''; return }
+  if (ev.endDate && ev.endDate < ev.date) ev.endDate = ev.date
 }
 function addEnd(i) {
   const ev = parsed.value[i]
@@ -299,6 +310,7 @@ async function run() {
   sentText.value = input
   text.value = ''
   parsed.value = []
+  cancelNewStage()   // a stale open editor would point at a card that no longer exists
   loading.value = true
   error.value = ''
   scrollToBottom()
@@ -311,7 +323,10 @@ async function run() {
       stages,
     })
     const events = (data.events || []).map(e => {
-      const start = e.date || ''
+      // Only trust a real YYYY-MM-DD. The model can return anything here, and a bad
+      // value used to make addDays() throw, which discarded every other correctly
+      // parsed event and surfaced a raw engine error.
+      const start = /^\d{4}-\d{2}-\d{2}$/.test(e.date || '') ? e.date : ''
       const dur = Math.max(1, parseInt(e.duration) || 1)
       return {
         name: e.name || '',
@@ -338,10 +353,13 @@ async function run() {
 function createEvents() {
   const proj = currentProject.value
   if (!proj || creating.value) return
+  const ready   = parsed.value.filter(e => e.name?.trim() && e.date)
+  const skipped = parsed.value.length - ready.length
+  if (!ready.length) return
   creating.value = true
   try {
     let order = (proj.events || []).reduce((m, e) => Math.max(m, e.order || 0), 0)
-    parsed.value.filter(e => e.name?.trim() && e.date).forEach(e => {
+    ready.forEach(e => {
       order += 1
       projectsStore.addEvent(proj.id, {
         id: uid(),
@@ -358,8 +376,21 @@ function createEvents() {
       })
     })
     projectsStore.syncProjectNow(proj.id)
-    $toast(isEN.value ? 'Events added.' : 'Eventos agregados.', { type: 'success' })
-    close()
+    if (skipped) {
+      // Keep the drawer open with only the incomplete cards left, and say so. These
+      // used to be dropped silently: the toast claimed success and the drawer closed.
+      cancelNewStage()
+      parsed.value = parsed.value.filter(e => !(e.name?.trim() && e.date))
+      $toast(
+        isEN.value
+          ? `${ready.length} added. ${skipped} still need a name and a start date.`
+          : `${ready.length} agregados. A ${skipped} le falta nombre o fecha de inicio.`,
+        { type: 'error' },
+      )
+    } else {
+      $toast(isEN.value ? 'Events added.' : 'Eventos agregados.', { type: 'success' })
+      close()
+    }
   } finally {
     creating.value = false
   }
