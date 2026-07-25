@@ -199,7 +199,9 @@ export const useSettingsStore = defineStore('settings', {
         const data = await res.json()
         if (!res.ok) return { ok: false, error: data.error || 'Error al invitar' }
         this._applyOrgToStore(data)
-        return { ok: true }
+        // The invitation is created even when the email couldn't be delivered —
+        // pass that through so we don't claim it was sent.
+        return { ok: true, emailSent: data.emailSent !== false }
       } catch { return { ok: false, error: 'Error de conexión' } }
     },
 

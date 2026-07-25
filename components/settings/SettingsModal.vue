@@ -486,6 +486,15 @@ async function inviteUser() {
       inviteError.value = result.error || (lang.value === 'en' ? 'Could not send the invitation' : 'No se pudo enviar la invitación')
       return
     }
+    if (result.emailSent === false) {
+      // The invitation exists but the email bounced — say so instead of showing
+      // "invitation sent" and leaving the owner waiting on someone who never heard.
+      inviteEmail.value = ''
+      inviteError.value = lang.value === 'en'
+        ? `${email} was invited, but we couldn't send the email. Share the invitation link with them directly.`
+        : `${email} quedó invitado, pero no pudimos enviar el correo. Compártele el enlace de invitación directamente.`
+      return
+    }
   } else {
     settingsStore.inviteUser(email)
   }
