@@ -45,23 +45,44 @@
           <div class="una-msg una-msg--bot una-fade" v-html="replyText"></div>
 
           <div class="una-events una-fade">
-            <div v-for="(ev, i) in parsed" :key="i" class="una-ev">
-              <div class="una-ev-main">
+            <div v-for="(ev, i) in parsed" :key="i" class="una-ev-card">
+              <div class="una-ev-top">
                 <input
                   class="una-ev-name"
                   v-model.trim="ev.name"
                   :placeholder="isEN ? 'Event name' : 'Nombre del evento'"
                 />
-                <div class="una-ev-meta">
-                  <input class="una-ev-date" type="date" v-model="ev.date" />
-                  <input
-                    class="una-ev-days"
-                    type="text"
-                    inputmode="numeric"
-                    v-model="ev.duration"
-                    :title="isEN ? 'Days' : 'Días'"
-                  />
-                  <!-- Stage: pick existing, clear, or create inline -->
+                <button class="una-ev-x" @click="discardEvent(i)" :title="isEN ? 'Discard' : 'Descartar'">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>
+                </button>
+              </div>
+
+              <div class="una-ev-fields">
+                <div class="una-fld">
+                  <span class="una-fld-lbl">{{ isEN ? 'Start' : 'Inicio' }}</span>
+                  <input class="una-in-date" type="date" v-model="ev.date" @change="onStartChange(i)" />
+                </div>
+
+                <div v-if="ev.endDate" class="una-fld">
+                  <span class="una-fld-lbl">
+                    {{ isEN ? 'End' : 'Fin' }}
+                    <button class="una-end-clear" @click="clearEnd(i)" :title="isEN ? 'Make it a single day' : 'Dejar en un solo día'">✕</button>
+                  </span>
+                  <input class="una-in-date" type="date" v-model="ev.endDate" :min="ev.date" />
+                </div>
+                <button
+                  v-else
+                  class="una-add-end"
+                  :disabled="!ev.date"
+                  @click="addEnd(i)"
+                  :title="isEN ? 'Add an end date (multi-day event)' : 'Agregar fecha de fin (evento de varios días)'"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  {{ isEN ? 'End date' : 'Fecha de fin' }}
+                </button>
+
+                <div class="una-fld una-fld--stage">
+                  <span class="una-fld-lbl">{{ isEN ? 'Stage' : 'Etapa' }}</span>
                   <div class="una-ev-stage">
                     <template v-if="newStageFor === i">
                       <input
@@ -83,16 +104,13 @@
                   </div>
                 </div>
               </div>
-              <button class="una-ev-x" @click="discardEvent(i)" :title="isEN ? 'Discard' : 'Descartar'">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>
-              </button>
             </div>
-
-            <button class="una-ev-add" @click="addBlankEvent">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-              {{ isEN ? 'Add another event' : 'Agregar otro evento' }}
-            </button>
           </div>
+
+          <button class="una-ev-add una-fade" @click="addBlankEvent">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            {{ isEN ? 'Add another event' : 'Agregar otro evento' }}
+          </button>
 
           <div class="una-cta una-fade">
             <button class="una-cta-primary" :disabled="!creatable || creating" @click="createEvents">
@@ -243,9 +261,37 @@ function discardEvent(i) {
 }
 
 function addBlankEvent() {
-  parsed.value.push({ name: '', date: '', duration: 1, stage: '', keyDate: false })
+  parsed.value.push({ name: '', date: '', endDate: '', stage: '', keyDate: false })
   scrollToBottom()
 }
+
+// ── Dates: Calendar speaks start/end; duration is derived from the range ──────
+// UTC-based math on YYYY-MM-DD strings to avoid timezone off-by-one.
+function addDays(iso, n) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  dt.setUTCDate(dt.getUTCDate() + n)
+  return dt.toISOString().slice(0, 10)
+}
+function daysInclusive(startIso, endIso) {
+  if (!startIso || !endIso) return 1
+  const [ys, ms, ds] = startIso.split('-').map(Number)
+  const [ye, me, de] = endIso.split('-').map(Number)
+  const a = Date.UTC(ys, ms - 1, ds), b = Date.UTC(ye, me - 1, de)
+  return b > a ? Math.round((b - a) / 86400000) + 1 : 1
+}
+
+function onStartChange(i) {
+  const ev = parsed.value[i]
+  if (ev.endDate && ev.endDate < ev.date) ev.endDate = ev.date   // keep end ≥ start
+}
+function addEnd(i) {
+  const ev = parsed.value[i]
+  if (!ev.date) return
+  ev.endDate = addDays(ev.date, 1)   // start a 2-day range; the user adjusts
+}
+function clearEnd(i) { parsed.value[i].endDate = '' }
 
 async function run() {
   if (!canRun.value || loading.value) return
@@ -264,13 +310,18 @@ async function run() {
       year: globalStore.calYear || new Date().getFullYear(),
       stages,
     })
-    const events = (data.events || []).map(e => ({
-      name: e.name || '',
-      date: e.date || '',
-      duration: Math.max(1, parseInt(e.duration) || 1),
-      stage: matchStageKey(e.stage, stages),
-      keyDate: !!e.keyDate,
-    }))
+    const events = (data.events || []).map(e => {
+      const start = e.date || ''
+      const dur = Math.max(1, parseInt(e.duration) || 1)
+      return {
+        name: e.name || '',
+        date: start,
+        // Express duration as an end date: only multi-day events carry one.
+        endDate: (start && dur > 1) ? addDays(start, dur - 1) : '',
+        stage: matchStageKey(e.stage, stages),
+        keyDate: !!e.keyDate,
+      }
+    })
     if (!events.length) {
       error.value = isEN.value ? 'I couldn’t find any events in that text. Try adding dates.' : 'No encontré eventos en ese texto. Probá agregando fechas.'
     } else {
@@ -298,7 +349,7 @@ function createEvents() {
         stage: e.stage || '',
         date: e.date,
         dateMode: 'manual',
-        duration: Math.max(1, parseInt(e.duration) || 1),
+        duration: daysInclusive(e.date, e.endDate),
         durDayType: 'calendar',
         active: true, completed: false, internal: false,
         keyDate: !!e.keyDate, locked: false, nameCustomized: true,
@@ -393,56 +444,73 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .una-dot:nth-child(3) { animation-delay: .3s; }
 @keyframes unaBlink { 0%,100% { opacity: .3; transform: translateY(0) } 50% { opacity: 1; transform: translateY(-3px) } }
 
-/* ── Events list ── */
-.una-events {
-  align-self: stretch;
+/* ── Events — independent cards ── */
+.una-events { align-self: stretch; display: flex; flex-direction: column; gap: 10px; }
+.una-ev-card {
   border: 1px solid var(--border); border-radius: 12px;
-  background: var(--surface-2); overflow: hidden;
+  background: var(--surface-2); padding: 12px 13px;
 }
-.una-ev {
-  display: flex; align-items: flex-start; gap: 8px;
-  padding: 11px 12px; border-bottom: 1px solid var(--border);
-}
-.una-ev:hover { background: rgba(255,255,255,.02); }
-.una-ev-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.una-ev-top { display: flex; align-items: flex-start; gap: 8px; }
 .una-ev-name {
-  width: 100%;
+  flex: 1; min-width: 0;
   border: 1.5px solid var(--border); border-radius: 7px; background: var(--surface);
   color: var(--text-title, var(--text));
   font-size: .85rem; font-weight: 600; font-family: inherit; padding: 6px 9px; letter-spacing: -.01em;
 }
 .una-ev-name:focus { outline: none; border-color: var(--accent); }
 .una-ev-name::placeholder { color: var(--muted); font-weight: 400; }
-.una-ev-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.una-ev-date, .una-ev-days, .una-stage-select, .una-newstage {
-  border: 1.5px solid var(--border); border-radius: 7px; background: var(--surface);
-  color: var(--text); font-size: .72rem; font-family: inherit; padding: 4px 7px; min-width: 0;
+.una-ev-x {
+  flex: 0 0 auto; width: 26px; height: 26px; border: none; border-radius: 6px;
+  background: transparent; color: var(--muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
 }
-.una-ev-date:focus, .una-ev-days:focus, .una-stage-select:focus, .una-newstage:focus { outline: none; border-color: var(--accent); }
-.una-ev-days { width: 46px; text-align: center; }
-.una-ev-stage { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 120px; }
+.una-ev-x:hover { background: rgba(224,82,82,.12); color: var(--danger, #e05252); }
+
+.una-ev-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: 10px; }
+.una-fld { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.una-fld-lbl {
+  display: flex; align-items: center; gap: 5px;
+  font-size: .6rem; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 700;
+}
+.una-in-date, .una-stage-select, .una-newstage {
+  border: 1.5px solid var(--border); border-radius: 7px; background: var(--surface);
+  color: var(--text); font-size: .74rem; font-family: inherit; padding: 5px 7px; min-width: 0;
+}
+.una-in-date { width: 132px; }
+.una-in-date:focus, .una-stage-select:focus, .una-newstage:focus { outline: none; border-color: var(--accent); }
+.una-fld--stage { flex: 1; min-width: 130px; }
+.una-fld--stage .una-ev-stage { display: flex; align-items: center; gap: 4px; width: 100%; }
 .una-stage-select { flex: 1; cursor: pointer; }
 .una-stage-select option { background: var(--surface); }
 .una-newstage { flex: 1; border-color: var(--accent); }
 .una-newstage-ok, .una-newstage-x {
-  flex: 0 0 auto; width: 24px; height: 26px; border-radius: 6px; border: 1.5px solid var(--border);
+  flex: 0 0 auto; width: 24px; height: 28px; border-radius: 6px; border: 1.5px solid var(--border);
   background: transparent; cursor: pointer; font-size: .72rem; line-height: 1; padding: 0;
 }
 .una-newstage-ok { color: var(--accent); border-color: var(--accent); }
 .una-newstage-ok:disabled { opacity: .4; cursor: not-allowed; }
 .una-newstage-x { color: var(--muted); }
-.una-ev-x {
-  flex: 0 0 auto; width: 24px; height: 24px; border: none; border-radius: 6px;
-  background: transparent; color: var(--muted); cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
+
+.una-add-end {
+  align-self: flex-end; display: inline-flex; align-items: center; gap: 5px; height: 30px;
+  padding: 0 11px; border: 1.5px dashed var(--border); border-radius: 7px;
+  background: transparent; color: var(--muted); font-size: .72rem; font-family: inherit; cursor: pointer;
 }
-.una-ev-x:hover { background: rgba(224,82,82,.12); color: var(--danger, #e05252); }
+.una-add-end:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.una-add-end:disabled { opacity: .4; cursor: not-allowed; }
+.una-end-clear {
+  border: none; background: transparent; color: var(--muted); cursor: pointer;
+  font-size: .8rem; line-height: 1; padding: 0 1px;
+}
+.una-end-clear:hover { color: var(--danger, #e05252); }
+
+/* Add-another-event — standalone, clearly separate from the event cards */
 .una-ev-add {
-  display: flex; align-items: center; gap: 7px; width: 100%;
-  padding: 11px 14px; border: none; background: transparent;
-  color: var(--muted); font-size: .78rem; font-family: inherit; cursor: pointer;
+  align-self: stretch; display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 10px 14px; border: 1.5px dashed var(--border); border-radius: 10px;
+  background: transparent; color: var(--muted); font-size: .8rem; font-family: inherit; cursor: pointer;
 }
-.una-ev-add:hover { color: var(--accent); }
+.una-ev-add:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ── CTA ── */
 .una-cta { align-self: stretch; display: flex; gap: 9px; }
