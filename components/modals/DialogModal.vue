@@ -20,13 +20,14 @@
           <button
             v-for="c in state.choices"
             :key="c.value"
+            :ref="el => setPrimaryRef(el, c)"
             class="dlg-choice-btn"
             :class="{ 'dlg-choice-primary': c.primary }"
             @click="_resolve(c.value)"
           >
             {{ c.label }}
           </button>
-          <div class="dlg-actions" style="margin-top:4px;">
+          <div v-if="state.dismissible !== false" class="dlg-actions" style="margin-top:4px;">
             <button class="dlg-cancel" @click="dismiss">{{ state.cancelLabel }}</button>
           </div>
         </div>
@@ -51,14 +52,23 @@ const inputVal   = ref('')
 const inputRef   = ref(null)
 const confirmRef = ref(null)
 const boxRef     = ref(null)
+const primaryChoiceRef = ref(null)
+
+// Focus target for choice dialogs: the primary option, so Enter picks the safe
+// branch instead of resolving to a value no choice declared.
+function setPrimaryRef(el, c) {
+  if (c.primary) primaryChoiceRef.value = el
+}
 
 // When a new dialog opens: reset input and focus the right element
 watch(state, (val) => {
   if (!val) return
   inputVal.value = val.defaultValue || ''
+  if (val.type !== 'choice') primaryChoiceRef.value = null
   nextTick(() => {
-    if (val.type === 'prompt') inputRef.value?.focus()
-    else confirmRef.value?.focus()
+    if (val.type === 'prompt')      inputRef.value?.focus()
+    else if (val.type === 'choice') primaryChoiceRef.value?.focus()
+    else                            confirmRef.value?.focus()
   })
 })
 
@@ -69,6 +79,11 @@ function onConfirm() {
 
 function dismiss() {
   if (!state.value) return
+  if (state.value.dismissible === false) return
+  // 'choice' resolves to null on cancel (documented contract). It used to resolve
+  // `false` like a confirm dialog, which callers read as "not my choice value" and
+  // silently treated as one of the branches.
+  if (state.value.type === 'choice') return _resolve(null)
   _resolve(state.value.type === 'prompt' ? null : false)
 }
 
@@ -76,7 +91,12 @@ function dismiss() {
 function onKeydown(e) {
   if (!state.value) return
   if (e.key === 'Escape') { e.stopPropagation(); dismiss() }
-  if (e.key === 'Enter' && state.value.type !== 'prompt') {
+  if (e.key === 'Enter') {
+    // In a choice dialog there is no single "confirm": let Enter activate the
+    // focused button (the primary one gets focus on open). Swallowing it here made
+    // Enter resolve `true`, which is nobody's choice value.
+    if (state.value.type === 'choice') return
+    if (state.value.type === 'prompt') return
     const tag = document.activeElement?.tagName
     if (tag !== 'TEXTAREA') { e.preventDefault(); e.stopPropagation(); onConfirm() }
   }

@@ -24,9 +24,13 @@ export function useDialog() {
 
   // Multi-choice dialog — resolves with the chosen `value`, or null on cancel.
   // choices: [{ label, value, primary? }]
-  function choice({ title, body = '', choices = [], cancelLabel = 'Cancelar' } = {}) {
+  //
+  // dismissible: false removes the cancel button and ignores Esc / backdrop clicks,
+  // for questions where every outcome matters and there is no safe default (a save
+  // conflict: one branch discards the user's edits, the other stops saving them).
+  function choice({ title, body = '', choices = [], cancelLabel = 'Cancelar', dismissible = true } = {}) {
     return new Promise(resolve => {
-      _state.value = { type: 'choice', title, body, choices, cancelLabel, resolve }
+      _state.value = { type: 'choice', title, body, choices, cancelLabel, dismissible, resolve }
     })
   }
 

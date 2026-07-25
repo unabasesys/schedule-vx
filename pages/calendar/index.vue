@@ -40,16 +40,20 @@
       </div>
 
       <div class="hdr-actions">
-        <!-- Save state: without this, a failing API looked exactly like a working one -->
-        <div
+        <!-- Save state: without this, a failing API looked exactly like a working one.
+             In 'conflict' it's a button: autosave is paused waiting for a decision,
+             so the user needs a way back to that decision. -->
+        <component
+          :is="projectsStore.saveState === 'conflict' ? 'button' : 'div'"
           v-if="projectsStore.saveState !== 'idle'"
           class="save-state"
           :class="`save-state--${projectsStore.saveState}`"
-          :title="saveStateLabel"
+          :title="saveStateTitle"
+          @click="projectsStore.saveState === 'conflict' && projectsStore.resolveConflict()"
         >
           <span class="save-state-dot"></span>
           <span class="save-state-txt">{{ saveStateLabel }}</span>
-        </div>
+        </component>
         <ShareDropdown :project="currentProject" />
         <div class="hdr-sep"></div>
         <button
@@ -333,11 +337,20 @@ function setLang(l) {
 const saveStateLabel = computed(() => {
   const en = globalStore.lang === 'en'
   switch (projectsStore.saveState) {
-    case 'saving': return en ? 'Saving…'  : 'Guardando…'
-    case 'saved':  return en ? 'Saved'    : 'Guardado'
-    case 'error':  return en ? 'Unsaved — retrying' : 'Sin guardar — reintentando'
-    default:       return ''
+    case 'saving':   return en ? 'Saving…'  : 'Guardando…'
+    case 'saved':    return en ? 'Saved'    : 'Guardado'
+    case 'error':    return en ? 'Unsaved — retrying' : 'Sin guardar — reintentando'
+    // Not retrying: it's waiting on the user, so don't imply a retry is coming.
+    case 'conflict': return en ? 'Unsaved' : 'Sin guardar'
+    default:         return ''
   }
+})
+
+const saveStateTitle = computed(() => {
+  if (projectsStore.saveState !== 'conflict') return saveStateLabel.value
+  return globalStore.lang === 'en'
+    ? 'Saving is paused because someone else saved this calendar. Click to resolve.'
+    : 'El guardado está pausado porque otra persona guardó este calendario. Hacé clic para resolverlo.'
 })
 
 // Feature highlights shown on the empty-state landing.
@@ -419,12 +432,26 @@ function createFromTemplate(tmplId) {
   padding: 4px 9px; border-radius: 999px;
   border: 1px solid var(--border); color: var(--muted);
   transition: color .15s, border-color .15s, opacity .3s;
+  background: none; font-family: inherit;   /* renders as a <button> in 'conflict' */
 }
 .save-state-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 6px; }
 .save-state--saving { color: var(--muted); }
 .save-state--saving .save-state-dot { animation: savePulse 1s ease-in-out infinite; }
 .save-state--saved  { color: var(--accent); border-color: rgba(6,204,180,.35); }
 .save-state--error  { color: var(--danger, #e05252); border-color: rgba(224,82,82,.45); background: rgba(224,82,82,.08); }
+/* Conflict is amber, not red: nothing is broken, it's waiting on a decision —
+   and it's the one state you can click, so it needs the affordance. */
+.save-state--conflict {
+  color: var(--warning, #e0a316); border-color: rgba(224,163,22,.5);
+  background: rgba(224,163,22,.1); cursor: pointer;
+}
+.save-state--conflict:hover { border-color: var(--warning, #e0a316); background: rgba(224,163,22,.18); }
+.save-state--conflict {
+  color: var(--danger, #e05252); border-color: rgba(224,82,82,.45);
+  background: rgba(224,82,82,.08); cursor: pointer;
+}
+.save-state--conflict:hover { background: rgba(224,82,82,.16); }
+.save-state--conflict .save-state-dot { animation: savePulse 1.4s ease-in-out infinite; }
 @keyframes savePulse { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
 @media (max-width: 860px) { .save-state-txt { display: none; } }
 

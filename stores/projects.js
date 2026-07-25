@@ -143,8 +143,13 @@ const _dailySyncTimers        = new Map()
 const _inFlight               = new Set()   // projIds with a PUT in flight — serializes saves so we never send a stale baseRev
 const _pendingFlush           = new Map()   // projId → { baseRev, writes } sent by an unload flush whose response we couldn't read
 const _retries                = new Map()   // projId → consecutive failed writes, for retry backoff
+const _creating               = new Set()   // local ids with a create POST in flight
+const _createTimers           = new Map()   // local id → retry timer for a failed create
+const _createRetries          = new Map()   // local id → consecutive failed creates
+const _conflictDialogs        = new Set()   // projIds whose conflict dialog is open
 let   _savedFade              = null        // timer that hides the "saved" pill
 let   _unloadListenerRegistered = false
+let   _holidayWarnAt          = 0           // throttles the "holidays unavailable" notice
 
 const isMongoId = (id) => /^[0-9a-f]{24}$/i.test(id || '')
 
@@ -166,7 +171,9 @@ export const useProjectsStore = defineStore('projects', {
     // Save feedback. Until now every write failure was a console.warn, so if the
     // API went down the user kept working for half an hour believing their work
     // was saved. 'error' means there are unsaved changes and we're retrying.
-    saveState: 'idle',   // 'idle' | 'saving' | 'saved' | 'error'
+    // 'conflict' is its own state: unlike 'error' it is NOT retrying — it waits for
+    // the user to decide, so the pill must not promise a retry that never comes.
+    saveState: 'idle',   // 'idle' | 'saving' | 'saved' | 'error' | 'conflict'
   }),
 
   getters: {
@@ -296,8 +303,13 @@ export const useProjectsStore = defineStore('projects', {
           }
         })
 
-        // API is the single source of truth — replace local state entirely
-        this.projects = normProjects
+        // API is the single source of truth — replace local state entirely, except
+        // for calendars whose create POST hasn't landed yet: they only exist in
+        // memory, so wiping the list here deleted them while a retry was pending.
+        const pendingCreates = this.projects.filter(
+          p => !isMongoId(p.id) && (_creating.has(p.id) || _createTimers.has(p.id))
+        )
+        this.projects = [...pendingCreates, ...normProjects]
 
         // Built-in IPS template is always bundled locally (never stored per-org in the API)
         const ipsTemplate = this.templates.find(t => t.source === 'unabase')
@@ -396,7 +408,13 @@ export const useProjectsStore = defineStore('projects', {
     // ── Write outcome: surface it, and retry instead of dropping the edit ───────
     _onWriteOk(projId) {
       _retries.delete(projId)
-      if (_syncTimers.size || _dailySyncTimers.size) { this.saveState = 'saving'; return }
+      // Another calendar stuck in a conflict still has unsaved work — a successful
+      // write here must not paint over that.
+      if (this.projects.some(p => p.conflicted)) { this.saveState = 'conflict'; return }
+      if (_syncTimers.size || _dailySyncTimers.size || _creating.size || _createTimers.size) {
+        this.saveState = 'saving'
+        return
+      }
       this.saveState = 'saved'
       // Fade the confirmation away so the pill isn't permanent furniture; 'error'
       // never auto-hides, because that one the user needs to keep seeing.
@@ -425,44 +443,71 @@ export const useProjectsStore = defineStore('projects', {
     // Someone else saved this calendar first. Pause autosave immediately (so
     // nothing clobbers their work) and let the user choose: load the fresh
     // server version, or keep editing locally without saving.
+    //
+    // The dialog cannot be dismissed. It used to be a plain choice dialog, where
+    // Esc *and* Enter both resolved to something that wasn't 'reload' — so a reflex
+    // keypress silently took the "keep mine, stop saving" branch and every later
+    // edit in the session was quietly discarded.
     async _handleConflict(projId, serverProject) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
 
       proj.conflicted = true
-      this.saveState = 'error'   // autosave is paused: there ARE unsaved changes
+      this.saveState = 'conflict'   // autosave is paused: there ARE unsaved changes
       if (_syncTimers.has(projId)) { clearTimeout(_syncTimers.get(projId)); _syncTimers.delete(projId) }
       // Also drop any pending daily PATCH: it would fire after the conflict is
       // resolved, write the just-adopted server data straight back and bump rev,
       // handing every other editor a spurious conflict.
       if (_dailySyncTimers.has(projId)) { clearTimeout(_dailySyncTimers.get(projId)); _dailySyncTimers.delete(projId) }
 
+      if (_conflictDialogs.has(projId)) return   // already asking; don't stack dialogs
+      _conflictDialogs.add(projId)
+
       const globalStore = useGlobalStore()
       const en = globalStore.lang === 'en'
       const { choice } = useDialog()
-      const pick = await choice({
-        title: en ? 'Someone else saved changes' : 'Otra persona guardó cambios',
-        body: en
-          ? 'Another user saved this calendar while you were editing. To avoid overwriting their work, choose how to continue:'
-          : 'Otra persona guardó este calendario mientras lo editabas. Para no pisar su trabajo, elegí cómo seguir:',
-        choices: [
-          { label: en ? 'Load the latest version' : 'Ver la versión más reciente', value: 'reload', primary: true },
-          { label: en ? 'Keep mine (stop saving)'  : 'Seguir con la mía (no guardar)', value: 'keep' },
-        ],
-      })
+      let pick
+      try {
+        pick = await choice({
+          title: en ? 'Someone else saved changes' : 'Otra persona guardó cambios',
+          body: en
+            ? 'Another user saved this calendar while you were editing. To avoid overwriting their work, choose how to continue:'
+            : 'Otra persona guardó este calendario mientras lo editabas. Para no pisar su trabajo, elegí cómo seguir:',
+          choices: [
+            { label: en ? 'Load the latest version' : 'Ver la versión más reciente', value: 'reload', primary: true },
+            { label: en ? 'Keep mine (stop saving)'  : 'Seguir con la mía (no guardar)', value: 'keep' },
+          ],
+          dismissible: false,
+        })
+      } finally {
+        _conflictDialogs.delete(projId)
+      }
 
-      if (pick === 'reload') {
-        this._adoptServerProject(projId, serverProject)
-      } else {
-        // Stay paused. Let the user know their edits won't persist until reload.
+      if (pick === 'keep') {
+        // Stay paused. The header pill keeps reporting the conflict and reopens
+        // this dialog on click, so "not saving" can't fade into the background.
         try {
           useNuxtApp().$toast(
-            en ? 'Your changes will not be saved until you reload the page.'
-               : 'Tus cambios no se guardarán hasta que recargues la página.',
+            en ? 'Your changes are not being saved. Click "Unsaved" in the header to resolve the conflict.'
+               : 'Tus cambios no se están guardando. Hacé clic en "Sin guardar" en la cabecera para resolver el conflicto.',
             { type: 'error' },
           )
         } catch { /* toast unavailable */ }
+      } else {
+        // Anything else — including a dismissal we didn't expect — takes the safe
+        // branch: get back in sync with the server and resume saving.
+        this._adoptServerProject(projId, serverProject)
       }
+    },
+
+    // Reopens the conflict dialog for a paused calendar (from the header pill).
+    // Always re-reads the server copy: by now the version carried by the original
+    // 409 may itself be out of date.
+    resolveConflict(projId) {
+      const id = projId || this.selectedId
+      const proj = this.projects.find(p => p.id === id) || this.projects.find(p => p.conflicted)
+      if (!proj?.conflicted) return
+      return this._handleConflict(proj.id, null)
     },
 
     // Replace the local copy of a project with the authoritative server copy.
@@ -477,7 +522,7 @@ export const useProjectsStore = defineStore('projects', {
         doc.conflicted = false
         this.projects[idx] = doc
         _retries.delete(projId)
-        this.saveState = 'saved'   // we're back in sync with the server
+        this._onWriteOk(projId)   // we're back in sync with the server
       }
 
       if (serverProject) {
@@ -730,6 +775,11 @@ export const useProjectsStore = defineStore('projects', {
           this.projects
             .filter(p => p.hasChanges && isMongoId(p.id) && !p.conflicted)
             .forEach(p => this._scheduleSyncProject(p.id))
+          // A calendar whose create never landed has no server id, so the sync above
+          // skips it forever. Re-attempt the create instead of losing the calendar.
+          this.projects
+            .filter(p => !isMongoId(p.id) && !_creating.has(p.id) && !_createTimers.has(p.id))
+            .forEach(p => this._apiCreateProject(p.id))
         }
       } catch { /* auth store may not be available during init */ }
     },
@@ -818,34 +868,71 @@ export const useProjectsStore = defineStore('projects', {
       this.save()
 
       // Sync to API in background
-      this._apiCreateProject(proj)
+      this._apiCreateProject(proj.id)
 
       return proj
     },
 
-    async _apiCreateProject(proj) {
+    // Creates the calendar on the API and swaps its local id for the server one.
+    //
+    // A failed create used to be a bare console.warn. The calendar kept its local
+    // id, and every writer skips non-Mongo ids (`isMongoId` guard), so nothing ever
+    // retried: the calendar looked completely normal and then vanished on reload,
+    // events and all. Now it retries with backoff and reports through saveState.
+    async _apiCreateProject(localId) {
       const authStore = useAuthStore()
       if (!authStore?.isLoggedIn) return
+      if (_creating.has(localId)) return   // one POST at a time, or we'd create duplicates
+      const proj = this.projects.find(p => p.id === localId)
+      if (!proj || isMongoId(proj.id)) return
+
+      if (_createTimers.has(localId)) { clearTimeout(_createTimers.get(localId)); _createTimers.delete(localId) }
+      _creating.add(localId)
+      this.saveState = 'saving'
       try {
-        const created = normalizeDoc(await useApi().post('/projects', proj))
-        const idx = this.projects.findIndex(p => p.id === proj.id)
-        if (idx !== -1) {
-          const localUpdatedAt = this.projects[idx].updatedAt
-          const localEditedAt  = this.projects[idx].editedAt
-          Object.assign(this.projects[idx], created, { id: created.id })
-          if (localUpdatedAt > (this.projects[idx].updatedAt || '')) {
-            this.projects[idx].updatedAt = localUpdatedAt
+        const created = normalizeDoc(await useApi().post('/projects', { ...proj }))
+        const live = this.projects.find(p => p.id === localId)
+        if (!live) {
+          // Deleted while the POST was in flight — undo it on the server, otherwise
+          // the calendar reappears on the next reload.
+          if (isMongoId(created.id)) {
+            useApi().delete(`/projects/${created.id}`).catch(() => {})
           }
-          if ((localEditedAt || '') > (this.projects[idx].editedAt || '')) {
-            this.projects[idx].editedAt = localEditedAt
-          }
+        } else {
+          // Adopt only the server-owned fields. Assigning the whole response over the
+          // local copy discarded anything the user typed while the POST was in flight.
+          live.id  = created.id
+          live.uid = created.uid || live.uid
+          live.rev = created.rev ?? 0
+          if (created.createdAt) live.createdAt = created.createdAt
+          if ((created.updatedAt || '') > (live.updatedAt || '')) live.updatedAt = created.updatedAt
+          // Follow the selection instead of jumping to whatever sits at the top of
+          // the list: the user may have switched calendars while the POST ran.
+          if (this.selectedId === localId) this.selectedId = created.id
+          // Edits made during the POST aren't on the server yet.
+          if (live.hasChanges) this._scheduleSyncProject(live.id)
         }
-        // Select the first project (newly created, unshifted to front)
-        const first = this.projects[0]
-        if (first) this.selectProject(first.id)
+        _createRetries.delete(localId)
+        this._onWriteOk(localId)
       } catch (e) {
-        console.warn('Failed to create project on API:', e.message)
+        this._onCreateFailed(localId, e)
+      } finally {
+        _creating.delete(localId)
       }
+    },
+
+    _onCreateFailed(localId, err) {
+      console.warn('Failed to create project on API:', err?.message)
+      this.saveState = 'error'
+      const attempt = (_createRetries.get(localId) || 0) + 1
+      _createRetries.set(localId, attempt)
+      if (attempt > 6) return   // stop re-arming; the next user edit tries again via save()
+      const delay = Math.min(30000, 1000 * 2 ** (attempt - 1))   // 1s → 30s
+      if (_createTimers.has(localId)) clearTimeout(_createTimers.get(localId))
+      _createTimers.set(localId, setTimeout(() => {
+        _createTimers.delete(localId)
+        this._apiCreateProject(localId)
+      }, delay))
     },
 
     updateProject(id, data) {
@@ -883,6 +970,10 @@ export const useProjectsStore = defineStore('projects', {
     },
 
     deleteProject(id) {
+      // Cancel a pending create first, or the retry would resurrect the calendar
+      // the user just deleted.
+      if (_createTimers.has(id)) { clearTimeout(_createTimers.get(id)); _createTimers.delete(id) }
+      _createRetries.delete(id)
       this.projects = this.projects.filter(p => p.id !== id)
       if (this.selectedId === id) {
         const remaining = this.projects
@@ -989,7 +1080,7 @@ export const useProjectsStore = defineStore('projects', {
       this.save()
 
       // Sync copy to API in background
-      this._apiCreateProject(proj)
+      this._apiCreateProject(proj.id)
 
       return proj
     },
@@ -1194,7 +1285,58 @@ export const useProjectsStore = defineStore('projects', {
       this.save()
     },
 
+    // Recalculates dependent dates, then saves.
+    //
+    // Business-day math needs the holiday list, and a missing list is NOT the same
+    // as "no holidays": recalculating without it puts dates on holidays and then
+    // persists them, quietly corrupting a calendar that was right before. So if a
+    // configured country/year isn't loaded, fetch it first; if it can't be fetched,
+    // leave the dates untouched and tell the user. The already-loaded case (the
+    // normal one, the calendar view prefetches) still runs synchronously — callers
+    // read the recalculated dates right after this returns.
     recalcAndSave(projId) {
+      const proj = this.projects.find(p => p.id === projId)
+      if (!proj) return
+
+      const holidaysStore = useHolidaysStore()
+      const codes = (proj.holidays || []).map(h => h.countryCode).filter(Boolean)
+      const years = [...new Set(
+        (proj.events || []).filter(e => e.date).map(e => Number(e.date.slice(0, 4)))
+      )]
+      const missing = []
+      codes.forEach(code => years.forEach(year => {
+        if (!holidaysStore.isLoaded(code, year)) missing.push([code, year])
+      }))
+
+      if (!missing.length) { this._recalcNow(projId); return }
+
+      // Persist the edit that triggered this right away — only the derived dates wait.
+      this.save()
+      Promise.all(missing.map(([code, year]) => holidaysStore.fetchHolidaysForYear(code, year)))
+        .then(results => {
+          if (results.some(r => r === null)) { this._warnHolidaysUnavailable(); return }
+          this._recalcNow(projId)
+        })
+        .catch(() => this._warnHolidaysUnavailable())
+    },
+
+    // Holidays couldn't be loaded, so business-day dates weren't recalculated.
+    // Silence here is what makes it dangerous: the user sees dates that look final.
+    _warnHolidaysUnavailable() {
+      const now = Date.now()
+      if (now - _holidayWarnAt < 30000) return
+      _holidayWarnAt = now
+      const en = useGlobalStore().lang === 'en'
+      try {
+        useNuxtApp().$toast(
+          en ? "Couldn't load the holiday list, so dates that depend on business days were left as they were. Check your connection and edit again."
+             : 'No se pudo cargar la lista de feriados, así que las fechas que dependen de días hábiles quedaron como estaban. Revisá la conexión y volvé a editar.',
+          { type: 'error' },
+        )
+      } catch { /* toast unavailable */ }
+    },
+
+    _recalcNow(projId) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
       const { recalcProject } = useDependencyEngine()
