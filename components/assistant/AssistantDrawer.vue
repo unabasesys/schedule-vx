@@ -179,11 +179,7 @@ const replyText = computed(() => {
   return `Copiado. Tengo <strong>${n} evento${n === 1 ? '' : 's'}</strong> para el board ${b}. Revisá antes de que los mande al calendario.`
 })
 
-const createLabel = computed(() => {
-  const n = parsed.value.filter(e => e.name?.trim() && e.date).length
-  if (isEN.value) return `Add ${n} to calendar`
-  return `Agregar ${n} al calendario`
-})
+const createLabel = computed(() => isEN.value ? 'Add to calendar' : 'Agregar al calendario')
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
@@ -410,10 +406,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .una-ev:hover { background: rgba(255,255,255,.02); }
 .una-ev-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
 .una-ev-name {
-  border: none; background: transparent; color: var(--text-title, var(--text));
-  font-size: .85rem; font-weight: 600; font-family: inherit; padding: 2px 0; width: 100%; letter-spacing: -.01em;
+  width: 100%;
+  border: 1.5px solid var(--border); border-radius: 7px; background: var(--surface);
+  color: var(--text-title, var(--text));
+  font-size: .85rem; font-weight: 600; font-family: inherit; padding: 6px 9px; letter-spacing: -.01em;
 }
-.una-ev-name:focus { outline: none; }
+.una-ev-name:focus { outline: none; border-color: var(--accent); }
+.una-ev-name::placeholder { color: var(--muted); font-weight: 400; }
 .una-ev-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .una-ev-date, .una-ev-days, .una-stage-select, .una-newstage {
   border: 1.5px solid var(--border); border-radius: 7px; background: var(--surface);
