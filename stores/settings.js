@@ -125,7 +125,12 @@ export const useSettingsStore = defineStore('settings', {
           },
           body: JSON.stringify({
             name,
-            contact: { webSite: website },
+            // Send `website`, NOT a whole `contact` object: the org's contact
+            // subdocument also holds phone/phone2/email/email2, which belong to the
+            // other unabase apps sharing this organization. Passing `contact` makes
+            // the backend $set the entire subdocument and wipe those fields; the
+            // backend maps `website` to the `contact.webSite` path instead.
+            website,
             scheduleSettings,
           }),
         })
