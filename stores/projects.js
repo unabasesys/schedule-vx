@@ -141,6 +141,7 @@ function eventsFromTemplate(tmpl) {
 const _syncTimers             = new Map()
 const _dailySyncTimers        = new Map()
 const _inFlight               = new Set()   // projIds with a PUT in flight — serializes saves so we never send a stale baseRev
+const _pendingFlush           = new Map()   // projId → { baseRev, writes } sent by an unload flush whose response we couldn't read
 let   _unloadListenerRegistered = false
 
 const isMongoId = (id) => /^[0-9a-f]{24}$/i.test(id || '')
@@ -393,6 +394,10 @@ export const useProjectsStore = defineStore('projects', {
 
       proj.conflicted = true
       if (_syncTimers.has(projId)) { clearTimeout(_syncTimers.get(projId)); _syncTimers.delete(projId) }
+      // Also drop any pending daily PATCH: it would fire after the conflict is
+      // resolved, write the just-adopted server data straight back and bump rev,
+      // handing every other editor a spurious conflict.
+      if (_dailySyncTimers.has(projId)) { clearTimeout(_dailySyncTimers.get(projId)); _dailySyncTimers.delete(projId) }
 
       const globalStore = useGlobalStore()
       const en = globalStore.lang === 'en'
@@ -444,9 +449,18 @@ export const useProjectsStore = defineStore('projects', {
       }
     },
 
-    // Registers pagehide + visibilitychange listeners that flush pending debounced syncs
-    // before the page unloads. keepalive:true tells the browser to complete the fetch
-    // even when the page is already navigating away (fixes the "Cmd+R too fast" problem).
+    // Flushes pending debounced syncs when the page is hidden or unloading.
+    //
+    // Two very different situations, handled differently on purpose:
+    //  • Tab switch / app backgrounded (visibilitychange → hidden): the page stays
+    //    alive, so we go through the normal writers. They carry baseRev, ADOPT the
+    //    server's new rev, serialize against in-flight saves and surface genuine
+    //    conflicts. Using fire-and-forget here used to leave the local rev one
+    //    behind every time the user changed tabs — the next save then 409'd and the
+    //    user got a phantom "someone else saved" dialog and lost work.
+    //  • Real unload (pagehide): the page can die mid-request, so we must use
+    //    keepalive fetches and cannot read the response. We record what we sent and
+    //    reconcile if the page turns out to survive (bfcache restore, mobile resume).
     _registerUnloadFlush() {
       if (_unloadListenerRegistered) return
       _unloadListenerRegistered = true
@@ -454,7 +468,21 @@ export const useProjectsStore = defineStore('projects', {
       const config = useRuntimeConfig()
       const BASE   = config.public.apiUrl
 
-      const flush = () => {
+      const flush = (isUnloading) => {
+        if (!isUnloading) {
+          for (const [projId, timer] of [..._syncTimers]) {
+            clearTimeout(timer)
+            _syncTimers.delete(projId)
+            this._putProject(projId)
+          }
+          for (const [projId, timer] of [..._dailySyncTimers]) {
+            clearTimeout(timer)
+            _dailySyncTimers.delete(projId)
+            this._patchDaily(projId)
+          }
+          return
+        }
+
         let token = '', orgId = ''
         try {
           const authStore = useAuthStore()
@@ -468,6 +496,14 @@ export const useProjectsStore = defineStore('projects', {
           ...(orgId ? { Organization: orgId }               : {}),
         }
 
+        // Remember baseRev + how many writes we fired per project, so a surviving
+        // page can tell "my flush landed" from "someone else saved".
+        const note = (projId, baseRev) => {
+          const prev = _pendingFlush.get(projId)
+          if (prev) prev.writes += 1
+          else _pendingFlush.set(projId, { baseRev, writes: 1 })
+        }
+
         for (const [projId, timer] of [..._syncTimers]) {
           clearTimeout(timer)
           _syncTimers.delete(projId)
@@ -475,6 +511,7 @@ export const useProjectsStore = defineStore('projects', {
           if (!proj || proj.conflicted) continue
           const { hidden: _h, conflicted: _c, ...payload } = proj
           payload.baseRev = proj.rev ?? 0   // carries the guard: a stale flush is rejected, never clobbers
+          note(projId, payload.baseRev)
           fetch(`${BASE}/projects/${projId}`, {
             method: 'PUT', keepalive: true, headers,
             body: JSON.stringify(payload),
@@ -486,6 +523,7 @@ export const useProjectsStore = defineStore('projects', {
           _dailySyncTimers.delete(projId)
           const proj = this.projects.find(p => p.id === projId)
           if (!proj || proj.conflicted) continue
+          note(projId, proj.rev ?? 0)
           fetch(`${BASE}/projects/${projId}/daily`, {
             method: 'PATCH', keepalive: true, headers,
             body: JSON.stringify({
@@ -498,16 +536,52 @@ export const useProjectsStore = defineStore('projects', {
       }
 
       if (typeof window !== 'undefined') {
-        window.addEventListener('pagehide', flush)
+        window.addEventListener('pagehide', () => flush(true))
+        window.addEventListener('pageshow', () => this._reconcileFlushed())
         window.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'hidden') flush()
+          if (document.visibilityState === 'hidden') flush(false)
+          else this._reconcileFlushed()
         })
       }
     },
 
+    // After an unload flush the page may come back alive (bfcache restore, mobile
+    // app resume). We couldn't read those responses, so ask the server where the
+    // rev landed:
+    //   server === baseRev + writes → our flush landed; adopt the rev so the next
+    //                                 save doesn't 409 against our own write.
+    //   server === baseRev          → nothing landed; re-arm the save instead of
+    //                                 silently dropping the user's last edits.
+    //   anything else               → someone else wrote too; leave rev alone and
+    //                                 let the guard surface a real conflict.
+    async _reconcileFlushed() {
+      if (!_pendingFlush.size) return
+      for (const [projId, { baseRev, writes }] of [..._pendingFlush]) {
+        _pendingFlush.delete(projId)
+        const proj = this.projects.find(p => p.id === projId)
+        if (!proj || proj.conflicted || !isMongoId(projId)) continue
+        try {
+          const fresh = await useApi().get(`/projects/${projId}`)
+          const serverRev = fresh?.rev ?? 0
+          const live = this.projects.find(p => p.id === projId)
+          if (!live || live.conflicted) continue
+          if (serverRev === baseRev + writes) live.rev = serverRev
+          else if (serverRev === baseRev) this._scheduleSyncProject(projId)
+        } catch { /* offline — leave state as is; the guard still protects us */ }
+      }
+    },
+
     // Debounced PATCH for daily-only changes — does NOT bump updatedAt on the server.
+    //
+    // Defers to a pending full-project PUT: every daily mutation also sets
+    // hasChanges and calls save(), and that PUT already carries dailySchedule and
+    // dailyConfig. Firing both was a redundant second write that (a) advanced rev
+    // twice per edit, so a teammate's next save 409'd with a phantom "someone else
+    // saved" conflict, and (b) during an unload flush raced the PUT with the same
+    // baseRev, so whichever the server handled second was silently discarded.
     _scheduleSyncDaily(projId) {
       if (!isMongoId(projId)) return
+      if (_syncTimers.has(projId) || _inFlight.has(projId)) return
       const proj = this.projects.find(p => p.id === projId)
       if (proj?.conflicted) return   // autosave paused until the user reloads
       if (_dailySyncTimers.has(projId)) clearTimeout(_dailySyncTimers.get(projId))
@@ -806,7 +880,10 @@ export const useProjectsStore = defineStore('projects', {
 
       const authStore = useAuthStore()
       if (authStore?.isLoggedIn && isMongoId(id)) {
-        useApi().patch(`/projects/${id}/archive`).catch(e => console.warn('archive API failed:', e.message))
+        // Send the state we just switched to — the endpoint used to always archive,
+        // so "restore" archived the calendar again on the server.
+        useApi().patch(`/projects/${id}/archive`, { archived: proj.status === 'archived' })
+          .catch(e => console.warn('archive API failed:', e.message))
       }
     },
 
