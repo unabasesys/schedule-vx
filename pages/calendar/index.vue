@@ -259,6 +259,19 @@
     <SuggestModal v-if="globalStore.suggestOpen" />
     <WhatsNewModal v-if="globalStore.whatsNewOpen" />
     <ContactsModal v-if="globalStore.contactsOpen" @close="globalStore.closeContacts()" />
+    <AssistantDrawer v-if="globalStore.assistantOpen" />
+
+    <!-- Floating assistant button -->
+    <button
+      class="assistant-fab"
+      :title="globalStore.lang === 'en' ? 'Schedule with the assistant' : 'Agendar con el asistente'"
+      @click="globalStore.openAssistant()"
+    >
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M8 22h8"/>
+      </svg>
+    </button>
 
     <!-- One-time "what's new" card, shown until the current version is seen -->
     <WhatsNewToast />
@@ -361,6 +374,19 @@ function createFromTemplate(tmplId) {
 </script>
 
 <style scoped>
+/* Floating assistant button — bottom-right corner */
+.assistant-fab {
+  position: fixed; right: 22px; bottom: 22px; z-index: 150;
+  width: 52px; height: 52px; border-radius: 50%;
+  border: none; cursor: pointer; color: #fff;
+  background: var(--accent);
+  box-shadow: 0 6px 20px rgba(6,204,180,.35);
+  display: flex; align-items: center; justify-content: center;
+  transition: transform .13s, box-shadow .13s, background .13s;
+}
+.assistant-fab:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 10px 26px rgba(6,204,180,.45); background: var(--accent-dark, var(--accent)); }
+.assistant-fab:active { transform: translateY(0) scale(.98); }
+
 .cloud-loading-bar {
   position: sticky; top: 0; z-index: 200; height: 3px;
 }

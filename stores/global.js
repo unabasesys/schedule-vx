@@ -26,6 +26,7 @@ export const useGlobalStore = defineStore('global', {
     suggestOpen:       false,
     whatsNewOpen:      false,
     contactsOpen:      false,
+    assistantOpen:     false,
     sidebarCollapsed:  false,
   }),
 
@@ -107,5 +108,7 @@ export const useGlobalStore = defineStore('global', {
     closeWhatsNew() { this.whatsNewOpen = false },
     openContacts()  { this.contactsOpen = true },
     closeContacts() { this.contactsOpen = false },
+    openAssistant()  { this.assistantOpen = true },
+    closeAssistant() { this.assistantOpen = false },
   },
 })
