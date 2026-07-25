@@ -40,6 +40,16 @@
       </div>
 
       <div class="hdr-actions">
+        <!-- Save state: without this, a failing API looked exactly like a working one -->
+        <div
+          v-if="projectsStore.saveState !== 'idle'"
+          class="save-state"
+          :class="`save-state--${projectsStore.saveState}`"
+          :title="saveStateLabel"
+        >
+          <span class="save-state-dot"></span>
+          <span class="save-state-txt">{{ saveStateLabel }}</span>
+        </div>
         <ShareDropdown :project="currentProject" />
         <div class="hdr-sep"></div>
         <button
@@ -320,6 +330,16 @@ function setLang(l) {
   }
 }
 
+const saveStateLabel = computed(() => {
+  const en = globalStore.lang === 'en'
+  switch (projectsStore.saveState) {
+    case 'saving': return en ? 'Saving…'  : 'Guardando…'
+    case 'saved':  return en ? 'Saved'    : 'Guardado'
+    case 'error':  return en ? 'Unsaved — retrying' : 'Sin guardar — reintentando'
+    default:       return ''
+  }
+})
+
 // Feature highlights shown on the empty-state landing.
 const features = [
   { es: 'Stages',                  en: 'Stages' },
@@ -392,6 +412,22 @@ function createFromTemplate(tmplId) {
 </script>
 
 <style scoped>
+/* Save-state pill — quiet when things work, loud only when they don't */
+.save-state {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .68rem; font-weight: 600; white-space: nowrap;
+  padding: 4px 9px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--muted);
+  transition: color .15s, border-color .15s, opacity .3s;
+}
+.save-state-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 6px; }
+.save-state--saving { color: var(--muted); }
+.save-state--saving .save-state-dot { animation: savePulse 1s ease-in-out infinite; }
+.save-state--saved  { color: var(--accent); border-color: rgba(6,204,180,.35); }
+.save-state--error  { color: var(--danger, #e05252); border-color: rgba(224,82,82,.45); background: rgba(224,82,82,.08); }
+@keyframes savePulse { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
+@media (max-width: 860px) { .save-state-txt { display: none; } }
+
 /* "Hey Una" assistant button — lives in the top view-tabs bar */
 .hey-una-btn {
   margin-left: 8px;

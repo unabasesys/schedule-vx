@@ -142,6 +142,8 @@ const _syncTimers             = new Map()
 const _dailySyncTimers        = new Map()
 const _inFlight               = new Set()   // projIds with a PUT in flight — serializes saves so we never send a stale baseRev
 const _pendingFlush           = new Map()   // projId → { baseRev, writes } sent by an unload flush whose response we couldn't read
+const _retries                = new Map()   // projId → consecutive failed writes, for retry backoff
+let   _savedFade              = null        // timer that hides the "saved" pill
 let   _unloadListenerRegistered = false
 
 const isMongoId = (id) => /^[0-9a-f]{24}$/i.test(id || '')
@@ -161,6 +163,10 @@ export const useProjectsStore = defineStore('projects', {
     loadings: { create: false, copy: false },
     migrationPending: false,
     cloudLoading: false,
+    // Save feedback. Until now every write failure was a console.warn, so if the
+    // API went down the user kept working for half an hour believing their work
+    // was saved. 'error' means there are unsaved changes and we're retrying.
+    saveState: 'idle',   // 'idle' | 'saving' | 'saved' | 'error'
   }),
 
   getters: {
@@ -365,6 +371,7 @@ export const useProjectsStore = defineStore('projects', {
       }
 
       _inFlight.add(projId)
+      this.saveState = 'saving'
       try {
         const { hidden: _hidden, conflicted: _conflicted, ...payload } = proj
         payload.baseRev = proj.rev ?? 0
@@ -374,15 +381,45 @@ export const useProjectsStore = defineStore('projects', {
           live.rev = updated.rev
           if ((updated.updatedAt || '') > (live.updatedAt || '')) live.updatedAt = updated.updatedAt
         }
+        this._onWriteOk(projId)
       } catch (e) {
         if (e.status === 409) {
           await this._handleConflict(projId, e.data?.project)
         } else {
-          console.warn('Project sync failed:', projId, e.message)
+          this._onWriteFailed(projId, e)
         }
       } finally {
         _inFlight.delete(projId)
       }
+    },
+
+    // ── Write outcome: surface it, and retry instead of dropping the edit ───────
+    _onWriteOk(projId) {
+      _retries.delete(projId)
+      if (_syncTimers.size || _dailySyncTimers.size) { this.saveState = 'saving'; return }
+      this.saveState = 'saved'
+      // Fade the confirmation away so the pill isn't permanent furniture; 'error'
+      // never auto-hides, because that one the user needs to keep seeing.
+      if (_savedFade) clearTimeout(_savedFade)
+      _savedFade = setTimeout(() => {
+        if (this.saveState === 'saved') this.saveState = 'idle'
+      }, 2500)
+    },
+
+    // A failed save used to be a console.warn with no retry, so the edit was gone
+    // and the UI looked normal. Retry with backoff and keep the state visible.
+    _onWriteFailed(projId, err) {
+      console.warn('Project sync failed:', projId, err?.message)
+      this.saveState = 'error'
+      const attempt = (_retries.get(projId) || 0) + 1
+      _retries.set(projId, attempt)
+      if (attempt > 6) return   // give up re-arming; the next user edit tries again
+      const delay = Math.min(30000, 1000 * 2 ** (attempt - 1))   // 1s → 30s
+      if (_syncTimers.has(projId)) clearTimeout(_syncTimers.get(projId))
+      _syncTimers.set(projId, setTimeout(() => {
+        _syncTimers.delete(projId)
+        this._putProject(projId)
+      }, delay))
     },
 
     // Someone else saved this calendar first. Pause autosave immediately (so
@@ -393,6 +430,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
 
       proj.conflicted = true
+      this.saveState = 'error'   // autosave is paused: there ARE unsaved changes
       if (_syncTimers.has(projId)) { clearTimeout(_syncTimers.get(projId)); _syncTimers.delete(projId) }
       // Also drop any pending daily PATCH: it would fire after the conflict is
       // resolved, write the just-adopted server data straight back and bump rev,
@@ -438,6 +476,8 @@ export const useProjectsStore = defineStore('projects', {
         doc.hidden     = this.projects[idx]?.hidden ?? false   // per-user, not part of the shared doc
         doc.conflicted = false
         this.projects[idx] = doc
+        _retries.delete(projId)
+        this.saveState = 'saved'   // we're back in sync with the server
       }
 
       if (serverProject) {
@@ -613,6 +653,7 @@ export const useProjectsStore = defineStore('projects', {
       }
 
       _inFlight.add(projId)
+      this.saveState = 'saving'
       try {
         const updated = await useApi().patch(`/projects/${projId}/daily`, {
           dailySchedule: proj.dailySchedule,
@@ -621,11 +662,12 @@ export const useProjectsStore = defineStore('projects', {
         })
         const live = this.projects.find(p => p.id === projId)
         if (live && updated?.rev != null) live.rev = updated.rev
+        this._onWriteOk(projId)
       } catch (e) {
         if (e.status === 409) {
           await this._handleConflict(projId, e.data?.project)
         } else {
-          console.warn('Daily sync failed:', projId, e.message)
+          this._onWriteFailed(projId, e)
         }
       } finally {
         _inFlight.delete(projId)
