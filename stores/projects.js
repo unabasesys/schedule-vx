@@ -485,10 +485,14 @@ export const useProjectsStore = defineStore('projects', {
           clearTimeout(timer)
           _dailySyncTimers.delete(projId)
           const proj = this.projects.find(p => p.id === projId)
-          if (!proj) continue
+          if (!proj || proj.conflicted) continue
           fetch(`${BASE}/projects/${projId}/daily`, {
             method: 'PATCH', keepalive: true, headers,
-            body: JSON.stringify({ dailySchedule: proj.dailySchedule, dailyConfig: proj.dailyConfig }),
+            body: JSON.stringify({
+              dailySchedule: proj.dailySchedule,
+              dailyConfig:   proj.dailyConfig,
+              baseRev:       proj.rev ?? 0,   // carries the guard: a stale flush is rejected, never clobbers
+            }),
           }).catch(() => {})
         }
       }
@@ -504,20 +508,54 @@ export const useProjectsStore = defineStore('projects', {
     // Debounced PATCH for daily-only changes — does NOT bump updatedAt on the server.
     _scheduleSyncDaily(projId) {
       if (!isMongoId(projId)) return
+      const proj = this.projects.find(p => p.id === projId)
+      if (proj?.conflicted) return   // autosave paused until the user reloads
       if (_dailySyncTimers.has(projId)) clearTimeout(_dailySyncTimers.get(projId))
-      _dailySyncTimers.set(projId, setTimeout(async () => {
+      _dailySyncTimers.set(projId, setTimeout(() => {
         _dailySyncTimers.delete(projId)
-        const proj = this.projects.find(p => p.id === projId)
-        if (!proj) return
-        try {
-          await useApi().patch(`/projects/${projId}/daily`, {
-            dailySchedule: proj.dailySchedule,
-            dailyConfig:   proj.dailyConfig,
-          })
-        } catch (e) {
+        this._patchDaily(projId)
+      }, 1500))
+    },
+
+    // The single writer for daily PATCHes. Mirrors _putProject: carries baseRev
+    // (optimistic concurrency), adopts the server-assigned rev on success, and
+    // on a 409 hands off to the conflict flow. Shares `_inFlight` with
+    // _putProject so a project PUT and a daily PATCH for the same project are
+    // serialized and never race each other into a self-inflicted conflict.
+    async _patchDaily(projId) {
+      if (!isMongoId(projId)) return
+      const proj = this.projects.find(p => p.id === projId)
+      if (!proj || proj.conflicted) return
+
+      // A save for this project is still in flight — retry shortly so we send
+      // the freshly-adopted rev rather than a stale one.
+      if (_inFlight.has(projId)) {
+        if (_dailySyncTimers.has(projId)) clearTimeout(_dailySyncTimers.get(projId))
+        _dailySyncTimers.set(projId, setTimeout(() => {
+          _dailySyncTimers.delete(projId)
+          this._patchDaily(projId)
+        }, 400))
+        return
+      }
+
+      _inFlight.add(projId)
+      try {
+        const updated = await useApi().patch(`/projects/${projId}/daily`, {
+          dailySchedule: proj.dailySchedule,
+          dailyConfig:   proj.dailyConfig,
+          baseRev:       proj.rev ?? 0,
+        })
+        const live = this.projects.find(p => p.id === projId)
+        if (live && updated?.rev != null) live.rev = updated.rev
+      } catch (e) {
+        if (e.status === 409) {
+          await this._handleConflict(projId, e.data?.project)
+        } else {
           console.warn('Daily sync failed:', projId, e.message)
         }
-      }, 1500))
+      } finally {
+        _inFlight.delete(projId)
+      }
     },
 
     async _saveCalendarVisibilityPref(projectId, hidden) {
