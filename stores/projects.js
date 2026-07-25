@@ -79,6 +79,16 @@ export function migrateProjects(projects, templates, lang = 'es') {
     } else if (/^\d{4}-\d{2}-\d{2}$/.test(proj.updatedAt)) {
       proj.updatedAt = proj.updatedAt + 'T00:00:00.000Z'
     }
+    // `editedAt` = "last meaningful user edit", used for the sidebar order.
+    // The server-managed `updatedAt` is unreliable for this because bulk/automated
+    // saves stamp every calendar at once. Seed a missing value from createdAt so the
+    // initial order is by creation (newest on top); real user edits bump it to now.
+    if (!proj.editedAt) {
+      const base = proj.createdAt || proj.updatedAt || ''
+      proj.editedAt = base ? (base.includes('T') ? base : base + 'T00:00:00.000Z') : new Date().toISOString()
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(proj.editedAt)) {
+      proj.editedAt = proj.editedAt + 'T00:00:00.000Z'
+    }
     ;(proj.events || []).forEach(e => fixEvent(e, maps))
   })
   ;(templates || []).forEach(tmpl => {
@@ -161,8 +171,10 @@ export const useProjectsStore = defineStore('projects', {
     // as reactive dependencies. Re-evaluates whenever any project's updatedAt changes,
     // which propagates down to filteredProjects and then to the sidebar computed.
     projectsSortedByUpdated: (s) => [...s.projects].sort((a, b) => {
-      const ta = Date.parse(a.updatedAt || a.createdAt || '') || 0
-      const tb = Date.parse(b.updatedAt || b.createdAt || '') || 0
+      // Order by last meaningful user edit (editedAt), falling back to the
+      // server timestamp / creation date only when editedAt is absent.
+      const ta = Date.parse(a.editedAt || a.updatedAt || a.createdAt || '') || 0
+      const tb = Date.parse(b.editedAt || b.updatedAt || b.createdAt || '') || 0
       if (tb !== ta) return tb - ta
       return (b.id || '').localeCompare(a.id || '')
     }),
@@ -269,6 +281,11 @@ export const useProjectsStore = defineStore('projects', {
           const localProj = this.projects.find(p => p.id === serverProj.id)
           if (localProj && localProj.updatedAt > (serverProj.updatedAt || '')) {
             serverProj.updatedAt = localProj.updatedAt
+          }
+          // Same guard for editedAt so a reload before the debounced sync fires
+          // can't revert the sidebar order after a fresh local edit.
+          if (localProj && (localProj.editedAt || '') > (serverProj.editedAt || '')) {
+            serverProj.editedAt = localProj.editedAt
           }
         })
 
@@ -620,6 +637,7 @@ export const useProjectsStore = defineStore('projects', {
         tempUnit:     globalStore.tempUnit  || 'C',
         createdAt:    new Date().toISOString().split('T')[0],
         updatedAt:    new Date().toISOString(),
+        editedAt:     new Date().toISOString(),
         version:      0,
         hasChanges:   false,
         stages,
@@ -659,9 +677,13 @@ export const useProjectsStore = defineStore('projects', {
         const idx = this.projects.findIndex(p => p.id === proj.id)
         if (idx !== -1) {
           const localUpdatedAt = this.projects[idx].updatedAt
+          const localEditedAt  = this.projects[idx].editedAt
           Object.assign(this.projects[idx], created, { id: created.id })
           if (localUpdatedAt > (this.projects[idx].updatedAt || '')) {
             this.projects[idx].updatedAt = localUpdatedAt
+          }
+          if ((localEditedAt || '') > (this.projects[idx].editedAt || '')) {
+            this.projects[idx].editedAt = localEditedAt
           }
         }
         // Select the first project (newly created, unshifted to front)
@@ -677,7 +699,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       Object.assign(proj, data)
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -727,7 +749,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       if (proj.status === 'archived') {
         proj.status = 'competing'
-        proj.updatedAt = new Date().toISOString()
+        proj.updatedAt = proj.editedAt = new Date().toISOString()
         this.selectedId = id
       } else {
         proj.status = 'archived'
@@ -763,7 +785,7 @@ export const useProjectsStore = defineStore('projects', {
       const cycle = { competing: 'awarded', awarded: 'lost', lost: 'competing' }
       proj.status = cycle[proj.status] || 'competing'
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -803,6 +825,7 @@ export const useProjectsStore = defineStore('projects', {
         version:     0, hasChanges: false,
         createdAt:   new Date().toISOString().split('T')[0],
         updatedAt:   new Date().toISOString(),
+        editedAt:    new Date().toISOString(),
       }
       this.projects.unshift(proj)
       this.selectedId = proj.id
@@ -821,7 +844,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       proj.events.push(ev)
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -832,7 +855,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!ev) return
       Object.assign(ev, body)
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -841,7 +864,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       proj.events = proj.events.filter(e => e.id !== evId)
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -877,7 +900,7 @@ export const useProjectsStore = defineStore('projects', {
       const newGroup = { id: uid(), key: uid(), name, active: true }
       proj.groups.push(newGroup)
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
       return newGroup
     },
@@ -889,7 +912,7 @@ export const useProjectsStore = defineStore('projects', {
       const newStage = { id: uid(), key: uid(), name, active: true, order: maxOrder + 1, color: null }
       proj.stages.push(newStage)
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
       return newStage
     },
@@ -901,7 +924,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!stage || !newName?.trim()) return
       stage.name = newName.trim()
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -913,7 +936,7 @@ export const useProjectsStore = defineStore('projects', {
       proj.events = proj.events.filter(e => e.stage !== stage.key)
       proj.stages = proj.stages.filter(s => s.id !== stageId)
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -933,7 +956,7 @@ export const useProjectsStore = defineStore('projects', {
       if (idx < 0 || nIdx < 0 || nIdx >= visible.length) return
       ;[visible[idx].order, visible[nIdx].order] = [visible[nIdx].order, visible[idx].order]
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -948,7 +971,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!stage) return
       stage.color = color || null
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -962,7 +985,7 @@ export const useProjectsStore = defineStore('projects', {
       ;(proj.stages || []).forEach(s => { if (s.color) { s.color = null; changed = true } })
       if (!changed) return
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -983,7 +1006,7 @@ export const useProjectsStore = defineStore('projects', {
         })
       }
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.recalcAndSave(projId)
     },
 
@@ -996,7 +1019,7 @@ export const useProjectsStore = defineStore('projects', {
         if (ev.groups) ev.groups = ev.groups.filter(gId => gId !== groupId && gId !== grp?.key)
       })
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -1149,7 +1172,7 @@ export const useProjectsStore = defineStore('projects', {
         if (ev.date) ev.date = shiftDate(ev.date, days)
       })
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.recalcAndSave(projId)
     },
 
@@ -1160,7 +1183,7 @@ export const useProjectsStore = defineStore('projects', {
         if (ev.dep?.eventId) ev.dep.active = enabled
       })
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.recalcAndSave(projId)
     },
 
@@ -1168,7 +1191,7 @@ export const useProjectsStore = defineStore('projects', {
       const proj = this.projects.find(p => p.id === (projId || this.selectedId))
       if (proj) {
         proj.hasChanges = true
-        proj.updatedAt = new Date().toISOString()
+        proj.updatedAt = proj.editedAt = new Date().toISOString()
       }
     },
 
@@ -1177,7 +1200,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       proj.version = (proj.version ?? 0) + 1
       proj.hasChanges = false
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
       // Explicitly sync since hasChanges is now false (save() won't pick it up)
       this._scheduleSyncProject(projId)
@@ -1191,7 +1214,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj.dailySchedule) proj.dailySchedule = []
       proj.dailySchedule.push(item)
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
       this._scheduleSyncDaily(projId)
     },
@@ -1203,7 +1226,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!item) return
       Object.assign(item, body)
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
       this._scheduleSyncDaily(projId)
     },
@@ -1213,7 +1236,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       proj.dailySchedule = (proj.dailySchedule || []).filter(i => i.id !== itemId)
       proj.hasChanges = true
-      proj.updatedAt = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
       this._scheduleSyncDaily(projId)
     },
