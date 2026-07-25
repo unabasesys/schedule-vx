@@ -16,6 +16,18 @@
       </button>
     </div>
 
+    <!-- ── Holidays unavailable — screen only, never part of the PDF ──── -->
+    <div v-if="holidaysFailed" class="preview-warn">
+      <span>
+        {{ isEN
+          ? "Couldn't load the holiday list, so holidays are missing and business-day dates in this PDF may be wrong."
+          : 'No se pudo cargar la lista de feriados: no aparecen en el PDF y las fechas por días hábiles pueden estar equivocadas.' }}
+      </span>
+      <button class="preview-warn-btn" :disabled="retryingHolidays" @click="retryHolidays">
+        {{ retryingHolidays ? (isEN ? 'Retrying…' : 'Reintentando…') : (isEN ? 'Retry' : 'Reintentar') }}
+      </button>
+    </div>
+
     <!-- ── Not found ────────────────────────────────────────────── -->
     <div v-if="loading" class="preview-empty">
       Cargando proyecto...
@@ -140,6 +152,12 @@
                         <span class="pill-text" :class="{ 'pill-holiday': ev.type === 'holiday' }">{{ ev.label }}</span>
                       </div>
                     </div>
+
+                    <!-- Events that didn't fit in the cell — printed as a count so the
+                         PDF never claims a day is emptier than it is -->
+                    <div v-if="day.hiddenCount" class="ev-more">
+                      +{{ day.hiddenCount }} {{ isEN ? 'more' : 'más' }}
+                    </div>
                   </div>
 
                   <!-- Span overlay -->
@@ -235,6 +253,56 @@ const dateFormat       = ref('DD/MM/AA')
 const loading          = ref(true)
 const loadError        = ref(false)
 const resolvedHolidays = ref([]) // { date, name, localName, countryCode }[]
+// The holiday list drives which dates count as business days, so when it can't be
+// loaded the bars in this PDF are wrong — and there is nothing on the page to say so.
+const holidaysFailed   = ref(false)
+const retryingHolidays = ref(false)
+
+// Resolves holiday dates from the calendar's country codes. Non-fatal for the render,
+// but a failure is reported on screen (never printed) so nobody sends a client a PDF
+// whose business-day dates ignored the holidays.
+async function loadHolidays(proj) {
+  const holidaysStore = useHolidaysStore()
+  const countryCodes  = (proj.holidays || []).map(h => h.countryCode).filter(Boolean)
+  if (!countryCodes.length) { holidaysFailed.value = false; return }
+
+  const years = new Set(
+    (proj.events || []).filter(e => e.date).map(e => Number(e.date.slice(0, 4)))
+  )
+  if (!years.size) years.add(new Date().getFullYear())
+  const disabled = new Set(proj.disabledHolidays || [])
+  const holMap   = new Map()
+  let failed     = false
+
+  try {
+    await Promise.all(
+      countryCodes.flatMap(cc =>
+        [...years].map(async (year) => {
+          const hols = await holidaysStore.fetchHolidaysForYear(cc, year)
+          if (Array.isArray(hols)) {
+            hols.forEach(h => {
+              if (!disabled.has(h.date) && !holMap.has(h.date)) holMap.set(h.date, h)
+            })
+          } else {
+            failed = true   // null = couldn't load, NOT "this country has no holidays"
+          }
+        })
+      )
+    )
+  } catch (e) {
+    console.warn('print: failed to load holidays', e)
+    failed = true
+  }
+
+  resolvedHolidays.value = [...holMap.values()]
+  holidaysFailed.value   = failed
+}
+
+async function retryHolidays() {
+  if (retryingHolidays.value || !project.value) return
+  retryingHolidays.value = true
+  try { await loadHolidays(project.value) } finally { retryingHolidays.value = false }
+}
 
 onMounted(async () => {
   const authStore     = useAuthStore()
@@ -267,33 +335,7 @@ onMounted(async () => {
     orgName.value = settingsStore.studioName || authStore.organization?.name || 'Mi Productora'
     orgLogo.value = settingsStore.logo || authStore.organization?.imgUrl || ''
 
-    // Resolve actual holiday dates from country codes (non-fatal)
-    const countryCodes = (proj.holidays || []).map(h => h.countryCode).filter(Boolean)
-    if (countryCodes.length) {
-      try {
-        const years = new Set(
-          (proj.events || []).filter(e => e.date).map(e => Number(e.date.slice(0, 4)))
-        )
-        if (!years.size) years.add(new Date().getFullYear())
-        const disabled = new Set(proj.disabledHolidays || [])
-        const holMap = new Map()
-        await Promise.all(
-          countryCodes.flatMap(cc =>
-            [...years].map(async (year) => {
-              const hols = await holidaysStore.fetchHolidaysForYear(cc, year)
-              if (Array.isArray(hols)) {
-                hols.forEach(h => {
-                  if (!disabled.has(h.date) && !holMap.has(h.date)) holMap.set(h.date, h)
-                })
-              }
-            })
-          )
-        )
-        resolvedHolidays.value = [...holMap.values()]
-      } catch (e) {
-        console.warn('print: failed to load holidays', e)
-      }
-    }
+    await loadHolidays(proj)
   } catch (e) {
     console.warn('print: failed to load project', e)
     loadError.value = true
@@ -493,9 +535,20 @@ const exportEvents = computed(() => {
   // resolvedHolidays already has disabled ones filtered out (done in onMounted)
   const holidayDates = new Set(resolvedHolidays.value.map(h => h.date))
 
+  // Stage keys that are OFF or deactivated — same rule the calendar view applies.
+  // Without it, an event created into a hidden stage (its own `active` flag is still
+  // true, because only the OFF cascade clears it) was invisible in the app but
+  // printed in the client's PDF.
+  const hiddenStageKeys = new Set(
+    (p.stages || [])
+      .filter(s => s.visible === false || s.active === false)
+      .map(s => s.key)
+  )
+
   // Project events
   for (const ev of p.events || []) {
     if (!ev.active || !ev.date || (!includeInternal.value && ev.internal)) continue
+    if (hiddenStageKeys.has(ev.stage)) continue
     const label   = (isEN.value ? (ev.nameEN || ev.name) : ev.name) || (isEN.value ? '(No title)' : '(Sin título)')
     const type    = STAGE_TYPE[ev.stage] || 'preprod'
     const dur     = ev.duration || 1
@@ -565,8 +618,80 @@ function estimatePillLines(label, keyDate = false) {
   return Math.min(3, Math.ceil((label || '').length / charsPerLine))
 }
 
+// ── How much fits in a day cell ────────────────────────────────────────────────
+// Cell height comes from the page layout (fixed A4 page ÷ number of week rows), not
+// from its contents, so it can be measured once and trusted. It has to be measured:
+// the old fixed budget of "6 lines" was more than a cell actually holds, and `.day`
+// clips its overflow, so events the algorithm counted as fitting were rendered
+// completely below the fold and disappeared from the client's PDF without a trace.
+const PILL_LINE_H = 12.35   // .pill: 9.5px font × 1.3 line-height
+const PILL_PAD_V  = 5.5     // .pill: 2.5px top + 3px bottom
+const STACK_GAP   = 1.5     // .ev-stack gap
+const STACK_PAD_T = 2       // .ev-stack padding-top
+const MORE_H      = 12.2    // .ev-more: 8.5px × 1.25 + 1.5px padding-top
+const LANE_H      = 19      // span-bar lane pitch, mirrors spanBarStyle()
+
+// Keyed by how many week rows the month has: a 6-row month gets shorter cells than a
+// 5-row one, so one global number would over-fill half the pages of a long calendar.
+const cellAvailByWeeks = ref({})
+let   measurePasses = 0
+
+// px for the stack when nothing has been measured yet (the old 6-line estimate).
+const FALLBACK_AVAIL = STACK_PAD_T + 6 * (PILL_LINE_H + PILL_PAD_V) + 5 * STACK_GAP
+
+function availFor(weekCount) {
+  const m = cellAvailByWeeks.value
+  return m[weekCount] ?? m[Object.keys(m)[0]] ?? FALLBACK_AVAIL
+}
+
+// Returns true once there were cells to measure.
+function measureCells() {
+  if (measurePasses > 3) return true   // guard: a surprise resize must not loop forever
+  const next = { ...cellAvailByWeeks.value }
+  let changed = false
+
+  const grids = document.querySelectorAll('.month-grid')
+  grids.forEach(grid => {
+    const rows = grid.querySelectorAll('.week-row')
+    const cell = rows[0]?.querySelector('.day')
+    if (!cell) return
+    const cs    = getComputedStyle(cell)
+    const num   = cell.querySelector('.num')
+    const inner = cell.clientHeight - parseFloat(cs.paddingTop || 0) - parseFloat(cs.paddingBottom || 0)
+    const avail = inner - (num ? num.getBoundingClientRect().height : 15) - 2   // the two 1px flex gaps
+    if (!(avail > 0)) return
+    if (Math.abs((next[rows.length] ?? -1) - avail) > 0.5) { next[rows.length] = avail; changed = true }
+  })
+
+  // Cell height comes from the page layout, not from the contents, so this settles
+  // on the first pass instead of oscillating.
+  if (changed) { measurePasses++; cellAvailByWeeks.value = next }
+  return grids.length > 0
+}
+
+// The pages live behind an async boundary, so they aren't in the DOM yet even on a
+// post-flush watcher. Retry until there's something to measure. Deliberately timers
+// and not requestAnimationFrame: this page is opened in a background tab, where rAF
+// can be throttled to a standstill and the budget would stay at its estimate.
+function scheduleMeasure(tries = 20) {
+  if (typeof window === 'undefined') return
+  setTimeout(() => {
+    if (!measureCells() && tries > 0) scheduleMeasure(tries - 1)
+  }, 30)
+}
+
+// Called right before the PDF capture: whatever happened with timers, the cells are
+// on screen now, so measure and let the re-fit render before html2canvas reads it.
+async function ensureMeasured() {
+  for (let i = 0; i < 5; i++) {
+    if (measureCells()) break
+    await new Promise(r => setTimeout(r, 60))
+  }
+  await nextTick()
+}
+
 // ── Lane algorithm (verbatim from handoff render.js) ──────────────────────────
-function buildWeekData(weekDates, allEvents, currentMonth) {
+function buildWeekData(weekDates, allEvents, currentMonth, weekCount = 5) {
   const weekStart = weekDates[0]
   const weekEnd   = weekDates[6]
 
@@ -622,15 +747,28 @@ function buildWeekData(weekDates, allEvents, currentMonth) {
       .filter(e => e.type !== 'holiday')
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
-    const MAX_LINES = 6
-    let usedLines = 0
-    const fittedEvents = []
-    for (const ev of sorted) {
-      const lines = estimatePillLines(ev.label, ev.keyDate)
-      if (usedLines + lines > MAX_LINES) break
-      fittedEvents.push(ev)
-      usedLines += lines
+    // Space left for pills once the span-bar lanes have taken their reserve.
+    const fullBudget = availFor(weekCount) - dayLaneCount[d] * LANE_H
+
+    const fitInto = (budget) => {
+      let used = STACK_PAD_T
+      const out = []
+      for (const ev of sorted) {
+        const h = estimatePillLines(ev.label, ev.keyDate) * PILL_LINE_H + PILL_PAD_V
+              + (out.length ? STACK_GAP : 0)
+        if (used + h > budget) break
+        out.push(ev)
+        used += h
+      }
+      return out
     }
+
+    // Events past the cell's budget used to be dropped with no trace, so a busy day
+    // printed as a quiet one. Count them and reserve room for the "+N" marker, the
+    // same way the calendar view does.
+    let fittedEvents = fitInto(fullBudget)
+    if (fittedEvents.length < sorted.length) fittedEvents = fitInto(fullBudget - MORE_H)
+    const hiddenCount = sorted.length - fittedEvents.length
 
     const pointEvents = [
       ...fittedEvents,
@@ -647,6 +785,7 @@ function buildWeekData(weekDates, allEvents, currentMonth) {
       monthAbbr:      MONTH_ABBR.value[date.getMonth()],
       isHoliday:      isHolidayDay,
       pointEvents,
+      hiddenCount,
       laneReserve:    dayLaneCount[d],
     }
   })
@@ -662,7 +801,7 @@ const pages = computed(() => {
   // One month per page (handoff spec)
   return months.map(({ year, month }) => {
     const gridStart = startOfCalendarGrid(year, month)
-    const weeks     = []
+    const rows      = []
 
     for (let w = 0; w < 6; w++) {
       const weekDates = []
@@ -672,16 +811,22 @@ const pages = computed(() => {
         weekDates.push(date)
       }
 
-      // Stop early if 6th row is entirely out-of-month (same logic as render.js)
-      const lastOfWeek      = weekDates[6]
-      const nextWeekMonday  = new Date(weekDates[0])
-      nextWeekMonday.setDate(weekDates[0].getDate() + 7)
-      if (w >= 4 && nextWeekMonday.getMonth() !== month && lastOfWeek.getMonth() !== month) {
-        break
-      }
+      // Stop once a row has no day of this month left in it.
+      //
+      // This used to test the END of the week and the START of the NEXT one, which is
+      // outside the month for the row that holds the last days of almost every month —
+      // so that row was dropped: June's page ended on the 27th, August's on the 29th,
+      // and an event on Aug 30–31 was in no page at all. The last days were only
+      // visible in the leading row of the following month's page, and for the final
+      // month of a calendar, nowhere.
+      if (weekDates.every(d => d.getMonth() !== month)) break
 
-      weeks.push(buildWeekData(weekDates, exportEvents.value, month))
+      rows.push(weekDates)
     }
+
+    // Row count first: it sets the height of every cell in this month, which is what
+    // decides how many events fit before the cell clips them.
+    const weeks = rows.map(weekDates => buildWeekData(weekDates, exportEvents.value, month, rows.length))
 
     return {
       months: [{
@@ -693,6 +838,11 @@ const pages = computed(() => {
     }
   })
 })
+
+// Measure the cells once they're on screen, so the per-cell event budget above is the
+// real one instead of an estimate. 'post' matters: the pages don't exist in the DOM
+// until after the render this fires from.
+watch(pages, () => scheduleMeasure(), { flush: 'post', immediate: true })
 
 // ── Style helpers — stage color when set, project color as fallback ────────────
 const stageColorByKey = computed(() => {
@@ -758,6 +908,7 @@ async function downloadPdf() {
   downloading.value = true
 
   try {
+    await ensureMeasured()   // never capture a page whose cells were fitted by guess
     const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
       import('html2canvas'),
       import('jspdf'),
@@ -861,6 +1012,26 @@ html, body {
   letter-spacing: -0.01em;
 }
 .preview-brand em { font-style: italic; font-weight: 400; color: var(--muted); }
+
+/* Warning strip — screen only (hidden in @media print, and html2canvas only
+   captures .page elements, so it can never end up in the client's PDF) */
+.preview-warn {
+  width: 100%; max-width: 1123px;
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 14px; border-radius: 8px;
+  background: rgba(224, 82, 82, .1);
+  border: 1px solid rgba(224, 82, 82, .4);
+  color: #b93b3b; font-size: 12.5px; line-height: 1.45;
+}
+.preview-warn-btn {
+  margin-left: auto; flex-shrink: 0;
+  padding: 5px 12px; border-radius: 6px;
+  border: 1px solid rgba(224, 82, 82, .5);
+  background: #fff; color: #b93b3b;
+  font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer;
+}
+.preview-warn-btn:hover:not(:disabled) { background: rgba(224, 82, 82, .08); }
+.preview-warn-btn:disabled { opacity: .6; cursor: default; }
 .preview-meta {
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -1077,6 +1248,10 @@ html, body {
   word-break: break-word;
 }
 .pill-holiday { font-style: italic; }
+.ev-more {
+  font-size: 8.5px; line-height: 1.25; font-weight: 600;
+  color: #8a94a0; padding: 1.5px 6px 0;
+}
 .pill .dot { width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
 .pill-star { font-size: 8px; flex-shrink: 0; margin-top: 2px; color: #F5C518; line-height: 1; }
 .span-star { font-size: 8px; flex-shrink: 0; color: #F5C518; line-height: 1; margin-right: 2px; }
@@ -1127,6 +1302,7 @@ html, body {
   html, body { background: #fff; }
   .preview-shell { padding: 0; gap: 0; background: #fff; }
   .preview-top   { display: none; }
+  .preview-warn  { display: none; }
   .page {
     box-shadow: none;
     page-break-after: always;
