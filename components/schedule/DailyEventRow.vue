@@ -183,12 +183,59 @@
         <!-- Participants -->
         <div class="dir-form-row">
           <label class="dir-form-label">{{ isEN ? 'Participants' : 'Participantes' }}</label>
-          <input
-            type="text"
-            v-model="form.participants"
-            class="dir-input"
-            :placeholder="isEN ? 'Director, DP, Client, Talent 01…' : 'Director, DP, Cliente, Talento 01…'"
-          />
+          <div class="dir-part">
+            <div v-if="participantChips.length" class="dir-part-chips">
+              <span
+                v-for="chip in participantChips"
+                :key="chip.key"
+                class="dir-part-chip"
+                :class="{ 'dir-part-chip--adhoc': chip.adhoc, 'dir-part-chip--missing': chip.missing }"
+                :title="chip.missing ? (isEN ? 'This contact was removed from the directory' : 'Este contacto ya no está en el directorio') : (chip.adhoc ? (isEN ? 'Typed in (not in directory)' : 'Escrito a mano (no está en el directorio)') : chip.role)"
+              >
+                {{ chip.label }}
+                <button
+                  type="button"
+                  class="dir-part-chip-x"
+                  @click.stop="removeParticipant(chip)"
+                  :title="isEN ? 'Remove' : 'Quitar'"
+                >×</button>
+              </span>
+            </div>
+            <div class="dir-part-search">
+              <input
+                ref="partSearchRef"
+                type="text"
+                v-model="partQuery"
+                class="dir-input"
+                :placeholder="isEN ? 'Search contacts or type a name…' : 'Buscar contactos o escribir un nombre…'"
+                @focus="partOpen = true"
+                @blur="partOpen = false"
+                @keydown.enter.prevent="onPartEnter"
+                @keydown.esc.stop.prevent="partOpen = false"
+              />
+              <div v-if="partOpen && (partMatches.length || canAddAdhoc)" class="dir-part-menu">
+                <button
+                  v-for="c in partMatches"
+                  :key="c.id"
+                  type="button"
+                  class="dir-part-opt"
+                  @mousedown.prevent="addContact(c)"
+                >
+                  <span class="dir-part-opt-name">{{ c.name }}</span>
+                  <span v-if="c.role" class="dir-part-opt-role">{{ c.role }}</span>
+                </button>
+                <button
+                  v-if="canAddAdhoc"
+                  type="button"
+                  class="dir-part-opt dir-part-opt--adhoc"
+                  @mousedown.prevent="addAdhoc(partQuery)"
+                >
+                  {{ isEN ? 'Add' : 'Añadir' }} “{{ partQuery.trim() }}”
+                  <span class="dir-part-opt-role">{{ isEN ? 'typed in' : 'texto libre' }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Location -->
@@ -416,7 +463,20 @@ function initForm() {
   const i = props.item || {}
   const hasMore = !!(i.locationAddress || i.locationGoogleMapsUrl || i.relatedCalendarEventId || i.departments?.length || i.department)
   if (hasMore && !props.isNew) moreOpen.value = true
+
+  // Participants: structured picker over the org contact directory, plus
+  // ad-hoc typed names (talent/roles not in the directory). Legacy events only
+  // stored a free-text `participants` string — split it into ad-hoc names so it
+  // stays editable and can be re-linked to real contacts.
+  let pickedIds  = Array.isArray(i.participantIds)   ? [...i.participantIds]   : []
+  let extraNames = Array.isArray(i.participantNames) ? [...i.participantNames] : []
+  if (!pickedIds.length && !extraNames.length && i.participants) {
+    extraNames = String(i.participants).split(',').map(s => s.trim()).filter(Boolean)
+  }
+
   return {
+    pickedIds,
+    extraNames,
     date:                   props.initialDate || i.date || '',
     timeType:               i.timeType              || 'time_label',
     specificTime:           i.specificTime          || '',
@@ -428,7 +488,6 @@ function initForm() {
     locationAddress:        i.locationAddress       || '',
     locationGoogleMapsUrl:  i.locationGoogleMapsUrl || '',
     notes:                  i.notes                 || '',
-    participants:           i.participants          || '',
     relatedCalendarEventId: i.relatedCalendarEventId || '',
     departments:            normalizeDepts(i),
     internalOnly:           i.internalOnly          || false,
@@ -443,6 +502,103 @@ function toggleDept(key) {
   else form.departments.push(key)
 }
 
+// ── Participants — contact picker over the org directory + ad-hoc names ────────
+const contactsStore = useContactsStore()
+const partQuery     = ref('')
+const partOpen      = ref(false)
+const partSearchRef = ref(null)
+
+const contactById = computed(() => {
+  const m = {}
+  for (const c of contactsStore.contacts) m[c.id] = c
+  return m
+})
+
+// Selected participants rendered as removable chips (linked contacts first,
+// then ad-hoc typed names).
+const participantChips = computed(() => {
+  const idChips = form.pickedIds.map((id) => {
+    const c = contactById.value[id]
+    return {
+      key:     'id:' + id,
+      id,
+      adhoc:   false,
+      missing: !c,
+      role:    c?.role || '',
+      label:   c ? c.name : (isEN.value ? '(removed contact)' : '(contacto eliminado)'),
+    }
+  })
+  const nameChips = form.extraNames.map((n, i) => ({
+    key: 'nm:' + i + ':' + n, name: n, adhoc: true, missing: false, role: '', label: n,
+  }))
+  return [...idChips, ...nameChips]
+})
+
+// Directory contacts matching the query and not already picked.
+const partMatches = computed(() => {
+  const picked = new Set(form.pickedIds)
+  const q = partQuery.value.trim().toLowerCase()
+  return contactsStore.sorted
+    .filter(c => c.id && !picked.has(c.id))
+    .filter(c => !q || (c.name || '').toLowerCase().includes(q) || (c.role || '').toLowerCase().includes(q))
+    .slice(0, 8)
+})
+
+// Offer an ad-hoc "Add …" option when the typed text isn't already a chip.
+const canAddAdhoc = computed(() => {
+  const q = partQuery.value.trim()
+  if (!q) return false
+  const lc = q.toLowerCase()
+  if (form.extraNames.some(n => n.toLowerCase() === lc)) return false
+  if (partMatches.value.some(c => (c.name || '').toLowerCase() === lc)) return false
+  return true
+})
+
+function addContact(c) {
+  if (!c?.id) return
+  if (!form.pickedIds.includes(c.id)) form.pickedIds.push(c.id)
+  partQuery.value = ''
+  nextTick(() => partSearchRef.value?.focus())
+}
+
+function addAdhoc(text) {
+  const name = String(text || '').trim()
+  if (!name) return
+  if (!form.extraNames.some(n => n.toLowerCase() === name.toLowerCase())) form.extraNames.push(name)
+  partQuery.value = ''
+  nextTick(() => partSearchRef.value?.focus())
+}
+
+function removeParticipant(chip) {
+  if (chip.adhoc) {
+    const idx = form.extraNames.indexOf(chip.name)
+    if (idx >= 0) form.extraNames.splice(idx, 1)
+  } else {
+    const idx = form.pickedIds.indexOf(chip.id)
+    if (idx >= 0) form.pickedIds.splice(idx, 1)
+  }
+}
+
+// Enter: prefer an exact contact match, then the first match, else add ad-hoc.
+function onPartEnter() {
+  const q = partQuery.value.trim()
+  if (!q) return
+  const exact = partMatches.value.find(c => (c.name || '').toLowerCase() === q.toLowerCase())
+  if (exact) return addContact(exact)
+  if (partMatches.value.length) return addContact(partMatches.value[0])
+  addAdhoc(q)
+}
+
+// Human-readable string persisted alongside the structured fields, so the
+// collapsed row and the client PDF keep rendering with no changes.
+function composeParticipants() {
+  const names = [
+    ...form.pickedIds.map(id => contactById.value[id]?.name).filter(Boolean),
+    ...form.extraNames,
+  ]
+  return names.join(', ')
+}
+
 // When the user picks a related calendar event, inherit its departments.
 // Only fires on user-driven changes (initial form value doesn't trigger watch).
 watch(() => form.relatedCalendarEventId, (newId) => {
@@ -453,6 +609,7 @@ watch(() => form.relatedCalendarEventId, (newId) => {
 })
 
 onMounted(() => {
+  contactsStore.loadContacts()
   if (props.isNew) nextTick(() => titleRef.value?.focus())
   if (props.startEditing && !props.isNew) {
     nextTick(() => {
@@ -623,7 +780,9 @@ function save() {
       duration:               form.duration.trim(),
       ...locFields,
       notes:                  form.notes.trim(),
-      participants:           form.participants.trim(),
+      participants:           composeParticipants(),
+      participantIds:         [...form.pickedIds],
+      participantNames:       [...form.extraNames],
       relatedCalendarEventId: form.relatedCalendarEventId || null,
       departments:            [...form.departments],
       department:             '',
@@ -642,7 +801,9 @@ function save() {
       duration:               form.duration.trim(),
       ...locFields,
       notes:                  form.notes.trim(),
-      participants:           form.participants.trim(),
+      participants:           composeParticipants(),
+      participantIds:         [...form.pickedIds],
+      participantNames:       [...form.extraNames],
       relatedCalendarEventId: form.relatedCalendarEventId || null,
       departments:            [...form.departments],
       department:             '',
@@ -930,6 +1091,87 @@ function save() {
 }
 .dir-dept-chip:hover { border-color: var(--accent); color: var(--accent); }
 .dir-dept-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.08); }
+
+/* Participants picker */
+.dir-part { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.dir-part-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dir-part-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 5px 3px 10px;
+  border: 1.5px solid var(--accent);
+  border-radius: 6px;
+  background: rgba(6,204,180,.08);
+  color: var(--accent);
+  font-size: .72rem;
+  font-weight: 600;
+}
+.dir-part-chip--adhoc {
+  border-color: var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.dir-part-chip--missing {
+  border-color: var(--danger);
+  background: rgba(239,68,68,.08);
+  color: var(--danger);
+}
+.dir-part-chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: .7;
+  font-family: inherit;
+}
+.dir-part-chip-x:hover { opacity: 1; background: rgba(0,0,0,.15); }
+.dir-part-search { position: relative; }
+.dir-part-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dir-part-opt {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 9px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: .78rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.dir-part-opt:hover { background: var(--surface-2); }
+.dir-part-opt-name { font-weight: 600; }
+.dir-part-opt-role { font-size: .68rem; color: var(--muted); }
+.dir-part-opt--adhoc { border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; margin-top: 2px; }
+.dir-part-opt--adhoc .dir-part-opt-name { color: var(--muted); font-weight: 600; }
 
 /* Form actions */
 .dir-form-actions {
