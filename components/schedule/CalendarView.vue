@@ -103,7 +103,9 @@
         <div class="field">
           <label>{{ lang === 'en' ? 'Name' : 'Nombre' }}</label>
           <div class="ev-name-wrap">
-            <input ref="evModalNameRef" v-model="evModalName" type="text" autocomplete="off" @keydown.enter="confirmEvModal" />
+            <!-- .stop: the modal also has a window-level Enter handler, and without
+                 stopping propagation one keystroke confirmed twice → duplicate event -->
+            <input ref="evModalNameRef" v-model="evModalName" type="text" autocomplete="off" @keydown.enter.stop.prevent="confirmEvModal" />
             <div v-if="evSuggestions.length" class="ev-suggest-panel">
               <div class="ev-suggest-hint">
                 {{ lang === 'en' ? 'Events without a date — pick one to assign it this date' : 'Eventos sin fecha — elige uno para asignarle esta fecha' }}

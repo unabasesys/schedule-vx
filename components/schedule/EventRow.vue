@@ -174,7 +174,7 @@
         :title="L.durDayTypeTitle"
         :disabled="readOnly"
         @click="!readOnly && updateDurDayType((event.durDayType || 'calendar') === 'calendar' ? 'business' : 'calendar')"
-      >{{ (event.durDayType || 'calendar') === 'business' ? 'Business' : 'Calendar' }}</button>
+      >{{ (event.durDayType || 'calendar') === 'business' ? L.businessDays : L.calendarDays }}</button>
 
       <!-- Date wrapper: shows 2-digit year, click anywhere opens native picker -->
       <div
@@ -656,11 +656,15 @@ async function updateDurDayType(dt) {
 
 function toggleDep() {
   const nowActive = !props.event.dep?.active
+  const hasBase   = !!props.event.dep?.eventId
   update({
     dep:      { ...props.event.dep, active: nowActive },
-    dateMode: nowActive ? 'auto' : 'manual',
-    // Clear the manual date when activating so the engine sets it from the rule
-    ...(nowActive ? { date: '' } : {}),
+    // Only hand the date over to the engine when a base event is configured:
+    // useDependencyEngine skips events with no dep.eventId, so switching to 'auto'
+    // and clearing the date without a base would erase the date with nothing to
+    // recompute it (silent data loss).
+    dateMode: nowActive && hasBase ? 'auto' : 'manual',
+    ...(nowActive && hasBase ? { date: '' } : {}),
   })
 }
 

@@ -175,7 +175,7 @@
             style="flex:1;padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:.78rem;font-family:inherit;outline:none;"
             @focus="$event.target.style.borderColor='var(--accent)'"
             @blur="$event.target.style.borderColor='var(--border)'"
-            @keydown.enter="inviteUser"
+            @keydown.enter.stop.prevent="inviteUser"
             @input="inviteError = ''; inviteSuccess = ''"
           />
           <button class="btn-primary" @click="inviteUser" style="padding:7px 14px;font-size:.75rem;">{{ L.inviteBtn }}</button>
