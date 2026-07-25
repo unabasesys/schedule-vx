@@ -50,18 +50,47 @@
         </p>
         <div class="aa-list">
           <div class="aa-row aa-row-head">
-            <span></span><span>{{ isEN ? 'Event' : 'Evento' }}</span><span>{{ isEN ? 'Date' : 'Fecha' }}</span><span>{{ isEN ? 'Days' : 'Días' }}</span><span>{{ isEN ? 'Stage' : 'Etapa' }}</span>
+            <span></span>
+            <span>{{ isEN ? 'Event' : 'Evento' }}</span>
+            <span>{{ isEN ? 'Date' : 'Fecha' }}</span>
+            <span class="aa-c">{{ isEN ? 'Days' : 'Días' }}</span>
+            <span>{{ isEN ? 'Stage' : 'Etapa' }}</span>
           </div>
           <div v-for="(ev, i) in parsed" :key="i" class="aa-row" :class="{ off: !ev._include }">
-            <input type="checkbox" v-model="ev._include" />
-            <input class="aa-name" v-model.trim="ev.name" />
+            <input type="checkbox" class="aa-chk" v-model="ev._include" />
+            <input class="aa-name" v-model.trim="ev.name" :placeholder="isEN ? 'Event name' : 'Nombre del evento'" />
             <input class="aa-date" type="date" v-model="ev.date" />
             <input class="aa-dur" type="text" inputmode="numeric" v-model="ev.duration" />
-            <span class="aa-stage">{{ stageName(ev.stage) }}</span>
+
+            <!-- Stage: pick an existing one, clear it, or create a new one inline -->
+            <div class="aa-stage-cell">
+              <template v-if="newStageFor === i">
+                <input
+                  :ref="el => setNewStageInput(el, i)"
+                  class="aa-newstage"
+                  v-model.trim="newStageName"
+                  :placeholder="isEN ? 'New stage name' : 'Nombre de la etapa'"
+                  @keydown.enter.prevent="confirmNewStage(i)"
+                  @keydown.esc.stop.prevent="cancelNewStage"
+                />
+                <button class="aa-newstage-ok" :disabled="!newStageName" @click="confirmNewStage(i)" :title="isEN ? 'Create' : 'Crear'">✓</button>
+                <button class="aa-newstage-x" @click="cancelNewStage" :title="isEN ? 'Cancel' : 'Cancelar'">✕</button>
+              </template>
+              <select
+                v-else
+                class="aa-stage-select"
+                :value="ev.stage"
+                @change="onStageChange($event, i)"
+              >
+                <option value="">{{ isEN ? '— No stage —' : '— Sin etapa —' }}</option>
+                <option v-for="s in stageOptions" :key="s.key" :value="s.key">{{ s.name }}</option>
+                <option value="__new__">{{ isEN ? '+ New stage…' : '+ Nueva etapa…' }}</option>
+              </select>
+            </div>
           </div>
         </div>
         <div class="aa-actions">
-          <button class="btn-ghost" @click="parsed = []">{{ isEN ? 'Back' : 'Volver' }}</button>
+          <button class="btn-ghost" @click="goBack">{{ isEN ? 'Back' : 'Volver' }}</button>
           <button class="btn-primary" :disabled="!selectedCount || creating" @click="createEvents">
             {{ isEN ? `Create ${selectedCount} event${selectedCount === 1 ? '' : 's'}` : `Crear ${selectedCount} evento${selectedCount === 1 ? '' : 's'}` }}
           </button>
@@ -89,14 +118,62 @@ const error    = ref('')
 const parsed   = ref([])
 const ta       = ref(null)
 
+// Inline "new stage" creation state (which review row is creating, and the name).
+const newStageFor  = ref(null)
+const newStageName = ref('')
+const newStageInputs = {}
+
 const canRun = computed(() => !!text.value.trim() && !!currentProject.value)
 const selectedCount = computed(() => parsed.value.filter(e => e._include).length)
 
+// Active stages of the current project, as { key, name } for the dropdowns.
+const stageOptions = computed(() =>
+  (currentProject.value?.stages || [])
+    .filter(s => s.active !== false)
+    .map(s => ({ key: s.key, name: s.name }))
+)
+
 function close() { globalStore.closeAssistant() }
 
-function stageName(key) {
-  const s = (currentProject.value?.stages || []).find(x => x.key === key)
-  return s ? s.name : (isEN.value ? '—' : '—')
+function goBack() { parsed.value = []; cancelNewStage() }
+
+// Map whatever the AI returned for a stage onto an existing stage key: match by
+// key first, then by name (case-insensitive). No match → '' (no stage), so the
+// dropdown shows "— No stage —" instead of a dead "—".
+function matchStageKey(val, stages) {
+  if (!val) return ''
+  const v = String(val).toLowerCase()
+  const byKey  = stages.find(s => String(s.key).toLowerCase()  === v)
+  if (byKey)  return byKey.key
+  const byName = stages.find(s => String(s.name).toLowerCase() === v)
+  return byName ? byName.key : ''
+}
+
+function setNewStageInput(el, i) { if (el) newStageInputs[i] = el }
+
+function onStageChange(e, i) {
+  const val = e.target.value
+  if (val === '__new__') {
+    newStageName.value = ''
+    newStageFor.value = i
+    nextTick(() => newStageInputs[i]?.focus())
+  } else {
+    parsed.value[i].stage = val
+  }
+}
+
+function confirmNewStage(i) {
+  const name = newStageName.value.trim()
+  const proj = currentProject.value
+  if (!name || !proj) return
+  const created = projectsStore.addStage(proj.id, name)
+  if (created?.key) parsed.value[i].stage = created.key
+  cancelNewStage()
+}
+
+function cancelNewStage() {
+  newStageFor.value = null
+  newStageName.value = ''
 }
 
 async function run() {
@@ -115,7 +192,7 @@ async function run() {
       name: e.name || '',
       date: e.date || '',
       duration: Math.max(1, parseInt(e.duration) || 1),
-      stage: e.stage || (stages[0]?.key || 'pre'),
+      stage: matchStageKey(e.stage, stages),
       keyDate: !!e.keyDate,
       _include: true,
     }))
@@ -142,7 +219,7 @@ function createEvents() {
       projectsStore.addEvent(proj.id, {
         id: uid(),
         name: e.name, nameEN: e.name,
-        stage: e.stage || 'pre',
+        stage: e.stage || '',
         date: e.date,
         dateMode: 'manual',
         duration: Math.max(1, parseInt(e.duration) || 1),
@@ -191,18 +268,49 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 .aa-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 
-.aa-list { overflow-y: auto; border-top: 1px solid var(--border); margin-top: 4px; }
+.aa-list {
+  overflow-y: auto;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
 .aa-row {
-  display: grid; grid-template-columns: 22px 1.6fr 130px 52px 1fr; gap: 8px;
-  align-items: center; padding: 6px 2px; border-bottom: 1px solid var(--border); font-size: .78rem;
+  display: grid; grid-template-columns: 26px minmax(0, 1.6fr) 138px 56px minmax(0, 1.05fr); gap: 10px;
+  align-items: center; padding: 9px 12px; border-bottom: 1px solid var(--border); font-size: .78rem;
+  transition: background .1s;
 }
-.aa-row.off { opacity: .4; }
-.aa-row-head { font-size: .62rem; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 700; }
-.aa-row input[type="text"], .aa-row input[type="date"] {
+.aa-row:last-child { border-bottom: none; }
+.aa-row:not(.aa-row-head):hover { background: rgba(255,255,255,.02); }
+.aa-row.off { opacity: .42; }
+.aa-row-head {
+  font-size: .6rem; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 700;
+  position: sticky; top: 0; z-index: 1; background: var(--surface); border-radius: 10px 10px 0 0;
+}
+.aa-row-head .aa-c { text-align: center; }
+.aa-chk { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+.aa-row input[type="text"], .aa-row input[type="date"], .aa-stage-select {
   border: 1.5px solid var(--border); border-radius: 6px; background: var(--surface);
-  color: var(--text); font-size: .76rem; font-family: inherit; padding: 4px 7px; min-width: 0;
+  color: var(--text); font-size: .76rem; font-family: inherit; padding: 5px 8px; min-width: 0; width: 100%;
 }
-.aa-row input:focus { outline: none; border-color: var(--accent); }
+.aa-row input:focus, .aa-stage-select:focus { outline: none; border-color: var(--accent); }
 .aa-dur { text-align: center; }
-.aa-stage { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Stage cell — dropdown or inline new-stage editor */
+.aa-stage-cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.aa-stage-select { cursor: pointer; }
+.aa-stage-select option { background: var(--surface); }
+.aa-newstage {
+  flex: 1; border: 1.5px solid var(--accent); border-radius: 6px; background: var(--surface);
+  color: var(--text); font-size: .76rem; font-family: inherit; padding: 5px 8px; min-width: 0;
+}
+.aa-newstage:focus { outline: none; }
+.aa-newstage-ok, .aa-newstage-x {
+  flex-shrink: 0; width: 24px; height: 26px; border-radius: 6px; border: 1.5px solid var(--border);
+  background: transparent; cursor: pointer; font-size: .74rem; line-height: 1; padding: 0;
+}
+.aa-newstage-ok { color: var(--accent); border-color: var(--accent); }
+.aa-newstage-ok:disabled { opacity: .4; cursor: not-allowed; }
+.aa-newstage-x { color: var(--muted); }
+.aa-newstage-x:hover { color: var(--text); border-color: var(--text); }
 </style>
