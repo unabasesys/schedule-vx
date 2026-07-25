@@ -498,18 +498,30 @@ async function removeUser(id) {
   if (!user) return
 
   const name = user.name || user.email
-  const ok = await useDialog().confirm({
-    title:        lang.value === 'en' ? 'Remove user?' : '¿Eliminar usuario?',
-    body:         lang.value === 'en'
-      ? `Are you sure you want to remove ${name} from this organization?`
-      : `¿Estás seguro de que querés eliminar a ${name} de la organización?`,
-    confirmLabel: lang.value === 'en' ? 'Remove' : 'Eliminar',
-    cancelLabel:  lang.value === 'en' ? 'Cancel' : 'Cancelar',
-  })
+  // Removing yourself is "leaving", not "deleting someone" — phrase it that way.
+  const isSelf = authStore.isLoggedIn && !!authStore.user?.email && user.email === authStore.user.email
+  const ok = await useDialog().confirm(
+    isSelf
+      ? {
+          title:        lang.value === 'en' ? 'Leave organization?' : '¿Salir de la organización?',
+          body:         lang.value === 'en'
+            ? 'Are you sure you want to leave this organization? You’ll lose access to its calendars.'
+            : '¿Estás seguro de que querés salir de esta organización? Perderás el acceso a sus calendarios.',
+          confirmLabel: lang.value === 'en' ? 'Leave' : 'Salir',
+          cancelLabel:  lang.value === 'en' ? 'Cancel' : 'Cancelar',
+        }
+      : {
+          title:        lang.value === 'en' ? 'Remove user?' : '¿Eliminar usuario?',
+          body:         lang.value === 'en'
+            ? `Are you sure you want to remove ${name} from this organization?`
+            : `¿Estás seguro de que querés eliminar a ${name} de la organización?`,
+          confirmLabel: lang.value === 'en' ? 'Remove' : 'Eliminar',
+          cancelLabel:  lang.value === 'en' ? 'Cancel' : 'Cancelar',
+        },
+  )
   if (!ok) return
 
   if (authStore.isLoggedIn) {
-    const isSelf = authStore.user?.email && user.email === authStore.user.email
     const target = (isSelf && authStore.user?._id) ? authStore.user._id : (user._userId || user.email)
     if (target) {
       const result = await settingsStore.removeUserFromApi(target)
