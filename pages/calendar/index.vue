@@ -65,25 +65,32 @@
         </div>
         <div class="no-proj-body">
           {{ globalStore.lang === 'en'
-            ? 'Built for production companies, agencies, creative studios, post teams, and professionals who need to plan with speed, structure, and real production logic. Calendar by unabase combines the familiarity of tools you already know with a workflow that is far more useful for everyday production: stages, key dates, business or calendar days, holidays, weather, templates, versioning, and a clear structure to collaborate better with your team and share beautiful PDFs with your clients.'
-            : 'Diseñado para productoras, agencias, estudios creativos, equipos de post y profesionales que necesitan planificar con rapidez, orden y criterio real de producción. Calendar by unabase combina la familiaridad de herramientas que ya conoces con una lógica mucho más útil para el trabajo diario: stages, key dates, días hábiles o corridos, feriados, weather, templates, versionado y una estructura clara para colaborar mejor con tu equipo y compartir con tus clientes PDFs hermosos.' }}
+            ? 'Built for production companies, agencies, creative studios and post teams: plan with speed, structure and real production logic — the familiarity of the tools you already use, with a workflow far more useful day to day.'
+            : 'Diseñado para productoras, agencias, estudios creativos y equipos de post: planifica con rapidez, orden y criterio real de producción — con la familiaridad de las herramientas que ya usas y una lógica mucho más útil para el día a día.' }}
         </div>
+
+        <!-- Feature highlights -->
+        <div class="no-proj-features">
+          <span v-for="f in features" :key="f.en" class="no-proj-chip">
+            {{ globalStore.lang === 'en' ? f.en : f.es }}
+          </span>
+        </div>
+
         <div class="no-proj-tagline">
           {{ globalStore.lang === 'en'
             ? 'Less time building calendars from scratch. More consistency across projects. More clarity to present and execute.'
             : 'Menos tiempo armando calendarios desde cero. Más consistencia entre proyectos. Más claridad para presentar y ejecutar.' }}
         </div>
-        <a
-          class="no-proj-cta"
-          href="https://www.youtube.com/@unabase"
-          target="_blank"
-          rel="noopener"
-        >
-          <span class="no-proj-cta-play">▶</span>
+
+        <button class="no-proj-cta" @click="globalStore.openProjectModal(null)">
+          <span class="no-proj-cta-plus">+</span>
+          {{ globalStore.lang === 'en' ? 'Create my first calendar' : 'Crear mi primer calendario' }}
+        </button>
+        <div class="no-proj-hint">
           {{ globalStore.lang === 'en'
-            ? 'Watch a short video and see how it works.'
-            : 'Mira un video corto y descubre cómo funciona.' }}
-        </a>
+            ? 'Takes 30 seconds. Once you try it, you won’t want to stop.'
+            : 'Toma 30 segundos. Después de probarlo, no vas a querer parar.' }}
+        </div>
       </div>
     </div>
 
@@ -314,6 +321,18 @@ function setLang(l) {
   }
 }
 
+// Feature highlights shown on the empty-state landing.
+const features = [
+  { es: 'Stages',                  en: 'Stages' },
+  { es: 'Key dates',               en: 'Key dates' },
+  { es: 'Días hábiles o corridos', en: 'Business or calendar days' },
+  { es: 'Feriados',                en: 'Holidays' },
+  { es: 'Weather',                 en: 'Weather' },
+  { es: 'Templates',               en: 'Templates' },
+  { es: 'Versionado',              en: 'Versioning' },
+  { es: 'PDFs para clientes',      en: 'Client PDFs' },
+]
+
 function onProjectSaved() {
   const isNew = !globalStore.editingProjectId
   globalStore.closeProjectModal()
@@ -528,6 +547,21 @@ function createFromTemplate(tmplId) {
 .no-proj-cta:hover { background: var(--accent-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(32,167,137,.35); }
 .no-proj-cta-play {
   font-size: .65rem; opacity: .85;
+}
+.no-proj-cta { border: none; font-family: 'Nunito', sans-serif; }
+.no-proj-cta-plus { font-size: 1rem; font-weight: 800; line-height: 1; }
+.no-proj-hint { font-size: .72rem; color: var(--muted); margin-top: -6px; }
+
+/* Feature highlights */
+.no-proj-features {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 7px;
+  margin: 2px auto 0; max-width: 480px;
+}
+.no-proj-chip {
+  font-size: .68rem; font-weight: 600; color: var(--text);
+  padding: 4px 11px; border-radius: 20px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  white-space: nowrap;
 }
 .no-proj-lang {
   display: flex; gap: 6px; justify-content: center; margin-bottom: 6px;
