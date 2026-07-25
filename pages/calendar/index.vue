@@ -25,6 +25,17 @@
             :class="{ active: globalStore.currentView === 'daily' }"
             @click="globalStore.setView('daily')"
           >Daily</button>
+
+          <button
+            class="hey-una-btn"
+            :title="globalStore.lang === 'en' ? 'Ask Una — turn what you say into events' : 'Pídele a Una — convierte lo que dices en eventos'"
+            @click="globalStore.openAssistant()"
+          >
+            <span class="hey-una-mic">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><rect x="9" y="2.5" width="6" height="11" rx="3" fill="currentColor"></rect><path d="M5.5 11a6.5 6.5 0 0013 0M12 17.5V21" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+            </span>
+            Hey Una
+          </button>
         </div>
       </div>
 
@@ -268,18 +279,6 @@
     <ContactsModal v-if="globalStore.contactsOpen" @close="globalStore.closeContacts()" />
     <AssistantDrawer v-if="globalStore.assistantOpen" />
 
-    <!-- Floating assistant button -->
-    <button
-      class="assistant-fab"
-      :title="globalStore.lang === 'en' ? 'Schedule with the assistant' : 'Agendar con el asistente'"
-      @click="globalStore.openAssistant()"
-    >
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
-        <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v4M8 22h8"/>
-      </svg>
-    </button>
-
     <!-- One-time "what's new" card, shown until the current version is seen -->
     <WhatsNewToast />
   </div>
@@ -393,18 +392,29 @@ function createFromTemplate(tmplId) {
 </script>
 
 <style scoped>
-/* Floating assistant button — bottom-right corner */
-.assistant-fab {
-  position: fixed; right: 22px; bottom: 22px; z-index: 150;
-  width: 52px; height: 52px; border-radius: 50%;
-  border: none; cursor: pointer; color: #fff;
-  background: var(--accent);
-  box-shadow: 0 6px 20px rgba(6,204,180,.35);
-  display: flex; align-items: center; justify-content: center;
-  transition: transform .13s, box-shadow .13s, background .13s;
+/* "Hey Una" assistant button — lives in the top view-tabs bar */
+.hey-una-btn {
+  margin-left: 8px;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 16px 7px 11px; border: none; border-radius: 999px;
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-dark, var(--accent)) 100%);
+  color: #062b24; font-size: .8rem; font-weight: 700; font-family: inherit; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(6,204,180,.28);
+  animation: heyUnaPulse 2.6s ease-out infinite;
+  transition: filter .13s, transform .13s;
 }
-.assistant-fab:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 10px 26px rgba(6,204,180,.45); background: var(--accent-dark, var(--accent)); }
-.assistant-fab:active { transform: translateY(0) scale(.98); }
+.hey-una-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.hey-una-btn:active { transform: translateY(0); }
+.hey-una-mic {
+  display: flex; align-items: center; justify-content: center;
+  width: 19px; height: 19px; border-radius: 50%; background: rgba(6,43,36,.16);
+}
+@keyframes heyUnaPulse {
+  0%   { box-shadow: 0 4px 16px rgba(6,204,180,.28), 0 0 0 0 rgba(6,204,180,.4); }
+  70%  { box-shadow: 0 4px 16px rgba(6,204,180,.28), 0 0 0 12px rgba(6,204,180,0); }
+  100% { box-shadow: 0 4px 16px rgba(6,204,180,.28), 0 0 0 0 rgba(6,204,180,0); }
+}
+@media (prefers-reduced-motion: reduce) { .hey-una-btn { animation: none; } }
 
 .cloud-loading-bar {
   position: sticky; top: 0; z-index: 200; height: 3px;
