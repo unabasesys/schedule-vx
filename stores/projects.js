@@ -176,6 +176,22 @@ let   _holidayWarnAt          = 0           // throttles the "holidays unavailab
 
 const isMongoId = (id) => /^[0-9a-f]{24}$/i.test(id || '')
 
+// "This tab is holding work the server doesn't have yet."
+//
+// Do NOT use `hasChanges` for this. That one is a product flag — "edited since the
+// last PUBLISHED PDF version" — it drives the `v0*` asterisk and the New Version
+// button, it's stored in Mongo, and it's cleared in exactly one place (bumpVersion).
+// So it stays true for the entire life of a calendar in use, which is why reading it
+// as "unsaved" silently disabled the freshness sync on every real calendar.
+//
+// `_retries` belongs here too: after 6 failed attempts _onWriteFailed stops re-arming,
+// so there are unsaved edits with no pending timer to point at them.
+const hasUnsyncedWork = (projId) =>
+  _inFlight.has(projId) ||
+  _syncTimers.has(projId) ||
+  _dailySyncTimers.has(projId) ||
+  _retries.has(projId)
+
 const normalizeDoc = (doc) => {
   if (!doc) return doc
   const id = doc._id?.toString?.() || doc._id || doc.id
@@ -420,9 +436,12 @@ export const useProjectsStore = defineStore('projects', {
       if ((info?.rev ?? 0) <= (live.rev ?? 0)) return   // up to date — say nothing
 
       // Unsaved work in the tab: don't touch it.
-      if (live.hasChanges || _inFlight.has(id) || _syncTimers.has(id) || _dailySyncTimers.has(id)) return
+      if (hasUnsyncedWork(id)) return
 
-      this._adoptServerProject(id, null, { quiet: true })
+      // Only claim it was updated once it actually was — the adopt does its own GET,
+      // and that request can fail after this point.
+      const adopted = await this._adoptServerProject(id, null, { quiet: true })
+      if (!adopted) return
 
       // Own write from another tab: adopt it, but don't narrate it back to the user.
       const mine = info?.revBy?.id && String(info.revBy.id) === String(authStore.user?._id || authStore.user?.id)
@@ -545,6 +564,9 @@ export const useProjectsStore = defineStore('projects', {
           live.rev = updated.rev
           if ((updated.updatedAt || '') > (live.updatedAt || '')) live.updatedAt = updated.updatedAt
         }
+        // We are now the last writer — say so immediately instead of leaving the header
+        // crediting the previous one until the next 20s probe.
+        this._noteLastUpdate(updated)
         this._onWriteOk(projId)
       } catch (e) {
         if (e.status === 409) {
@@ -649,7 +671,7 @@ export const useProjectsStore = defineStore('projects', {
 
       // Only one outcome, including any dismissal we didn't foresee: get back in sync
       // with the server and resume saving.
-      this._adoptServerProject(projId, serverProject)
+      await this._adoptServerProject(projId, serverProject)
     },
 
     // Reopens the conflict dialog for a paused calendar (from the header pill).
@@ -665,9 +687,11 @@ export const useProjectsStore = defineStore('projects', {
     // Replace the local copy of a project with the authoritative server copy.
     // `quiet` skips the save-state bump: adopting because the calendar moved ahead
     // is not a save, and flashing "Saved" for it would be a lie.
-    _adoptServerProject(projId, serverProject, { quiet = false } = {}) {
+    // Resolves true only when the local copy really was replaced, so callers can avoid
+    // announcing an update that didn't happen.
+    async _adoptServerProject(projId, serverProject, { quiet = false } = {}) {
       const idx = this.projects.findIndex(p => p.id === projId)
-      if (idx === -1) return
+      if (idx === -1) return false
       const globalStore = useGlobalStore()
 
       const finish = (doc) => {
@@ -685,24 +709,29 @@ export const useProjectsStore = defineStore('projects', {
 
       if (serverProject) {
         finish(normalizeDoc(serverProject))
-      } else {
-        useApi().get(`/projects/${projId}`)
-          .then(fresh => finish(normalizeDoc(fresh)))
-          .catch(e => {
-            console.warn('Reload after conflict failed:', e.message)
-            // The notice just told the user their view was being updated, and it
-            // wasn't. Say so: the calendar stays paused and the header pill is the
-            // way back in.
-            if (quiet) return
-            const en = useGlobalStore().lang === 'en'
-            try {
-              useNuxtApp().$toast(
-                en ? "Couldn't load the latest version. Nothing is being saved — click \"Unsaved\" in the header to try again."
-                   : 'No se pudo cargar la versión más reciente. Nada se está guardando: hacé clic en "Sin guardar" en la cabecera para reintentar.',
-                { type: 'error' },
-              )
-            } catch { /* toast unavailable */ }
-          })
+        return true
+      }
+
+      try {
+        finish(normalizeDoc(await useApi().get(`/projects/${projId}`)))
+        return true
+      } catch (e) {
+        console.warn('Reload after conflict failed:', e.message)
+        // The conflict notice just told the user their view was being updated, and it
+        // wasn't. Say so: the calendar stays paused and the header pill is the way back
+        // in. The quiet (freshness) caller says nothing — it was never asked for — and
+        // reads the `false` instead.
+        if (!quiet) {
+          const en = useGlobalStore().lang === 'en'
+          try {
+            useNuxtApp().$toast(
+              en ? "Couldn't load the latest version. Nothing is being saved — click \"Unsaved\" in the header to try again."
+                 : 'No se pudo cargar la versión más reciente. Nada se está guardando: hacé clic en "Sin guardar" en la cabecera para reintentar.',
+              { type: 'error' },
+            )
+          } catch { /* toast unavailable */ }
+        }
+        return false
       }
     },
 
@@ -879,6 +908,9 @@ export const useProjectsStore = defineStore('projects', {
         })
         const live = this.projects.find(p => p.id === projId)
         if (live && updated?.rev != null) live.rev = updated.rev
+        // Same as _putProject: a daily edit bumps rev, so we are the last writer now.
+        // The PATCH response isn't normalized, so hand over the id explicitly.
+        if (updated) this._noteLastUpdate({ ...updated, id: projId })
         this._onWriteOk(projId)
       } catch (e) {
         if (e.status === 409) {
