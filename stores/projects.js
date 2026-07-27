@@ -167,7 +167,8 @@ const _creating               = new Set()   // local ids with a create POST in f
 const _createTimers           = new Map()   // local id → retry timer for a failed create
 const _createRetries          = new Map()   // local id → consecutive failed creates
 const _conflictDialogs        = new Set()   // projIds whose conflict dialog is open
-const _lastFreshCheck         = new Map()   // projId → ts of the last freshness probe
+const _lastFreshCheck         = new Map()   // projId → ts of the last single-calendar probe
+let   _lastAllCheck           = 0           // ts of the last whole-org probe
 let   _freshTimer             = null        // interval that probes the open calendar
 let   _freshListenersOn       = false
 let   _savedFade              = null        // timer that hides the "saved" pill
@@ -441,20 +442,60 @@ export const useProjectsStore = defineStore('projects', {
       // Only claim it was updated once it actually was — the adopt does its own GET,
       // and that request can fail after this point.
       const adopted = await this._adoptServerProject(id, null, { quiet: true })
-      if (!adopted) return
+      if (adopted) this._announceUpdate(id)
+    },
 
-      // Own write from another tab: adopt it, but don't narrate it back to the user.
-      const mine = info?.revBy?.id && String(info.revBy.id) === String(authStore.user?._id || authStore.user?.id)
-      if (mine) return
+    // One request that answers for EVERY calendar, not just the open one: the combined
+    // Calendar view renders several at a time, so their events are on screen and can be
+    // just as stale. Being a single request no matter how many calendars the org has is
+    // what makes it cheap enough to also serve as the periodic tick.
+    async checkAllFreshness({ force = false } = {}) {
+      const authStore = useAuthStore()
+      if (!authStore?.isLoggedIn) return
 
-      const globalStore = useGlobalStore()
-      const en   = globalStore.lang === 'en'
-      const who  = this.lastUpdate[id]?.name
+      if (!force && Date.now() - _lastAllCheck < 5000) return
+      _lastAllCheck = Date.now()
+
+      let rows
+      try {
+        rows = await useApi().get('/projects/revs')
+      } catch {
+        return   // offline or transient — the write path still guards
+      }
+
+      for (const row of rows || []) {
+        const id   = String(row?.id || '')
+        const live = this.projects.find(p => p.id === id)
+        if (!live || live.conflicted) continue
+
+        if (row.revAt) this._noteLastUpdate({ id, revAt: row.revAt, revBy: row.revBy })
+
+        if ((row.rev ?? 0) <= (live.rev ?? 0)) continue
+        if (hasUnsyncedWork(id)) continue
+
+        const adopted = await this._adoptServerProject(id, null, { quiet: true })
+        if (adopted) this._announceUpdate(id)
+      }
+    },
+
+    // Says a calendar caught up — and only when that is worth saying: never for one the
+    // user isn't looking at (a toast per calendar would be noise, and breaking the
+    // silence rule is worse than the problem it solves), and never for the user's own
+    // write arriving from another tab.
+    _announceUpdate(projId) {
+      if (projId !== this.selectedId) return
+      const authStore = useAuthStore()
+      const info = this.lastUpdate[projId]
+      const me   = authStore.user?._id || authStore.user?.id
+      if (info?.userId && String(info.userId) === String(me)) return
+
+      const en  = useGlobalStore().lang === 'en'
+      const who = info?.name
       try {
         useNuxtApp().$toast(
           who
             ? (en ? `Updated with ${who}'s changes.` : `Actualizado con los cambios de ${who}.`)
-            : (en ? 'Updated with your team\'s latest changes.' : 'Actualizado con los últimos cambios del equipo.'),
+            : (en ? "Updated with your team's latest changes." : 'Actualizado con los últimos cambios del equipo.'),
           { type: 'info' },
         )
       } catch { /* toast unavailable */ }
@@ -492,14 +533,15 @@ export const useProjectsStore = defineStore('projects', {
 
     // Probe on the way back to the calendar, plus a slow tick so a tab left in the
     // foreground is never more than ~20s behind. Only while the tab is visible:
-    // a backgrounded tab has nobody reading it.
+    // a backgrounded tab has nobody reading it. Both use the whole-org probe — one
+    // request either way, so there's no reason to cover less than everything on screen.
     _registerFreshnessWatch() {
       if (_freshListenersOn || typeof window === 'undefined') return
       _freshListenersOn = true
 
       const probe = () => {
         if (document.visibilityState !== 'visible') return
-        this.checkFreshness()
+        this.checkAllFreshness()
       }
       window.addEventListener('focus', probe)
       window.addEventListener('visibilitychange', probe)
@@ -967,7 +1009,9 @@ export const useProjectsStore = defineStore('projects', {
           createdAt: new Date().toISOString().split('T')[0],
         }
         this.templates.unshift(tmpl)
-        this.save()
+        // No save() either: this adds a TEMPLATE, and save() only syncs projects — the
+        // built-in one is bundled locally and never stored per-org. All the call did was
+        // re-arm a PUT for every calendar with `hasChanges` (see selectProject).
       }
     },
 
@@ -1002,7 +1046,12 @@ export const useProjectsStore = defineStore('projects', {
           globalStore.calMonth = earliest.getMonth()
         }
       }
-      this.save()
+      // Deliberately no save(): selecting a calendar is not an edit. save() re-arms a
+      // PUT for every project whose `hasChanges` is set — which, since that flag is
+      // only cleared by bumpVersion, means practically all of them. So a click in the
+      // sidebar rewrote whole documents and bumped their rev with nothing edited,
+      // which then made every teammate's tab stale and handed them a conflict out of
+      // thin air. Real edits schedule their own sync; this doesn't need to.
     },
 
     createProject(data) {
