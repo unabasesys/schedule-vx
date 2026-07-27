@@ -11,6 +11,24 @@
 
 export const CHANGELOG = [
   {
+    version: '1.2.0',
+    date: '2026-07-26',
+    es: [
+      'Si alguien de tu equipo guarda el calendario, tu pantalla se pone al día sola al volver a ella. Antes una pestaña abierta podía quedar días desactualizada sin avisar.',
+      'El header muestra la última actualización del calendario: cuándo fue y quién la hizo.',
+      'Cuando el calendario avanzó mientras editabas, el aviso ahora dice quién guardó y a qué hora, y se resuelve con un solo botón.',
+      'El menú Compartir usa los mismos nombres en todas partes: "Para: Cliente / Interno" tanto en el calendario como en el Daily Schedule, y el PDF indica para quién es.',
+      'Un calendario nuevo sin plantilla ya no llega con departamentos de publicidad precargados: partes con los tuyos.',
+    ],
+    en: [
+      'If a teammate saves the calendar, your screen catches up on its own when you come back to it. Before, an open tab could sit days out of date without saying so.',
+      'The header shows the calendar’s last update: when it happened and who made it.',
+      'When the calendar moved on while you were editing, the notice now names who saved and at what time, and clears with a single button.',
+      'The Share menu uses the same words everywhere: "For: Client / Internal" in both the calendar and the Daily Schedule, and the PDF states who it is for.',
+      'A new calendar started without a template no longer arrives preloaded with advertising departments: you start with your own.',
+    ],
+  },
+  {
     version: '1.1.0',
     date: '2026-07-17',
     es: [
