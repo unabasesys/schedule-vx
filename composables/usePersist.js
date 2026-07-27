@@ -3,6 +3,7 @@
 
 const SIDEBAR_KEY = 'ub_sidebar_collapsed'
 const VIEW_KEY    = 'ub_current_view'
+const GUIDE_KEY   = 'ub_guide_hidden'
 const VALID_VIEWS = ['cal', 'list', 'daily', 'tmpl']
 
 export function usePersist() {
@@ -27,5 +28,19 @@ export function usePersist() {
     localStorage.setItem(VIEW_KEY, val)
   }
 
-  return { getSidebarCollapsed, setSidebarCollapsed, getView, setView }
+  // "Don't show the no-template guide again". Per-browser rather than per-user on the
+  // server: it's a UI preference about one screen, and it belongs with the rest of the
+  // local UI state. The help menu can clear it.
+  function getGuideHidden() {
+    if (typeof localStorage === 'undefined') return false
+    return localStorage.getItem(GUIDE_KEY) === '1'
+  }
+
+  function setGuideHidden(val) {
+    if (typeof localStorage === 'undefined') return
+    if (val) localStorage.setItem(GUIDE_KEY, '1')
+    else     localStorage.removeItem(GUIDE_KEY)
+  }
+
+  return { getSidebarCollapsed, setSidebarCollapsed, getView, setView, getGuideHidden, setGuideHidden }
 }

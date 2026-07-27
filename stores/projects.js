@@ -292,9 +292,10 @@ export const useProjectsStore = defineStore('projects', {
       const authStore     = useAuthStore()
 
       // UI state — safe to keep locally
-      const { getSidebarCollapsed, getView } = usePersist()
+      const { getSidebarCollapsed, getView, getGuideHidden } = usePersist()
       globalStore.sidebarCollapsed = getSidebarCollapsed()
       globalStore.currentView      = getView()
+      globalStore.guideHidden      = getGuideHidden()
 
       // Preferences come from the user's schedulePrefs (returned with auth session)
       const prefs = authStore.user?.schedulePrefs || {}

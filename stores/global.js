@@ -28,6 +28,11 @@ export const useGlobalStore = defineStore('global', {
     contactsOpen:      false,
     assistantOpen:     false,
     sidebarCollapsed:  false,
+    // "Don't show the no-template guide again". Lives here rather than in the component
+    // because two places touch it: the guide's own checkbox and the Help modal's "show it
+    // again" — and localStorage isn't reactive, so a component-local copy would leave the
+    // guide hidden until a reload.
+    guideHidden:       false,
   }),
 
   getters: {
@@ -96,6 +101,11 @@ export const useGlobalStore = defineStore('global', {
     toggleSidebar() {
       this.sidebarCollapsed = !this.sidebarCollapsed
       usePersist().setSidebarCollapsed(this.sidebarCollapsed)
+    },
+
+    setGuideHidden(val) {
+      this.guideHidden = !!val
+      usePersist().setGuideHidden(this.guideHidden)
     },
 
     openSettings() { this.settingsOpen = true },

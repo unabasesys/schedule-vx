@@ -228,15 +228,15 @@
           </template>
         </template>
 
-        <!-- Empty state — no stages yet -->
-        <div v-if="stagesWithEvents.length === 0 && !addingStage" class="ev-empty-state">
-          <p class="ev-empty-title">{{ L.emptyTitle }}</p>
-          <p class="ev-empty-body">{{ L.emptyBody1 }}</p>
-          <p class="ev-empty-body">{{ L.emptyBody2 }}</p>
-          <p class="ev-empty-body">{{ L.emptyBody3 }}</p>
-          <p class="ev-empty-closing">{{ L.emptyAction }}</p>
-          <button class="ev-empty-action" @click="startAddStage">{{ L.emptyBtn }}</button>
-        </div>
+        <!-- Empty state — no stages yet. A calendar started without a template lands
+             here with nothing to look at and a toolbar it has never been told about, so
+             this is where the functions guide goes. Not for a shared read-only link:
+             a client has no + Stage button to press. -->
+        <FunctionsGuide
+          v-if="stagesWithEvents.length === 0 && !addingStage && !readOnly && !guideHidden"
+          :lang="lang"
+          @add-stage="startAddStage"
+        />
 
         <!-- Inline new-stage form — appears at the bottom of the list -->
         <div v-if="addingStage" class="ev-add-stage-row">
@@ -408,12 +408,6 @@ const LABELS = {
     promptTemplate:      'Guardar este calendario como template',
     promptTemplateLabel: 'Nombre del template',
     promptTemplatePh:    'Escribe el nombre del template',
-    emptyTitle:   '¿Partiste sin template? Perfecto.',
-    emptyBody1:   'Entonces este calendario lo puedes armar 100% a tu manera.\n\nLo primero es crear una Etapa, porque ahí es donde viven los eventos.\nDesde ahí puedes ir construyendo tu calendario poco a poco, agregando todas las etapas y eventos que necesites, y cambiando el orden cuando quieras.',
-    emptyBody2:   'También puedes usar Departamentos para conectar eventos de distintas etapas.\nSi prendes o apagas un departamento, todos los eventos vinculados cambian contigo.',
-    emptyBody3:   'Y no le tengas miedo a las dependencias.\nPuede sonar técnico, pero en la práctica son muy fáciles de usar y te van a ayudar a mover tu calendario de forma mucho más inteligente.',
-    emptyAction:  'Empieza creando tu primera Etapa y prueba sin miedo.',
-    emptyBtn:     '＋ Etapa',
   },
   en: {
     newEvent:       '＋ Event',
@@ -457,12 +451,6 @@ const LABELS = {
     promptTemplate:      'Save this calendar as a template',
     promptTemplateLabel: 'Template name',
     promptTemplatePh:    'Enter template name',
-    emptyTitle:   'Starting without a template? Perfect.',
-    emptyBody1:   'This calendar is yours to build your own way.\n\nThe first step is to create a Stage, because that\'s where events live.\nFrom there, you can build your calendar step by step, adding as many stages and events as you need, and changing the order whenever you want.',
-    emptyBody2:   'You can also use Departments to connect events from different stages.\nWhen you turn a department on or off, all linked events follow.',
-    emptyBody3:   'And don\'t be afraid of Dependencies.\nThey may sound technical, but they\'re actually very easy to use and can help you adjust your calendar in a much smarter way.',
-    emptyAction:  'Start by creating your first Stage and explore freely.',
-    emptyBtn:     '＋ Stage',
   },
 }
 
@@ -478,6 +466,10 @@ const props = defineProps({
 const emit = defineEmits(['toggle-holidays'])
 
 const L = computed(() => LABELS[props.lang] ?? LABELS.es)
+
+// Seeded from localStorage at app init, and reactive so "show the guide again" from the
+// Help modal takes effect without a reload.
+const guideHidden = computed(() => useGlobalStore().guideHidden)
 
 // ── Filter state (internal) ───────────────────────────────────────────────────
 const evFilter = ref('all')
@@ -1144,50 +1136,6 @@ watch(stageColorPickerId, (val) => {
   cursor: pointer; font-family: inherit; transition: opacity .13s;
 }
 .btn-danger:hover { opacity: .88; }
-
-/* ── Empty state ─────────────────────────────────────────────────────────── */
-.ev-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 48px 56px;
-  max-width: 560px;
-}
-.ev-empty-title {
-  font-size: .95rem;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0;
-}
-.ev-empty-body {
-  font-size: .85rem;
-  color: #4a6475;
-  line-height: 1.6;
-  margin: 0;
-  white-space: pre-line;
-}
-.ev-empty-closing {
-  font-size: .85rem;
-  color: #4a6475;
-  line-height: 1.6;
-  margin: 0;
-  white-space: pre-line;
-}
-.ev-empty-action {
-  margin-top: 4px;
-  padding: 8px 18px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  font-size: .85rem;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  transition: opacity .13s;
-}
-.ev-empty-action:hover { opacity: .85; }
 
 /* ── List drag-and-drop indicators ─────────────────────────────────────────── */
 .ev-row-dnd-wrap { position: relative; }

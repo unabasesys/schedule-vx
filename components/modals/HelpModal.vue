@@ -43,6 +43,17 @@
         </template>
       </div>
 
+      <!-- The no-template guide tells the user it lives "in the help menu" when they
+           dismiss it. This is that menu, so this is where it has to be findable. -->
+      <div v-if="globalStore.guideHidden" class="help-restore-guide">
+        <span>{{ lang === 'en'
+          ? 'The functions guide is hidden on empty calendars.'
+          : 'La guía de funciones está oculta en los calendarios vacíos.' }}</span>
+        <button class="help-restore-btn" @click="globalStore.setGuideHidden(false)">
+          {{ lang === 'en' ? 'Show it again' : 'Volver a mostrarla' }}
+        </button>
+      </div>
+
       <div class="modal-actions" style="margin-top:20px;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
         <a href="https://unabase.com" target="_blank" class="about-modal-email">
           🌐 unabase.com
@@ -90,6 +101,21 @@ defineEmits(['close'])
   color: #fff; line-height: 1.2; margin-bottom: 6px;
 }
 .about-modal-title span { color: var(--accent); }
+
+.help-restore-guide {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-top: 18px;
+  padding: 12px 14px; border-radius: 9px;
+  background: var(--surface-2); border: 1.5px solid var(--border);
+  font-size: .78rem; color: var(--muted);
+}
+.help-restore-btn {
+  padding: 6px 14px; border-radius: 7px; border: 1.5px solid var(--accent);
+  background: transparent; color: var(--accent);
+  font-size: .74rem; font-weight: 700; cursor: pointer; font-family: inherit;
+  transition: background .13s;
+}
+.help-restore-btn:hover { background: rgba(32,167,137,.12); }
 .about-modal-sub { font-size: .75rem; color: rgba(255,255,255,.55); line-height: 1.5; }
 
 .about-modal-body { font-size: .82rem; line-height: 1.75; color: var(--text); }
