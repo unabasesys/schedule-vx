@@ -1744,13 +1744,11 @@ export const useProjectsStore = defineStore('projects', {
       this.recalcAndSave(projId)
     },
 
-    markChanged(projId) {
-      const proj = this.projects.find(p => p.id === (projId || this.selectedId))
-      if (proj) {
-        proj.hasChanges = true
-        proj.updatedAt = proj.editedAt = new Date().toISOString()
-      }
-    },
+    // markChanged() used to live here. It had no callers, and it was a trap waiting for
+    // one: it marked a calendar as edited WITHOUT scheduling the sync, so
+    // hasUnsyncedWork() could not see that work existed and the freshness catch-up would
+    // have adopted the server copy right over it. Anything that edits a calendar has to
+    // end in save() or recalcAndSave() — that's what arms the write the guard reads.
 
     bumpVersion(projId) {
       const proj = this.projects.find(p => p.id === projId)

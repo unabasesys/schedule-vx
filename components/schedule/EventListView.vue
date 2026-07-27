@@ -66,8 +66,11 @@
       </div>
     </div>
 
-    <!-- Groups filter chips -->
-    <div class="groups-panel">
+    <!-- Groups filter chips. Hidden when there is nothing to show AND nothing to add:
+         calendars now start with no departments, so a shared read-only link used to
+         render a bare "Departments" heading with an empty row under it. Same condition
+         CalendarView and DailyView already use. -->
+    <div v-if="activeGroups.length || !readOnly" class="groups-panel">
       <span class="groups-panel-title">{{ L.groupsTitle }}</span>
       <div class="groups-chips">
         <button
