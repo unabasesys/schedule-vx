@@ -333,10 +333,11 @@ const rangeLabel = computed(() => {
   return `${isEN.value ? 'To' : 'Hasta'} ${fmtDateStr(to.value)}`
 })
 
+// Same two words the Share panel uses — one concept, one name.
 const printTypeLabel = computed(() =>
   isInternal.value
     ? (isEN.value ? 'Internal' : 'Interno')
-    : (isEN.value ? 'Client-facing' : 'Para cliente')
+    : (isEN.value ? 'Client' : 'Cliente')
 )
 
 function formatDow(dateStr) {

@@ -20,6 +20,24 @@
       <div class="share-section">
         <div class="share-section-title">{{ lang === 'en' ? 'Calendar' : 'Calendario' }}</div>
 
+        <!-- Audience — same wording and same position as in Daily Schedule below.
+             Sits ABOVE the actions because it applies to BOTH of them. -->
+        <div class="field-row">
+          <label class="field-label">{{ L.audience }}</label>
+          <div class="seg">
+            <button
+              :class="['seg-btn', calType === 'client' && 'active']"
+              :title="L.audienceClientHint"
+              @click="calType = 'client'"
+            >{{ L.client }}</button>
+            <button
+              :class="['seg-btn', calType === 'internal' && 'active']"
+              :title="L.audienceInternalHint"
+              @click="calType = 'internal'"
+            >{{ L.internal }}</button>
+          </div>
+        </div>
+
         <!-- Borrador — always visible, no version bump -->
         <button class="share-action-btn" @click="downloadDraft">
           <div class="share-action-main">
@@ -30,8 +48,8 @@
           </div>
           <div class="share-action-desc">
             {{ lang === 'en'
-              ? 'Open print preview without advancing the version.'
-              : 'Abre la vista de impresión sin avanzar la versión.' }}
+              ? 'Open the PDF preview without advancing the version.'
+              : 'Abre la vista previa del PDF sin avanzar la versión.' }}
           </div>
         </button>
 
@@ -54,23 +72,6 @@
           </div>
         </button>
 
-        <!-- Client-facing vs internal (locked events) — applies to Draft & Version -->
-        <div class="daily-row" style="margin-top:2px;">
-          <label class="daily-label">{{ lang === 'en' ? 'Events' : 'Eventos' }}</label>
-          <div class="daily-toggle">
-            <button
-              :class="['daily-tog-btn', calType === 'client' && 'active']"
-              :title="lang === 'en' ? 'Only open events (client view)' : 'Solo eventos abiertos (vista cliente)'"
-              @click="calType = 'client'"
-            >{{ lang === 'en' ? 'Client view' : 'Vista cliente' }}</button>
-            <button
-              :class="['daily-tog-btn', calType === 'internal' && 'active']"
-              :title="lang === 'en' ? 'Include internal (locked) events' : 'Incluye los eventos internos (candado)'"
-              @click="calType = 'internal'"
-            >{{ lang === 'en' ? 'Internal' : 'Interno' }}</button>
-          </div>
-        </div>
-
         <div class="share-section-note">
           {{ lang === 'en'
             ? "The PDF is generated in the calendar's language, not the language of this view."
@@ -87,25 +88,27 @@
         </div>
 
         <template v-else>
-          <div class="daily-row">
-            <label class="daily-label">{{ lang === 'en' ? 'From' : 'Desde' }}</label>
-            <input type="date" v-model="dailyFrom" class="daily-input" />
+          <div class="field-row">
+            <label class="field-label">{{ lang === 'en' ? 'From' : 'Desde' }}</label>
+            <input type="date" v-model="dailyFrom" class="field-input" />
           </div>
-          <div class="daily-row">
-            <label class="daily-label">{{ lang === 'en' ? 'To' : 'Hasta' }}</label>
-            <input type="date" v-model="dailyTo" class="daily-input" />
+          <div class="field-row">
+            <label class="field-label">{{ lang === 'en' ? 'To' : 'Hasta' }}</label>
+            <input type="date" v-model="dailyTo" class="field-input" />
           </div>
-          <div class="daily-row">
-            <label class="daily-label">{{ lang === 'en' ? 'Type' : 'Tipo' }}</label>
-            <div class="daily-toggle">
+          <div class="field-row">
+            <label class="field-label">{{ L.audience }}</label>
+            <div class="seg">
               <button
-                :class="['daily-tog-btn', dailyType === 'client' && 'active']"
+                :class="['seg-btn', dailyType === 'client' && 'active']"
+                :title="L.audienceClientHint"
                 @click="dailyType = 'client'"
-              >{{ lang === 'en' ? 'Client-facing' : 'Para cliente' }}</button>
+              >{{ L.client }}</button>
               <button
-                :class="['daily-tog-btn', dailyType === 'internal' && 'active']"
+                :class="['seg-btn', dailyType === 'internal' && 'active']"
+                :title="L.audienceInternalHint"
                 @click="dailyType = 'internal'"
-              >{{ lang === 'en' ? 'Internal' : 'Interno' }}</button>
+              >{{ L.internal }}</button>
             </div>
           </div>
           <div class="daily-footer">
@@ -128,7 +131,28 @@ const props = defineProps({
   project: { type: Object, required: true },
 })
 
+// Who the document is for. One single pair of words for both PDFs (and for the
+// print pages), because it is one single concept: whether the internal (locked)
+// items are included. Never reword these per section.
+const LABELS = {
+  es: {
+    audience:             'Para',
+    client:               'Cliente',
+    internal:             'Interno',
+    audienceClientHint:   'Oculta los eventos internos (con candado)',
+    audienceInternalHint: 'Incluye los eventos internos (con candado)',
+  },
+  en: {
+    audience:             'For',
+    client:               'Client',
+    internal:             'Internal',
+    audienceClientHint:   'Hides internal (locked) events',
+    audienceInternalHint: 'Includes internal (locked) events',
+  },
+}
+
 const lang         = computed(() => globalStore.lang)
+const L            = computed(() => LABELS[globalStore.lang] ?? LABELS.es)
 const open         = ref(false)
 const hasEvents    = computed(() => (props.project?.events || []).some(e => e.active && e.date))
 const wrapEl       = ref(null)
@@ -287,29 +311,31 @@ function onKeyDown(e) {
   font-style: italic; margin-top: 6px; padding: 0 2px;
 }
 
-/* ── Daily Schedule form ── */
-.daily-empty {
-  font-size: .72rem; color: var(--muted); text-align: center; padding: 6px 0;
-}
-.daily-row {
+/* ── Form fields — shared by both sections, hence the neutral names ── */
+.field-row {
   display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
 }
-.daily-label {
+.field-label {
   font-size: .72rem; font-weight: 600; color: var(--muted); width: 50px; flex-shrink: 0;
 }
-.daily-input {
+.field-input {
   flex: 1; background: var(--surface-2); border: 1.5px solid var(--border);
   border-radius: 6px; padding: 5px 9px; font-size: .78rem; color: var(--text); font-family: inherit;
 }
-.daily-input:focus { outline: none; border-color: var(--accent); }
-.daily-toggle { display: flex; gap: 4px; }
-.daily-tog-btn {
+.field-input:focus { outline: none; border-color: var(--accent); }
+.seg { display: flex; gap: 4px; }
+.seg-btn {
   padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 6px;
   background: transparent; color: var(--muted); font-size: .7rem; font-weight: 600;
   cursor: pointer; font-family: inherit; transition: all .13s;
 }
-.daily-tog-btn:hover { border-color: var(--text); color: var(--text); }
-.daily-tog-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.1); }
+.seg-btn:hover { border-color: var(--text); color: var(--text); }
+.seg-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.1); }
+
+/* ── Daily Schedule only ── */
+.daily-empty {
+  font-size: .72rem; color: var(--muted); text-align: center; padding: 6px 0;
+}
 .daily-footer {
   display: flex; justify-content: flex-end;
   padding-top: 8px; margin-top: 2px;

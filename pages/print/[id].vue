@@ -5,7 +5,7 @@
     <!-- ── Screen-only top bar ──────────────────────────────────── -->
     <div class="preview-top">
       <div class="preview-brand">unabase <em>Calendar</em></div>
-      <div class="preview-meta">PDF preview · A4 landscape · 297 × 210 mm</div>
+      <div class="preview-meta">{{ printTypeLabel }} · PDF preview · A4 landscape · 297 × 210 mm</div>
       <button class="preview-print-btn" :class="{ loading: downloading }" @click="downloadPdf" :disabled="downloading">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -240,8 +240,8 @@ const STAGE_TYPE = {
 const route     = useRoute()
 const projectId = computed(() => route.params.id)
 const isDraft   = computed(() => route.query.draft === '1')
-// Internal vs client-facing export: when ?type=internal, locked/internal
-// events are included in the PDF; otherwise (client view, default) they're hidden.
+// Internal vs client export: when ?type=internal, locked/internal events are
+// included in the PDF; otherwise (client, the default) they're hidden.
 const includeInternal = computed(() => route.query.type === 'internal')
 
 const project          = ref(null)
@@ -346,6 +346,12 @@ onMounted(async () => {
 
 // ── Locale helpers ─────────────────────────────────────────────────────────────
 const isEN       = computed(() => lang.value === 'en')
+// Same two words the Share panel uses — one concept, one name.
+const printTypeLabel = computed(() =>
+  includeInternal.value
+    ? (isEN.value ? 'Internal' : 'Interno')
+    : (isEN.value ? 'Client' : 'Cliente')
+)
 const MONTH_FULL = computed(() => isEN.value ? MONTH_FULL_EN : MONTH_FULL_ES)
 const MONTH_ABBR = computed(() => isEN.value ? MONTH_ABBR_EN : MONTH_ABBR_ES)
 const DOW_LABELS = computed(() => {
