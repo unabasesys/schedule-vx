@@ -40,6 +40,13 @@
       </div>
 
       <div class="hdr-actions">
+        <!-- Who has the calendar's current server version, and when. A tab left open
+             for days used to look identical to a fresh one; this is the standing
+             answer to "am I looking at the real thing?". -->
+        <div v-if="lastUpdateLabel" class="hdr-last-update" :title="lastUpdateTitle">
+          {{ lastUpdateLabel }}
+        </div>
+
         <!-- Save state: without this, a failing API looked exactly like a working one.
              In 'conflict' it's a button: autosave is paused waiting for a decision,
              so the user needs a way back to that decision. -->
@@ -300,10 +307,13 @@
 
 <script setup>
 definePageMeta({ middleware: 'auth' })
+import { fmtWhen } from '~/utils/helpers'
+
 const { locale } = useI18n()
 const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()
 const settingsStore = useSettingsStore()
+const authStore     = useAuthStore()
 
 const { currentProject } = storeToRefs(projectsStore)
 
@@ -344,6 +354,31 @@ const saveStateLabel = computed(() => {
     case 'conflict': return en ? 'Unsaved' : 'Sin guardar'
     default:         return ''
   }
+})
+
+// "Actualizado hace 4 min por Ana". Recomputed as `lastUpdate` changes, which the
+// freshness probe refreshes every ~20s — so the relative time doesn't go stale
+// either. Empty (and therefore hidden) for a calendar nobody has saved yet.
+const lastUpdateLabel = computed(() => {
+  const info = projectsStore.currentLastUpdate
+  if (!info?.revAt) return ''
+  const en   = globalStore.lang === 'en'
+  const when = fmtWhen(info.revAt, en)
+  if (!when) return ''
+  const me   = authStore.user?._id || authStore.user?.id
+  const who  = info.userId && String(info.userId) === String(me)
+    ? (en ? 'you' : 'ti')
+    : info.name
+  return who
+    ? (en ? `Updated ${when} by ${who}` : `Actualizado ${when} por ${who}`)
+    : (en ? `Updated ${when}`           : `Actualizado ${when}`)
+})
+
+const lastUpdateTitle = computed(() => {
+  const info = projectsStore.currentLastUpdate
+  if (!info?.revAt) return ''
+  const d = new Date(info.revAt)
+  return isNaN(d.getTime()) ? '' : d.toLocaleString()
 })
 
 const saveStateTitle = computed(() => {
@@ -426,6 +461,14 @@ function createFromTemplate(tmplId) {
 
 <style scoped>
 /* Save-state pill — quiet when things work, loud only when they don't */
+/* Standing status, not an alert: same size as the save pill but no border, no dot,
+   so it reads as a caption and never competes with it. Truncates before it can
+   push the header controls around. */
+.hdr-last-update {
+  font-size: .68rem; color: var(--muted); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 220px;
+}
+
 .save-state {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: .68rem; font-weight: 600; white-space: nowrap;

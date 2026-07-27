@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { uid } from '~/utils/helpers'
+import { uid, fmtWhen } from '~/utils/helpers'
 import { MASTER_TEMPLATE, DEFAULT_STAGES, DEFAULT_GROUPS, DEFAULT_CITIES, STAGE_ORDER } from '~/utils/constants'
 import { usePersist } from '~/composables/usePersist'
 import { useDependencyEngine } from '~/composables/useDependencyEngine'
@@ -167,6 +167,9 @@ const _creating               = new Set()   // local ids with a create POST in f
 const _createTimers           = new Map()   // local id → retry timer for a failed create
 const _createRetries          = new Map()   // local id → consecutive failed creates
 const _conflictDialogs        = new Set()   // projIds whose conflict dialog is open
+const _lastFreshCheck         = new Map()   // projId → ts of the last freshness probe
+let   _freshTimer             = null        // interval that probes the open calendar
+let   _freshListenersOn       = false
 let   _savedFade              = null        // timer that hides the "saved" pill
 let   _unloadListenerRegistered = false
 let   _holidayWarnAt          = 0           // throttles the "holidays unavailable" notice
@@ -194,10 +197,18 @@ export const useProjectsStore = defineStore('projects', {
     // 'conflict' is its own state: unlike 'error' it is NOT retrying — it waits for
     // the user to decide, so the pill must not promise a retry that never comes.
     saveState: 'idle',   // 'idle' | 'saving' | 'saved' | 'error' | 'conflict'
+    // Who last saved each calendar on the SERVER, and when: projId → { revAt, name }.
+    // Kept out of the project documents on purpose — those get replaced wholesale
+    // when we adopt a fresh copy, and this has to survive that.
+    lastUpdate: {},
   }),
 
   getters: {
     currentProject: (s) => s.projects.find(p => p.id === s.selectedId) || null,
+
+    // "Last saved <when> by <who>" for the open calendar, or null when we've never
+    // seen a write (a brand-new calendar) — in which case the header shows nothing.
+    currentLastUpdate: (s) => s.lastUpdate[s.selectedId] || null,
 
     localOnlyProjects: (s) => s.projects.filter(p => !isMongoId(p.id)),
 
@@ -347,13 +358,134 @@ export const useProjectsStore = defineStore('projects', {
 
         this.migrationPending = false
 
+        // "Last saved by X" comes free with this read — /projects carries revAt/revBy.
+        normProjects.forEach(p => this._noteLastUpdate(p))
+
         try { this.seedInitialData() } catch(e) { console.warn('seedInitialData error', e) }
         this._registerUnloadFlush()
+        this._registerFreshnessWatch()
       } catch (err) {
         console.warn('loadFromApi failed:', err)
       } finally {
         this.cloudLoading = false
       }
+    },
+
+    // ── Freshness: an open calendar must not silently fall behind ──────────────
+    //
+    // The app read from the server exactly once, at startup. A tab left open while
+    // a teammate saved kept its stale `rev` forever and found out at the worst
+    // possible moment: hours later, after the user had already edited on top of old
+    // data, when the save came back 409. So ask on the way IN — when the user
+    // returns to the calendar — instead of discovering it on the way out.
+    //
+    //  • Nothing moved         → NOTHING happens. No dialog, no toast, no spinner.
+    //                            Someone who works alone never sees a trace of this.
+    //  • Moved, nothing unsaved→ adopt the fresh copy and say who saved it.
+    //  • Moved, unsaved edits  → leave it alone. Adopting here would be the same
+    //                            data loss by the back door; the write path's own
+    //                            409 guard owns that case.
+    async checkFreshness(projId, { force = false } = {}) {
+      const authStore = useAuthStore()
+      if (!authStore?.isLoggedIn) return
+      const id = projId || this.selectedId
+      if (!isMongoId(id)) return
+      const proj = this.projects.find(p => p.id === id)
+      if (!proj || proj.conflicted) return
+
+      // focus/visibilitychange arrive in bursts; one probe every few seconds is plenty.
+      const last = _lastFreshCheck.get(id) || 0
+      if (!force && Date.now() - last < 5000) return
+      _lastFreshCheck.set(id, Date.now())
+
+      let info
+      try {
+        info = await useApi().get(`/projects/${id}/rev`)
+      } catch {
+        return   // offline or transient. Staying quiet is right: the write path still guards.
+      }
+
+      const live = this.projects.find(p => p.id === id)
+      if (!live || live.conflicted) return
+
+      // Record who holds the current server version no matter what we do next — the
+      // header shows it, and it's true even in the case where we can't adopt.
+      if (info?.revAt) {
+        this.lastUpdate = {
+          ...this.lastUpdate,
+          [id]: { revAt: info.revAt, name: this._resolveUserName(info.revBy), userId: info.revBy?.id || null },
+        }
+      }
+
+      if ((info?.rev ?? 0) <= (live.rev ?? 0)) return   // up to date — say nothing
+
+      // Unsaved work in the tab: don't touch it.
+      if (live.hasChanges || _inFlight.has(id) || _syncTimers.has(id) || _dailySyncTimers.has(id)) return
+
+      this._adoptServerProject(id, null, { quiet: true })
+
+      // Own write from another tab: adopt it, but don't narrate it back to the user.
+      const mine = info?.revBy?.id && String(info.revBy.id) === String(authStore.user?._id || authStore.user?.id)
+      if (mine) return
+
+      const globalStore = useGlobalStore()
+      const en   = globalStore.lang === 'en'
+      const who  = this.lastUpdate[id]?.name
+      try {
+        useNuxtApp().$toast(
+          who
+            ? (en ? `Updated with ${who}'s changes.` : `Actualizado con los cambios de ${who}.`)
+            : (en ? 'Updated with your team\'s latest changes.' : 'Actualizado con los últimos cambios del equipo.'),
+          { type: 'info' },
+        )
+      } catch { /* toast unavailable */ }
+    },
+
+    // Records "last saved by X at Y" from a full project document, where `revBy` is a
+    // bare id (only the /rev probe populates it). Cheap enough to call on every read.
+    _noteLastUpdate(doc) {
+      if (!doc?.id || !doc.revAt) return
+      const userId = doc.revBy?._id || doc.revBy?.id || doc.revBy || null
+      // The /rev probe populates the user, so it can resolve a name even when the org
+      // member list isn't loaded; a full-document read only carries the id. Don't let
+      // the poorer source erase what the better one already found.
+      const prev = this.lastUpdate[doc.id]
+      const name = this._resolveUserName(userId ? { id: userId } : null)
+        || (prev && String(prev.userId) === String(userId) ? prev.name : '')
+      this.lastUpdate = {
+        ...this.lastUpdate,
+        [doc.id]: { revAt: doc.revAt, name, userId },
+      }
+    },
+
+    // Prefer the org member list already in memory (it has real names); fall back to
+    // whatever the API sent so we never show a raw id.
+    _resolveUserName(revBy) {
+      if (!revBy) return ''
+      try {
+        const settingsStore = useSettingsStore()
+        const hit = (settingsStore.users || []).find(u => String(u.id) === String(revBy.id))
+        if (hit?.name)  return hit.name
+        if (hit?.email) return hit.email
+      } catch { /* settings store unavailable */ }
+      return revBy.name || revBy.email || ''
+    },
+
+    // Probe on the way back to the calendar, plus a slow tick so a tab left in the
+    // foreground is never more than ~20s behind. Only while the tab is visible:
+    // a backgrounded tab has nobody reading it.
+    _registerFreshnessWatch() {
+      if (_freshListenersOn || typeof window === 'undefined') return
+      _freshListenersOn = true
+
+      const probe = () => {
+        if (document.visibilityState !== 'visible') return
+        this.checkFreshness()
+      }
+      window.addEventListener('focus', probe)
+      window.addEventListener('visibilitychange', probe)
+      if (_freshTimer) clearInterval(_freshTimer)
+      _freshTimer = setInterval(probe, 20000)
     },
 
     // Debounced PUT for a single project to the API
@@ -485,39 +617,39 @@ export const useProjectsStore = defineStore('projects', {
 
       const globalStore = useGlobalStore()
       const en = globalStore.lang === 'en'
-      const { choice } = useDialog()
-      let pick
+      const { alert } = useDialog()
+
+      // Who got here first, so the notice can name them instead of saying "someone".
+      const who = this._resolveUserName(
+        serverProject?.revBy ? { id: serverProject.revBy?._id || serverProject.revBy } : null,
+      ) || this.lastUpdate[projId]?.name || ''
+      const when = fmtWhen(serverProject?.revAt || this.lastUpdate[projId]?.revAt, en)
+
+      // ONE way out, on purpose. This used to offer "Keep mine (stop saving)" as a
+      // peer option, and it read like the prudent choice — so people picked it after
+      // twenty edits, kept working, and lost the entire session: there is no
+      // localStorage behind this store, so those edits lived in the tab and nowhere
+      // else. On a shared calendar the server copy wins; that was agreed the moment
+      // the calendar was shared. All the user has to do here is find out.
+      const attribution = who
+        ? (en ? `${who} saved this calendar${when ? ` ${when}` : ''}.` : `${who} guardó este calendario${when ? ` ${when}` : ''}.`)
+        : (en ? `Someone else saved this calendar${when ? ` ${when}` : ''}.` : `Otra persona guardó este calendario${when ? ` ${when}` : ''}.`)
+
       try {
-        pick = await choice({
-          title: en ? 'Someone else saved changes' : 'Otra persona guardó cambios',
+        await alert({
+          title: en ? 'This calendar moved on' : 'Este calendario avanzó',
           body: en
-            ? 'Another user saved this calendar while you were editing. To avoid overwriting their work, choose how to continue:'
-            : 'Otra persona guardó este calendario mientras lo editabas. Para no pisar su trabajo, elegí cómo seguir:',
-          choices: [
-            { label: en ? 'Load the latest version' : 'Ver la versión más reciente', value: 'reload', primary: true },
-            { label: en ? 'Keep mine (stop saving)'  : 'Seguir con la mía (no guardar)', value: 'keep' },
-          ],
-          dismissible: false,
+            ? `${attribution} Your view is being updated to their version, so you don't keep working on top of an old copy.`
+            : `${attribution} Tu vista se actualiza a esa versión, para que no sigas trabajando sobre una copia vieja.`,
+          confirmLabel: en ? 'OK' : 'Entendido',
         })
       } finally {
         _conflictDialogs.delete(projId)
       }
 
-      if (pick === 'keep') {
-        // Stay paused. The header pill keeps reporting the conflict and reopens
-        // this dialog on click, so "not saving" can't fade into the background.
-        try {
-          useNuxtApp().$toast(
-            en ? 'Your changes are not being saved. Click "Unsaved" in the header to resolve the conflict.'
-               : 'Tus cambios no se están guardando. Hacé clic en "Sin guardar" en la cabecera para resolver el conflicto.',
-            { type: 'error' },
-          )
-        } catch { /* toast unavailable */ }
-      } else {
-        // Anything else — including a dismissal we didn't expect — takes the safe
-        // branch: get back in sync with the server and resume saving.
-        this._adoptServerProject(projId, serverProject)
-      }
+      // Only one outcome, including any dismissal we didn't foresee: get back in sync
+      // with the server and resume saving.
+      this._adoptServerProject(projId, serverProject)
     },
 
     // Reopens the conflict dialog for a paused calendar (from the header pill).
@@ -531,7 +663,9 @@ export const useProjectsStore = defineStore('projects', {
     },
 
     // Replace the local copy of a project with the authoritative server copy.
-    _adoptServerProject(projId, serverProject) {
+    // `quiet` skips the save-state bump: adopting because the calendar moved ahead
+    // is not a save, and flashing "Saved" for it would be a lie.
+    _adoptServerProject(projId, serverProject, { quiet = false } = {}) {
       const idx = this.projects.findIndex(p => p.id === projId)
       if (idx === -1) return
       const globalStore = useGlobalStore()
@@ -541,8 +675,12 @@ export const useProjectsStore = defineStore('projects', {
         doc.hidden     = this.projects[idx]?.hidden ?? false   // per-user, not part of the shared doc
         doc.conflicted = false
         this.projects[idx] = doc
+        this._noteLastUpdate(doc)
         _retries.delete(projId)
-        this._onWriteOk(projId)   // we're back in sync with the server
+        if (!quiet) this._onWriteOk(projId)   // we're back in sync with the server
+        else if (this.saveState === 'conflict' && !this.projects.some(p => p.conflicted)) {
+          this.saveState = 'idle'
+        }
       }
 
       if (serverProject) {
@@ -550,7 +688,21 @@ export const useProjectsStore = defineStore('projects', {
       } else {
         useApi().get(`/projects/${projId}`)
           .then(fresh => finish(normalizeDoc(fresh)))
-          .catch(e => console.warn('Reload after conflict failed:', e.message))
+          .catch(e => {
+            console.warn('Reload after conflict failed:', e.message)
+            // The notice just told the user their view was being updated, and it
+            // wasn't. Say so: the calendar stays paused and the header pill is the
+            // way back in.
+            if (quiet) return
+            const en = useGlobalStore().lang === 'en'
+            try {
+              useNuxtApp().$toast(
+                en ? "Couldn't load the latest version. Nothing is being saved — click \"Unsaved\" in the header to try again."
+                   : 'No se pudo cargar la versión más reciente. Nada se está guardando: hacé clic en "Sin guardar" en la cabecera para reintentar.',
+                { type: 'error' },
+              )
+            } catch { /* toast unavailable */ }
+          })
       }
     },
 
@@ -806,6 +958,8 @@ export const useProjectsStore = defineStore('projects', {
 
     selectProject(id) {
       this.selectedId = id
+      // Opening a calendar is exactly the moment to find out whether it moved on.
+      this.checkFreshness(id)
       const globalStore = useGlobalStore()
       const proj = this.projects.find(p => p.id === id)
       if (proj) {

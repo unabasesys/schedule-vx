@@ -26,8 +26,9 @@ export function useDialog() {
   // choices: [{ label, value, primary? }]
   //
   // dismissible: false removes the cancel button and ignores Esc / backdrop clicks,
-  // for questions where every outcome matters and there is no safe default (a save
-  // conflict: one branch discards the user's edits, the other stops saving them).
+  // for questions where every outcome matters and there is no safe default. Note that
+  // a one-button notice does NOT need it: use alert(), where every exit leads to the
+  // same place anyway.
   function choice({ title, body = '', choices = [], cancelLabel = 'Cancelar', dismissible = true } = {}) {
     return new Promise(resolve => {
       _state.value = { type: 'choice', title, body, choices, cancelLabel, dismissible, resolve }

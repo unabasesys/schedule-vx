@@ -98,6 +98,37 @@ export function isoToday() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+const MONTHS_SHORT_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
+const MONTHS_SHORT_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+/**
+ * When something happened, phrased the way a person would say it: relative while
+ * that still carries information ("hace 4 min"), absolute once it doesn't
+ * ("el 3 jun, 14:20" beats "hace 5 días" when you're deciding whether to trust
+ * what's on your screen). Returns '' for a missing or unparseable value, so
+ * callers can render nothing rather than "Invalid Date".
+ */
+export function fmtWhen(value, en = false) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return ''
+
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000)
+  if (mins < 0)   return ''                                     // clock skew — say nothing
+  if (mins < 1)   return en ? 'just now'     : 'recién'
+  if (mins < 60)  return en ? `${mins} min ago` : `hace ${mins} min`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24)   return en ? `${hrs}h ago`  : `hace ${hrs} h`
+
+  // The preposition belongs here, not at the call sites: every caller drops this
+  // into a sentence ("Ana guardó este calendario ___", "Actualizado ___ por Ana")
+  // and only the absolute form needs one.
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return en
+    ? `on ${MONTHS_SHORT_EN[d.getMonth()]} ${d.getDate()}, ${time}`
+    : `el ${d.getDate()} ${MONTHS_SHORT_ES[d.getMonth()]}, ${time}`
+}
+
 export function toDisplayTemp(c, unit) {
   return unit === 'F' ? Math.round(c * 9 / 5 + 32) : c
 }
