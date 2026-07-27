@@ -61,7 +61,9 @@ export function migrateProjects(projects, templates, lang = 'es') {
       if (s.visible == null) s.visible = true
       if (s.color   === undefined) s.color = null
     })
-    if (!proj.groups)  proj.groups  = DEFAULT_GROUPS.map(g => ({ id: 'g-' + g.key, key: g.key, name: g.name, active: true }))
+    // Legacy calendars with no departments field: recover only the ones their events
+    // actually use, never the full production set (see createProjectDefaults).
+    if (!proj.groups)  proj.groups  = groupsFromEvents(proj.events, proj.lang || lang)
     if (!proj.dailySchedule) proj.dailySchedule = []
     if (!proj.dailyConfig)   proj.dailyConfig   = { timezones: [] }
     if (!proj.holidays)         proj.holidays         = []
@@ -99,13 +101,31 @@ export function migrateProjects(projects, templates, lang = 'es') {
 }
 
 // ── Project creation helpers ──────────────────────────────────────────────────
-function createProjectDefaults(lang = 'es') {
-  const stages = []
-  const groups = DEFAULT_GROUPS.map(g => ({
-    id: 'g-' + g.key, key: g.key,
-    name: lang === 'en' ? g.nameEN : g.name, active: true,
+// A calendar starts with NO departments: seeding Casting / Locaciones / Vestuario /
+// Arte / Shooting Boards / Post assumes the user shoots commercials, and a law firm
+// or an events agency has no use for them. Departments arrive with the template that
+// needs them, or the user adds their own with the ＋ chip.
+function createProjectDefaults() {
+  return { stages: [], groups: [] }
+}
+
+// Departments a set of events actually references — so a calendar shows the chips its
+// events need and nothing more. DEFAULT_GROUPS only supplies display names for the
+// keys of the unabase production template; an unknown key shows as-is.
+function groupsFromEvents(events, lang = 'es') {
+  const keys = []
+  ;(events || []).forEach(e => (e.groups || []).forEach(k => {
+    if (k && !keys.includes(k)) keys.push(k)
   }))
-  return { stages, groups }
+  return keys.map(key => {
+    const known = DEFAULT_GROUPS.find(g => g.key === key)
+    return {
+      id: 'g-' + key,
+      key,
+      name: known ? (lang === 'en' ? known.nameEN : known.name) : key,
+      active: true,
+    }
+  })
 }
 
 function eventsFromTemplate(tmpl) {
@@ -802,7 +822,7 @@ export const useProjectsStore = defineStore('projects', {
     createProject(data) {
       const globalStore = useGlobalStore()
       const lang = globalStore.lang
-      const { stages, groups } = createProjectDefaults(lang)
+      const { stages, groups } = createProjectDefaults()
 
       let events = []
       const tmpl = data.templateId ? this.templates.find(t => t.id === data.templateId) : null
@@ -812,9 +832,12 @@ export const useProjectsStore = defineStore('projects', {
         if (tmpl.stages?.length) {
           stages.push(...tmpl.stages.map(s => ({ ...s, id: uid() })))
         }
+        // Departments come from the template — its own list, or failing that the ones
+        // its events reference. A calendar built from scratch gets none.
         if (tmpl.groups?.length) {
-          groups.length = 0
           groups.push(...tmpl.groups.map(g => ({ ...g, id: uid() })))
+        } else {
+          groups.push(...groupsFromEvents(events, lang))
         }
         // Notify API of template use (fire-and-forget)
         const authStore = useAuthStore()
