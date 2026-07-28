@@ -19,6 +19,7 @@ export const CHANGELOG = [
       'Cuando el calendario avanzó mientras editabas, el aviso ahora dice quién guardó y a qué hora, y se resuelve con un solo botón.',
       'El menú Compartir usa los mismos nombres en todas partes: "Para: Cliente / Interno" tanto en el calendario como en el Daily Schedule, y el PDF indica para quién es.',
       'Un calendario nuevo sin plantilla ya no llega con departamentos de publicidad precargados: partes con los tuyos.',
+      'Los calendarios que parten sin plantilla ahora abren con una guía interactiva de las funciones de la barra: qué hace cada una, paso a paso o todo de una. Se puede omitir, y si la ocultas la recuperas desde el menú de ayuda.',
     ],
     en: [
       'If a teammate saves the calendar, your screen catches up on its own when you come back to it. Before, an open tab could sit days out of date without saying so.',
@@ -26,6 +27,7 @@ export const CHANGELOG = [
       'When the calendar moved on while you were editing, the notice now names who saved and at what time, and clears with a single button.',
       'The Share menu uses the same words everywhere: "For: Client / Internal" in both the calendar and the Daily Schedule, and the PDF states who it is for.',
       'A new calendar started without a template no longer arrives preloaded with advertising departments: you start with your own.',
+      'Calendars started without a template now open with an interactive guide to the toolbar: what each function does, step by step or all at once. It can be skipped, and if you hide it you can bring it back from the help menu.',
     ],
   },
   {
