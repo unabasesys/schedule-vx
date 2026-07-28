@@ -14,7 +14,7 @@
       <!-- Add row -->
       <div class="cm-add">
         <input v-model.trim="form.name"  :placeholder="isEN ? 'Name' : 'Nombre'" @keydown.enter="add" />
-        <input v-model.trim="form.role"  :placeholder="isEN ? 'Role' : 'Cargo'" @keydown.enter="add" />
+        <input v-model.trim="form.title"  :placeholder="isEN ? 'Role' : 'Cargo'" @keydown.enter="add" />
         <input v-model.trim="form.email" placeholder="Email" @keydown.enter="add" />
         <input v-model.trim="form.phone" :placeholder="isEN ? 'Phone' : 'Teléfono'" @keydown.enter="add" />
         <button class="cm-add-btn" :disabled="!canAdd || saving" @click="add">
@@ -39,7 +39,7 @@
           <div v-for="c in store.sorted" :key="c.id" class="cm-row">
             <template v-if="editingId === c.id">
               <input v-model.trim="editForm.name" />
-              <input v-model.trim="editForm.role" />
+              <input v-model.trim="editForm.title" />
               <input v-model.trim="editForm.email" />
               <input v-model.trim="editForm.phone" />
               <div class="cm-acts">
@@ -49,7 +49,7 @@
             </template>
             <template v-else>
               <span class="cm-name">{{ c.name || '—' }}</span>
-              <span>{{ c.role || '—' }}</span>
+              <span>{{ c.title || '—' }}</span>
               <span class="cm-mail">{{ c.email || '—' }}</span>
               <span>{{ c.phone || '—' }}</span>
               <div class="cm-acts">
@@ -73,8 +73,8 @@ const { $toast }  = useNuxtApp()
 
 const isEN = computed(() => globalStore.lang === 'en')
 
-const form     = reactive({ name: '', role: '', email: '', phone: '' })
-const editForm = reactive({ name: '', role: '', email: '', phone: '' })
+const form     = reactive({ name: '', title: '', email: '', phone: '' })
+const editForm = reactive({ name: '', title: '', email: '', phone: '' })
 const editingId = ref(null)
 const saving    = ref(false)
 
@@ -86,8 +86,8 @@ async function add() {
   if (!canAdd.value || saving.value) return
   saving.value = true
   try {
-    await store.addContact({ name: form.name, role: form.role, email: form.email, phone: form.phone })
-    form.name = form.role = form.email = form.phone = ''
+    await store.addContact({ name: form.name, title: form.title, email: form.email, phone: form.phone })
+    form.name = form.title = form.email = form.phone = ''
   } catch (e) {
     $toast(isEN.value ? 'Could not save contact.' : 'No se pudo guardar el contacto.', { type: 'error' })
   } finally {
@@ -98,7 +98,7 @@ async function add() {
 function startEdit(c) {
   editingId.value = c.id
   editForm.name = c.name || ''
-  editForm.role = c.role || ''
+  editForm.title = c.title || ''
   editForm.email = c.email || ''
   editForm.phone = c.phone || ''
 }

@@ -190,7 +190,7 @@
                 :key="chip.key"
                 class="dir-part-chip"
                 :class="{ 'dir-part-chip--adhoc': chip.adhoc, 'dir-part-chip--missing': chip.missing }"
-                :title="chip.missing ? (isEN ? 'This contact was removed from the directory' : 'Este contacto ya no está en el directorio') : (chip.adhoc ? (isEN ? 'Typed in (not in directory)' : 'Escrito a mano (no está en el directorio)') : chip.role)"
+                :title="chip.missing ? (isEN ? 'This contact was removed from the directory' : 'Este contacto ya no está en el directorio') : (chip.adhoc ? (isEN ? 'Typed in (not in directory)' : 'Escrito a mano (no está en el directorio)') : chip.title)"
               >
                 {{ chip.label }}
                 <button
@@ -222,7 +222,7 @@
                   @mousedown.prevent="addContact(c)"
                 >
                   <span class="dir-part-opt-name">{{ c.name }}</span>
-                  <span v-if="c.role" class="dir-part-opt-role">{{ c.role }}</span>
+                  <span v-if="c.title" class="dir-part-opt-role">{{ c.title }}</span>
                 </button>
                 <button
                   v-if="canAddAdhoc"
@@ -533,12 +533,12 @@ const participantChips = computed(() => {
       id,
       adhoc:   false,
       missing: !c,
-      role:    c?.role || '',
+      title:   c?.title || '',
       label:   c ? c.name : (isEN.value ? '(removed contact)' : '(contacto eliminado)'),
     }
   })
   const nameChips = form.extraNames.map((n, i) => ({
-    key: 'nm:' + i + ':' + n, name: n, adhoc: true, missing: false, role: '', label: n,
+    key: 'nm:' + i + ':' + n, name: n, adhoc: true, missing: false, title: '', label: n,
   }))
   return [...idChips, ...nameChips]
 })
@@ -549,7 +549,7 @@ const partMatches = computed(() => {
   const q = partQuery.value.trim().toLowerCase()
   return contactsStore.sorted
     .filter(c => c.id && !picked.has(c.id))
-    .filter(c => !q || (c.name || '').toLowerCase().includes(q) || (c.role || '').toLowerCase().includes(q))
+    .filter(c => !q || (c.name || '').toLowerCase().includes(q) || (c.title || '').toLowerCase().includes(q))
     .slice(0, 8)
 })
 
