@@ -54,6 +54,20 @@ La propuesta no es introducir una herramienta completamente nueva, sino una evol
 
 ## 4. Arquitectura General
 
+> **Destino decidido (2026-07-27):** Calendar deja de ser un producto aparte y pasa a ser
+> un módulo sobre una base común con Relations (CRM + Leads) y las aplicaciones que vengan
+> — un solo backend y una sola base de datos, frontends separados, módulos habilitados por
+> organización. La decisión completa, con sus reglas y el orden de migración, está en
+> `Relations/back/docs/ARQUITECTURA-DECISION.md`.
+>
+> Lo que hay que respetar al escribir código aquí desde hoy:
+> - **`users`, `organizations` y `contacts` son la capa compartida.** Los dominios propios
+>   de Calendar (`projects`, `dailySchedule`, `templates`) pueden referenciarla.
+> - **Nunca referenciar el dominio de otra app.** Si un modelo de Calendar apunta a un
+>   `Lead`, se pierde la modularidad y con ella la venta por módulos.
+> - **Los contactos se mantienen flacos**: nada específico de Calendar en un contacto. Lo
+>   que pasa con una persona *dentro de un calendario* vive en el evento.
+
 ```
 schedule-nuxt/
 ├── pages/
