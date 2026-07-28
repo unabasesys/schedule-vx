@@ -291,6 +291,9 @@
       v-if="globalStore.settingsOpen"
       @close="globalStore.closeSettings()"
     />
+    <!-- Puerta de organización: no se puede cerrar, porque no hay nada detrás -->
+    <CreateOrgModal v-if="needsOrg" mandatory @created="projectsStore.init()" />
+
     <HelpModal
       v-if="globalStore.helpOpen"
       @close="globalStore.closeHelp()"
@@ -329,11 +332,23 @@ const visibleProjects = computed(() =>
   )
 )
 
+// Alguien que se registró y todavía no pertenece a ninguna organización. Desde que dejamos
+// de crear una "<Nombre>'s Studio" automáticamente, este estado existe de verdad — y no es
+// una pantalla vacía: sin organización, TODO endpoint protegido responde 400, así que la
+// única cosa que se puede hacer es crearla o esperar una invitación.
+const needsOrg = computed(() => authStore.isLoggedIn && !authStore.organization)
+
 // Init stores on mount
 onMounted(() => {
-  projectsStore.init()
+  // Sin organización no se llama a la API: cada request saldría sin el header Organization
+  // y volvería 400. Se inicializa en cuanto exista una.
+  if (!needsOrg.value) projectsStore.init()
   // Sync i18n locale
   locale.value = globalStore.lang
+})
+
+watch(needsOrg, (missing, wasMissing) => {
+  if (wasMissing && !missing) projectsStore.init()
 })
 
 function setLang(l) {
