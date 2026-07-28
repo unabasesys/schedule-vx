@@ -231,7 +231,7 @@
                   @mousedown.prevent="addAdhoc(partQuery)"
                 >
                   {{ isEN ? 'Add' : 'Añadir' }} “{{ partQuery.trim() }}”
-                  <span class="dir-part-opt-role">{{ isEN ? 'typed in' : 'texto libre' }}</span>
+                  <span class="dir-part-opt-role">{{ isEN ? 'new contact' : 'nuevo contacto' }}</span>
                 </button>
               </div>
             </div>
@@ -553,13 +553,16 @@ const partMatches = computed(() => {
     .slice(0, 8)
 })
 
-// Offer an ad-hoc "Add …" option when the typed text isn't already a chip.
+// Offer "Add …" only when that name isn't already a chip and isn't already in the
+// directory. Checked against the WHOLE directory, not the 8 rows on screen: an exact
+// match that fell outside the visible list would otherwise be offered as a new
+// contact and quietly become a duplicate.
 const canAddAdhoc = computed(() => {
   const q = partQuery.value.trim()
   if (!q) return false
   const lc = q.toLowerCase()
   if (form.extraNames.some(n => n.toLowerCase() === lc)) return false
-  if (partMatches.value.some(c => (c.name || '').toLowerCase() === lc)) return false
+  if (contactsStore.contacts.some(c => (c.name || '').trim().toLowerCase() === lc)) return false
   return true
 })
 
@@ -570,12 +573,42 @@ function addContact(c) {
   nextTick(() => partSearchRef.value?.focus())
 }
 
-function addAdhoc(text) {
+// Typing a name that isn't in the directory now CREATES the contact, with just the
+// name if that's all we have. The old behaviour stored a loose string on this one
+// event, which quietly defeated the point of an org-wide directory: the same person
+// got retyped in the next project, and in the one after that. A directory full of
+// half-filled contacts can be merged later; names scattered across events cannot.
+//
+// The typed name is never lost: if the create fails (offline, API down) it falls back
+// to the ad-hoc string, which still renders and still saves with the event.
+async function addAdhoc(text) {
   const name = String(text || '').trim()
   if (!name) return
-  if (!form.extraNames.some(n => n.toLowerCase() === name.toLowerCase())) form.extraNames.push(name)
   partQuery.value = ''
   nextTick(() => partSearchRef.value?.focus())
+
+  // The directory loads asynchronously when this editor opens, so someone typing
+  // straight into an empty picker could otherwise create a second copy of a person
+  // who was already there. Wait for it, then check the WHOLE directory by name.
+  await contactsStore.loadContacts()
+  const existing = contactsStore.contacts.find(
+    c => c.id && (c.name || '').trim().toLowerCase() === name.toLowerCase(),
+  )
+  if (existing) {
+    if (!form.pickedIds.includes(existing.id)) form.pickedIds.push(existing.id)
+    return
+  }
+
+  try {
+    const created = await contactsStore.addContact({ name })
+    if (created?.id) {
+      if (!form.pickedIds.includes(created.id)) form.pickedIds.push(created.id)
+      return
+    }
+  } catch (e) {
+    console.warn('Contact create from participants picker failed:', e.message)
+  }
+  if (!form.extraNames.some(n => n.toLowerCase() === name.toLowerCase())) form.extraNames.push(name)
 }
 
 function removeParticipant(chip) {
