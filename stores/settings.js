@@ -102,6 +102,9 @@ export const useSettingsStore = defineStore('settings', {
               : '',
             status: u.status || 'active',
             role:   u.role   || 'member',
+            // Apps asignadas a esta persona (§8.7). Solo las llaves: el cuándo y el quién de
+            // cada asignación es evidencia que se lee en el back, no acá.
+            apps:   (u.apps || []).map(a => a.key).filter(Boolean),
             _userId: u.user?._id || null,
           }))
           .filter(u => {
@@ -202,6 +205,53 @@ export const useSettingsStore = defineStore('settings', {
         // The invitation is created even when the email couldn't be delivered —
         // pass that through so we don't claim it was sent.
         return { ok: true, emailSent: data.emailSent !== false }
+      } catch { return { ok: false, error: 'Error de conexión' } }
+    },
+
+    // ── Asignación de apps por persona (§8.7) ────────────────────────────────
+
+    // Qué apps se pueden asignar en esta organización: las que tiene CONTRATADAS. Se
+    // pregunta al back en vez de deducirlo del objeto `apps` de la sesión, porque el modelo
+    // de Calendar declara solo su propia llave y una app contratada que no aparece en la
+    // pantalla es acceso que el propietario no puede dar.
+    async fetchAssignableApps() {
+      const authStore = useAuthStore()
+      if (!authStore.isLoggedIn || !authStore.organization?._id) return []
+      try {
+        const res = await fetch(`${API()}/organizations/${authStore.organization._id}/apps`, {
+          headers: {
+            Authorization: `Bearer ${authStore.token}`,
+            Organization:  authStore.organization._id,
+          },
+        })
+        if (!res.ok) return []
+        const data = await res.json()
+        return Array.isArray(data) ? data : []
+      } catch { return [] }
+    },
+
+    // Manda la lista COMPLETA de apps de una persona (el estado final de las casillas), no
+    // un delta: con dos pestañas abiertas un delta se pisaría sin que nadie lo note.
+    async setUserAppsToApi(target, apps) {
+      const authStore = useAuthStore()
+      if (!authStore.isLoggedIn || !authStore.organization?._id) return { ok: false, error: null }
+      try {
+        const res = await fetch(
+          `${API()}/organizations/${authStore.organization._id}/users/${encodeURIComponent(target)}/apps`,
+          {
+            method:  'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization:  `Bearer ${authStore.token}`,
+              Organization:   authStore.organization._id,
+            },
+            body: JSON.stringify({ apps }),
+          },
+        )
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) return { ok: false, error: data.error || null }
+        this._applyOrgToStore(data)
+        return { ok: true }
       } catch { return { ok: false, error: 'Error de conexión' } }
     },
 

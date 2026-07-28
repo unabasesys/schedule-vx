@@ -13,6 +13,10 @@ export const useApi = () => {
   const BASE = config.public.apiUrl
 
   const authStore = useAuthStore()
+  // Se toma ACÁ y no dentro de handleResponse: `useState` necesita el contexto de Nuxt, que
+  // existe cuando se llama a useApi() (desde un setup o una acción del store) pero no siempre
+  // dentro del callback de una promesa.
+  const appBlock  = useAppBlock()
 
   const headers = (extra = {}) => ({
     'Content-Type': 'application/json',
@@ -27,6 +31,21 @@ export const useApi = () => {
       throw new Error('Sesión expirada. Por favor iniciá sesión nuevamente.')
     }
     const data = await res.json().catch(() => ({}))
+
+    // La puerta por app (§8.7) responde 403 con un código: no la contrató la organización,
+    // se venció el trial, o esta persona no la tiene asignada. Los tres necesitan una
+    // pantalla y no un toast — cada uno se resuelve por un camino distinto y el mensaje del
+    // back es el que dice a quién pedírsela. Se registra acá, en el único lugar por donde
+    // pasan todas las llamadas gateadas, y el layout lo muestra.
+    if (res.status === 403 && data.code) {
+      appBlock.value = {
+        code:       data.code,
+        app:        data.app || '',
+        ownerEmail: data.ownerEmail || '',
+        message:    data.error || '',
+      }
+    }
+
     if (!res.ok) {
       const err = new Error(data.error || `Error ${res.status}`)
       err.status = res.status

@@ -188,14 +188,39 @@
         </div>
         <div class="users-list">
           <div v-for="user in settingsStore.users" :key="user.id" class="user-row">
-            <span class="user-email">{{ user.email }}</span>
-            <span class="user-status" :class="user.status">{{ statusLabel(user.status) }}</span>
-            <span v-if="isOrgOwner(user)" class="user-owner-badge">{{ lang === 'en' ? 'owner' : 'propietario' }}</span>
-            <button v-else class="btn-ghost" style="padding:3px 8px;font-size:.65rem;" @click="removeUser(user.id)">✕</button>
+            <div class="user-row-top">
+              <span class="user-email">{{ user.email }}</span>
+              <span class="user-status" :class="user.status">{{ statusLabel(user.status) }}</span>
+              <span v-if="isOrgOwner(user)" class="user-owner-badge">{{ lang === 'en' ? 'owner' : 'propietario' }}</span>
+              <button v-else class="btn-ghost" style="padding:3px 8px;font-size:.65rem;" @click="removeUser(user.id)">✕</button>
+            </div>
+
+            <!--
+              Asignación de apps por persona (§8.7). La organización contrata apps; acá se
+              decide quién de la organización las usa. Se ven siempre —también para quien no
+              es propietario— porque saber qué tenés asignado es lo que convierte un 403 en
+              algo entendible; solo el propietario las puede mover.
+            -->
+            <div v-if="assignableApps.length" class="user-apps">
+              <button
+                v-for="key in assignableApps"
+                :key="key"
+                type="button"
+                class="app-chip"
+                :class="{ 'app-chip--on': userHasApp(user, key) }"
+                :disabled="!canAssign || isOrgOwner(user) || savingApps === user.id"
+                :title="chipTitle(user, key)"
+                @click="toggleUserApp(user, key)"
+              >{{ appLabel(key) }}</button>
+              <span v-if="!(user.apps || []).length && !isOrgOwner(user)" class="user-apps-none">
+                {{ lang === 'en' ? 'no apps assigned' : 'sin apps asignadas' }}
+              </span>
+            </div>
           </div>
           <div v-if="!settingsStore.users.length" style="font-size:.75rem;color:var(--muted);">
             {{ lang === 'en' ? 'No users invited yet' : 'No hay usuarios invitados' }}
           </div>
+          <div v-if="appsError" class="invite-feedback invite-feedback--err">{{ appsError }}</div>
         </div>
       </div>
 
@@ -296,6 +321,52 @@ const localWeekStart  = ref(props.creationMode ? 'sun' : (settingsStore.orgWeekS
 const inviteEmail     = ref('')
 const inviteError     = ref('')
 const inviteSuccess   = ref('')
+
+// ── Asignación de apps por persona (§8.7) ────────────────────────────────────
+const assignableApps = ref([])
+const savingApps     = ref(null)   // id de la persona que se está guardando
+const appsError      = ref('')
+
+const canAssign = computed(() => isCurrentUserOwner.value && authStore.isLoggedIn && !props.creationMode)
+
+// El propietario siempre tiene asiento de toda app contratada (§8.8, regla 2): su casilla se
+// muestra marcada y no se puede mover, acá y en el back.
+const userHasApp = (user, key) => (user.apps || []).includes(key) || isOrgOwner(user)
+
+function chipTitle(user, key) {
+  if (isOrgOwner(user)) {
+    return lang.value === 'en'
+      ? 'The owner always has a seat for every app the organization pays for'
+      : 'El propietario siempre tiene asiento de toda app que la organización contrata'
+  }
+  if (!canAssign.value) {
+    return lang.value === 'en'
+      ? 'Only the owner can assign apps'
+      : 'Solo el propietario puede asignar apps'
+  }
+  const on = userHasApp(user, key)
+  return lang.value === 'en'
+    ? `${on ? 'Remove' : 'Give'} ${appLabel(key)} ${on ? 'from' : 'to'} ${user.email}`
+    : `${on ? 'Quitarle' : 'Darle'} ${appLabel(key)} a ${user.email}`
+}
+
+// Manda el estado final de las casillas de esa persona, no un delta.
+async function toggleUserApp(user, key) {
+  if (!canAssign.value || isOrgOwner(user)) return
+  const current = user.apps || []
+  const next    = current.includes(key) ? current.filter(k => k !== key) : [...current, key]
+
+  savingApps.value = user.id
+  appsError.value  = ''
+  const result = await settingsStore.setUserAppsToApi(user._userId || user.email, next)
+  savingApps.value = null
+
+  if (!result.ok) {
+    appsError.value = result.error || (lang.value === 'en'
+      ? 'Could not change the assignment'
+      : 'No se pudo cambiar la asignación')
+  }
+}
 
 // ── Operating cities ──────────────────────────────────────────────────────────
 import { DEFAULT_CITIES } from '~/utils/constants'
@@ -654,6 +725,8 @@ onMounted(async () => {
       if (org.scheduleSettings?.defaultHolidays?.length)
         localOrgDefaultHolidays.value = JSON.parse(JSON.stringify(org.scheduleSettings.defaultHolidays))
     }
+    // Las apps que la organización contrató: las columnas de la asignación por persona.
+    assignableApps.value = await settingsStore.fetchAssignableApps()
   }
 })
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
@@ -668,8 +741,26 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .invite-feedback--err { background: rgba(234,78,73,.10);  color: var(--danger); }
 
 .users-list { display: flex; flex-direction: column; gap: 6px; }
+.user-row-top { display: flex; align-items: center; gap: 8px; }
+
+/* Asignación de apps (§8.7): una casilla por app contratada. */
+.user-apps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.app-chip {
+  font-size: .65rem; font-weight: 700; letter-spacing: .03em;
+  padding: 2px 8px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: none; color: var(--muted);
+  font-family: inherit; transition: border-color .15s, color .15s, background .15s;
+}
+.app-chip:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.app-chip--on {
+  border-color: var(--accent); color: var(--accent);
+  background: rgba(32,167,137,.10);
+}
+.app-chip:disabled { cursor: default; opacity: .75; }
+.user-apps-none { font-size: .65rem; color: var(--muted); font-style: italic; }
+
 .user-row {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; flex-direction: column; gap: 6px;
   padding: 8px 12px; border: 1px solid var(--border); border-radius: 7px;
 }
 .user-email { flex: 1; font-size: .78rem; color: var(--text); }

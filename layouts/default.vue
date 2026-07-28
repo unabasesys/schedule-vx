@@ -8,6 +8,8 @@
     <DialogModal />
     <SnapNoticeModal />
     <PendingInvitationsModal />
+    <!-- Los tres 403 de la puerta por app (§8.7): pantalla, no toast. -->
+    <AppBlockedModal />
 
     <!-- Reopen button — only shown when sidebar is fully collapsed -->
     <Transition name="sb-reopen">
