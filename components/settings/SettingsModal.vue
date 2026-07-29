@@ -180,6 +180,26 @@
           />
           <button class="btn-primary" @click="inviteUser" style="padding:7px 14px;font-size:.75rem;">{{ L.inviteBtn }}</button>
         </div>
+
+        <!--
+          Con qué apps entra (§8.7). Vienen todas marcadas: invitar se comporta como antes de
+          la asignación por persona, y quien quiera dar menos desmarca. Al revés, el costo del
+          olvido lo pagaría el invitado, que entraría a un 403 en su primer minuto.
+        -->
+        <div v-if="canAssign && assignableApps.length" class="invite-apps">
+          <span class="invite-apps-label">{{ lang === 'en' ? 'Enters with:' : 'Entra con:' }}</span>
+          <button
+            v-for="key in assignableApps"
+            :key="key"
+            type="button"
+            class="app-chip"
+            :class="{ 'app-chip--on': inviteApps.includes(key) }"
+            @click="toggleInviteApp(key)"
+          >{{ appLabel(key) }}</button>
+          <span v-if="!inviteApps.length" class="user-apps-none">
+            {{ lang === 'en' ? 'no apps — you assign them later' : 'sin apps — se las asignas después' }}
+          </span>
+        </div>
         <div v-if="inviteSuccess" class="invite-feedback invite-feedback--ok">
           {{ lang === 'en' ? `Invitation sent to ${inviteSuccess}` : `Invitación enviada a ${inviteSuccess}` }}
         </div>
@@ -326,6 +346,13 @@ const inviteSuccess   = ref('')
 const assignableApps = ref([])
 const savingApps     = ref(null)   // id de la persona que se está guardando
 const appsError      = ref('')
+const inviteApps     = ref([])     // con qué apps entra el próximo invitado
+
+const toggleInviteApp = (key) => {
+  inviteApps.value = inviteApps.value.includes(key)
+    ? inviteApps.value.filter(k => k !== key)
+    : [...inviteApps.value, key]
+}
 
 const canAssign = computed(() => isCurrentUserOwner.value && authStore.isLoggedIn && !props.creationMode)
 
@@ -552,7 +579,11 @@ async function inviteUser() {
   inviteSuccess.value = ''
 
   if (authStore.isLoggedIn) {
-    const result = await settingsStore.inviteUserToApi(email)
+    // Solo se manda la lista si de verdad sabemos qué apps hay. Si no cargaron (o no somos
+    // propietarios), se omite y el back invita con todas las contratadas: un `[]` mandado por
+    // ignorancia dejaría al invitado sin acceso a nada.
+    const apps = (canAssign.value && assignableApps.value.length) ? inviteApps.value : undefined
+    const result = await settingsStore.inviteUserToApi(email, apps)
     if (!result.ok) {
       inviteError.value = result.error || (lang.value === 'en' ? 'Could not send the invitation' : 'No se pudo enviar la invitación')
       return
@@ -571,6 +602,8 @@ async function inviteUser() {
   }
   inviteSuccess.value = email
   inviteEmail.value   = ''
+  // La próxima invitación vuelve al default: todas las apps contratadas.
+  inviteApps.value    = [...assignableApps.value]
 }
 
 async function removeUser(id) {
@@ -727,6 +760,8 @@ onMounted(async () => {
     }
     // Las apps que la organización contrató: las columnas de la asignación por persona.
     assignableApps.value = await settingsStore.fetchAssignableApps()
+    // El próximo invitado entra con todas, salvo que el propietario desmarque alguna.
+    inviteApps.value = [...assignableApps.value]
   }
 })
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
@@ -758,6 +793,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 .app-chip:disabled { cursor: default; opacity: .75; }
 .user-apps-none { font-size: .65rem; color: var(--muted); font-style: italic; }
+
+/* Con qué apps entra el invitado (§8.7). */
+.invite-apps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.invite-apps-label { font-size: .68rem; color: var(--muted); }
 
 .user-row {
   display: flex; flex-direction: column; gap: 6px;

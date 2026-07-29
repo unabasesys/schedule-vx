@@ -186,7 +186,9 @@ export const useSettingsStore = defineStore('settings', {
       } catch { return null }
     },
 
-    async inviteUserToApi(email) {
+    // `apps`: con qué apps entra el invitado (§8.7). Si va sin definir, el back lo invita con
+    // todas las que la organización tiene contratadas — el comportamiento de antes de §8.7.
+    async inviteUserToApi(email, apps) {
       const authStore = useAuthStore()
       if (!authStore.isLoggedIn || !authStore.organization?._id) return { ok: false, error: null }
       try {
@@ -197,7 +199,7 @@ export const useSettingsStore = defineStore('settings', {
             Authorization:  `Bearer ${authStore.token}`,
             Organization:   authStore.organization._id,
           },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, ...(apps !== undefined ? { apps } : {}) }),
         })
         const data = await res.json()
         if (!res.ok) return { ok: false, error: data.error || 'Error al invitar' }
