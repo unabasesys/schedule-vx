@@ -182,24 +182,24 @@
         </div>
 
         <!--
-          Con qué apps entra (§8.7). Vienen todas marcadas: invitar se comporta como antes de
-          la asignación por persona, y quien quiera dar menos desmarca. Al revés, el costo del
-          olvido lo pagaría el invitado, que entraría a un 403 en su primer minuto.
+          Con qué apps entra se decide en el modal de confirmación (§8.7): invitar es compartir
+          acceso, y eso merece un momento propio en vez de una fila de casillas que se puede
+          pasar por alto en un formulario largo.
         -->
-        <div v-if="canAssign && assignableApps.length" class="invite-apps">
-          <span class="invite-apps-label">{{ lang === 'en' ? 'Enters with:' : 'Entra con:' }}</span>
-          <button
-            v-for="key in assignableApps"
-            :key="key"
-            type="button"
-            class="app-chip"
-            :class="{ 'app-chip--on': inviteApps.includes(key) }"
-            @click="toggleInviteApp(key)"
-          >{{ appLabel(key) }}</button>
-          <span v-if="!inviteApps.length" class="user-apps-none">
-            {{ lang === 'en' ? 'no apps — you assign them later' : 'sin apps — se las asignas después' }}
-          </span>
-        </div>
+        <!--
+          Al `body`: el backdrop de Configuración tiene `backdrop-filter`, y eso lo convierte en
+          el marco de referencia de cualquier hijo `position: fixed` — el modal quedaría anclado
+          al panel en vez de a la ventana. Teleport lo saca de ahí.
+        -->
+        <Teleport to="body">
+          <InviteAppsModal
+            v-if="invitePending"
+            :email="invitePending"
+            :available="assignableApps"
+            @close="invitePending = ''"
+            @confirm="sendInvite"
+          />
+        </Teleport>
         <div v-if="inviteSuccess" class="invite-feedback invite-feedback--ok">
           {{ lang === 'en' ? `Invitation sent to ${inviteSuccess}` : `Invitación enviada a ${inviteSuccess}` }}
         </div>
@@ -346,13 +346,7 @@ const inviteSuccess   = ref('')
 const assignableApps = ref([])
 const savingApps     = ref(null)   // id de la persona que se está guardando
 const appsError      = ref('')
-const inviteApps     = ref([])     // con qué apps entra el próximo invitado
-
-const toggleInviteApp = (key) => {
-  inviteApps.value = inviteApps.value.includes(key)
-    ? inviteApps.value.filter(k => k !== key)
-    : [...inviteApps.value, key]
-}
+const invitePending  = ref('')     // email esperando confirmación en el modal de invitar
 
 const canAssign = computed(() => isCurrentUserOwner.value && authStore.isLoggedIn && !props.creationMode)
 
@@ -578,32 +572,44 @@ async function inviteUser() {
   inviteError.value   = ''
   inviteSuccess.value = ''
 
+  // Con sesión, invitar pasa por el modal: confirma a quién y con qué apps entra (§8.7).
+  // Sin sesión (creación de organización) no hay a quién preguntarle nada todavía.
   if (authStore.isLoggedIn) {
-    // Solo se manda la lista si de verdad sabemos qué apps hay. Si no cargaron (o no somos
-    // propietarios), se omite y el back invita con todas las contratadas: un `[]` mandado por
-    // ignorancia dejaría al invitado sin acceso a nada.
-    const apps = (canAssign.value && assignableApps.value.length) ? inviteApps.value : undefined
-    const result = await settingsStore.inviteUserToApi(email, apps)
-    if (!result.ok) {
-      inviteError.value = result.error || (lang.value === 'en' ? 'Could not send the invitation' : 'No se pudo enviar la invitación')
-      return
-    }
-    if (result.emailSent === false) {
-      // The invitation exists but the email bounced — say so instead of showing
-      // "invitation sent" and leaving the owner waiting on someone who never heard.
-      inviteEmail.value = ''
-      inviteError.value = lang.value === 'en'
-        ? `${email} was invited, but we couldn't send the email. Share the invitation link with them directly.`
-        : `${email} quedó invitado, pero no pudimos enviar el correo. Compártele el enlace de invitación directamente.`
-      return
-    }
-  } else {
-    settingsStore.inviteUser(email)
+    invitePending.value = email
+    return
+  }
+  settingsStore.inviteUser(email)
+  inviteSuccess.value = email
+  inviteEmail.value   = ''
+}
+
+// Confirmado en el modal: `apps` es la lista que quedó encendida (nunca vacía — el modal no
+// deja invitar sin ninguna, y el back lo rechaza igual).
+//
+// Si la pantalla no alcanzó a cargar las apps contratadas, se omite el campo y el back invita
+// con todas: mandar una lista por ignorancia sería peor que no mandarla.
+async function sendInvite(apps) {
+  const email = invitePending.value
+  invitePending.value = ''
+  if (!email) return
+
+  const payload = assignableApps.value.length ? apps : undefined
+  const result  = await settingsStore.inviteUserToApi(email, payload)
+  if (!result.ok) {
+    inviteError.value = result.error || (lang.value === 'en' ? 'Could not send the invitation' : 'No se pudo enviar la invitación')
+    return
+  }
+  if (result.emailSent === false) {
+    // The invitation exists but the email bounced — say so instead of showing
+    // "invitation sent" and leaving the owner waiting on someone who never heard.
+    inviteEmail.value = ''
+    inviteError.value = lang.value === 'en'
+      ? `${email} was invited, but we couldn't send the email. Share the invitation link with them directly.`
+      : `${email} quedó invitado, pero no pudimos enviar el correo. Compártele el enlace de invitación directamente.`
+    return
   }
   inviteSuccess.value = email
   inviteEmail.value   = ''
-  // La próxima invitación vuelve al default: todas las apps contratadas.
-  inviteApps.value    = [...assignableApps.value]
 }
 
 async function removeUser(id) {
@@ -742,6 +748,10 @@ async function save() {
 
 // ── Keyboard: Enter = save, Esc = close ────────────────────────────────────────
 function onKeydown(e) {
+  // Con la confirmación de invitar abierta, las teclas son suyas: un Escape o un Enter reflejo
+  // no pueden cerrar ni guardar esta pantalla mientras la pregunta de arriba sigue sin
+  // contestar. El modal ya corta el evento; esta guarda lo deja explícito.
+  if (invitePending.value) return
   if (e.key === 'Escape') { emit('close') }
   if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { save() }
 }
@@ -760,8 +770,6 @@ onMounted(async () => {
     }
     // Las apps que la organización contrató: las columnas de la asignación por persona.
     assignableApps.value = await settingsStore.fetchAssignableApps()
-    // El próximo invitado entra con todas, salvo que el propietario desmarque alguna.
-    inviteApps.value = [...assignableApps.value]
   }
 })
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
@@ -794,9 +802,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .app-chip:disabled { cursor: default; opacity: .75; }
 .user-apps-none { font-size: .65rem; color: var(--muted); font-style: italic; }
 
-/* Con qué apps entra el invitado (§8.7). */
-.invite-apps { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
-.invite-apps-label { font-size: .68rem; color: var(--muted); }
 
 .user-row {
   display: flex; flex-direction: column; gap: 6px;
