@@ -40,13 +40,6 @@
       </div>
 
       <div class="hdr-actions">
-        <!-- Who has the calendar's current server version, and when. A tab left open
-             for days used to look identical to a fresh one; this is the standing
-             answer to "am I looking at the real thing?". -->
-        <div v-if="lastUpdateLabel" class="hdr-last-update" :title="lastUpdateTitle">
-          {{ lastUpdateLabel }}
-        </div>
-
         <!-- Save state: without this, a failing API looked exactly like a working one.
              In 'conflict' it's a button: autosave is paused waiting for a decision,
              so the user needs a way back to that decision. -->
@@ -124,6 +117,18 @@
             : 'Toma 30 segundos. Después de probarlo, no vas a querer parar.' }}
         </div>
       </div>
+    </div>
+
+    <!-- Quién tiene la versión que está en el servidor, y cuándo. Un tab abierto
+         hace dos días se veía idéntico a uno recién cargado; esto es la respuesta
+         permanente a "¿estoy mirando lo de verdad?".
+
+         Vive acá, en la franja que estaba vacía sobre el contenido, y NO apretado
+         entre "Compartir" y el idioma: ahí competía por espacio con las acciones
+         y se leía como una más. Alineado a la izquierda, es una nota al pie del
+         encabezado — se lee cuando uno la busca y no estorba cuando no. -->
+    <div v-if="currentProject && lastUpdateLabel" class="cal-last-update" :title="lastUpdateTitle">
+      {{ lastUpdateLabel }}
     </div>
 
     <!-- Event List View -->
@@ -479,9 +484,14 @@ function createFromTemplate(tmplId) {
 /* Standing status, not an alert: same size as the save pill but no border, no dot,
    so it reads as a caption and never competes with it. Truncates before it can
    push the header controls around. */
-.hdr-last-update {
-  font-size: .68rem; color: var(--muted); white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis; max-width: 220px;
+/* El sello de actualización, en la franja sobre el contenido. Los 16px de la
+   izquierda son los mismos de la barra de Departamentos que va justo debajo, para
+   que las dos líneas arranquen alineadas y se lean como un bloque. */
+.cal-last-update {
+  padding: 6px 16px 0;
+  font-size: .68rem; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 .save-state {
