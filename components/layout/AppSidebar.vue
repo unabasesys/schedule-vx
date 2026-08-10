@@ -31,6 +31,10 @@
       <OrgSwitcher />
     </div>
 
+    <!-- Lanzador de apps (§8.1): las tres siempre visibles, las cerradas con candado.
+         Mismo lugar que en el front de Relations, justo debajo del OrgSwitcher. -->
+    <AppSwitcher />
+
     <!-- Filters -->
     <div class="sb-filter-row">
       <div class="sb-filters">
