@@ -6,3 +6,8 @@ node_modules
 dist
 .DS_Store
 unabase Calendar/
+
+# Estado local de las herramientas (Claude Code): configuración de la máquina y
+# copias de trabajo temporales. `.claude/worktrees/` llega a pesar megas y es una
+# copia del propio repo: sin esta línea, un `git add -A` la mete adentro.
+.claude/
