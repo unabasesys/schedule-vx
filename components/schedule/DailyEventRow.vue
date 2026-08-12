@@ -7,11 +7,54 @@
 
     <!-- ── Display mode ────────────────────────────────────────────────────── -->
     <template v-if="!editing">
+      <!-- La hora se edita EN LA FILA. Correr un horario es lo que más se hace en un daily
+           —y muchas veces varios seguidos—, y abrir el formulario completo para tocar un
+           solo campo era todo el trabajo por nada. El resto del evento sigue detrás del
+           formulario: acá solo la hora. -->
       <div class="dir-time-col">
-        <div class="dir-time-main">{{ displayTime }}</div>
-        <div v-if="groupedSecondaryTimes.length" class="dir-time-sec">
-          ({{ groupedSecondaryTimes.join(' / ') }})
+        <div v-if="timeEditing" ref="timeEditRef" class="dir-time-edit" @click.stop>
+          <div class="dir-time-type">
+            <button
+              type="button"
+              :class="['dir-time-type-btn', timeForm.timeType === 'specific_time' && 'active']"
+              @click.stop="pickSpecific"
+            >{{ isEN ? 'Time' : 'Hora' }}</button>
+            <button
+              v-for="lbl in ['TBD','AM','PM','All Day']"
+              :key="lbl"
+              type="button"
+              :class="['dir-time-type-btn', timeForm.timeType === 'time_label' && timeForm.timeLabel === lbl && 'active']"
+              @click.stop="pickLabel(lbl)"
+            >{{ lbl }}</button>
+          </div>
+          <input
+            v-if="timeForm.timeType === 'specific_time'"
+            ref="timeInputRef"
+            type="time"
+            v-model="timeForm.specificTime"
+            class="dir-input dir-input--time"
+            @keydown.enter.stop.prevent="saveTime"
+            @keydown.esc.stop.prevent="cancelTime"
+          />
         </div>
+        <button
+          v-else-if="!readOnly"
+          type="button"
+          class="dir-time-hit"
+          :title="isEN ? 'Change the time without opening the event' : 'Cambiar la hora sin abrir el evento'"
+          @click.stop="startTimeEdit"
+        >
+          <span class="dir-time-main">{{ displayTime }}</span>
+          <span v-if="groupedSecondaryTimes.length" class="dir-time-sec">
+            ({{ groupedSecondaryTimes.join(' / ') }})
+          </span>
+        </button>
+        <template v-else>
+          <div class="dir-time-main">{{ displayTime }}</div>
+          <div v-if="groupedSecondaryTimes.length" class="dir-time-sec">
+            ({{ groupedSecondaryTimes.join(' / ') }})
+          </div>
+        </template>
       </div>
 
       <div class="dir-content">
@@ -404,6 +447,82 @@ function handleOutsideClick(e) {
   onDocClick()
 }
 
+// ── Editor de hora en la fila ─────────────────────────────────────────────────
+// Vive aparte del formulario grande a propósito, con su propio estado y su propio
+// listener: son dos modos de edición distintos que no se pisan (el formulario ni se
+// renderiza mientras este está abierto, porque el bloque de display es `v-if="!editing"`).
+const timeEditing   = ref(false)
+const timeEditRef   = ref(null)
+const timeInputRef  = ref(null)
+const timeForm      = reactive({ timeType: 'time_label', specificTime: '', timeLabel: 'TBD' })
+
+function startTimeEdit() {
+  if (props.readOnly || editing.value) return
+  timeForm.timeType     = props.item?.timeType     || 'time_label'
+  timeForm.specificTime = props.item?.specificTime || ''
+  timeForm.timeLabel    = props.item?.timeLabel    || 'TBD'
+  timeEditing.value = true
+  // El listener se registra en el TICK SIGUIENTE, y no es un detalle: registrarlo acá lo
+  // engancha a la propagación del clic que acaba de abrir el editor, que sigue subiendo hasta
+  // `document`. Ahí `handleTimeOutsideClick` se dispara de inmediato con `timeEditRef` todavía
+  // en null —el editor no se renderizó— y lo cierra en el mismo clic: el editor no abría nunca.
+  // El formulario grande no sufre esto porque su chequeo compara contra la FILA, que sí existe
+  // y sí contiene al objetivo del clic.
+  nextTick(() => {
+    document.addEventListener('click', handleTimeOutsideClick)
+    if (timeForm.timeType === 'specific_time') timeInputRef.value?.focus()
+  })
+}
+
+function closeTimeEdit() {
+  timeEditing.value = false
+  document.removeEventListener('click', handleTimeOutsideClick)
+}
+
+function cancelTime() { closeTimeEdit() }
+
+// Elegir una etiqueta guarda de inmediato: un clic y listo es justamente el caso que este
+// editor existe para resolver. Pedir un segundo clic de confirmación para "TBD" sería
+// devolverle el trabajo que se le quitó.
+function pickLabel(lbl) {
+  timeForm.timeType  = 'time_label'
+  timeForm.timeLabel = lbl
+  saveTime()
+}
+
+// Una hora sí necesita que la escriban, así que este botón solo abre el campo.
+function pickSpecific() {
+  timeForm.timeType = 'specific_time'
+  nextTick(() => timeInputRef.value?.focus())
+}
+
+function saveTime() {
+  // Una hora a medio escribir llega VACÍA desde un <input type="time">. Guardar eso
+  // borraría el horario que ya estaba, así que se descarta el cambio en vez de escribir el
+  // vacío: perder un horario por cerrar mal un campo es peor que no haberlo cambiado.
+  if (timeForm.timeType === 'specific_time' && !timeForm.specificTime) return closeTimeEdit()
+
+  // Cuerpo PARCIAL, solo los campos de hora: `updateDailyEvent` del store hace
+  // Object.assign sobre el item, así que no hay que reenviar el evento entero —y reenviarlo
+  // desde acá significaría reconstruirlo a mano y arriesgar pisar algo.
+  emit('update', {
+    timeType:     timeForm.timeType,
+    specificTime: timeForm.timeType === 'specific_time' ? timeForm.specificTime : '',
+    timeLabel:    timeForm.timeType === 'time_label'    ? timeForm.timeLabel    : null,
+  })
+  closeTimeEdit()
+}
+
+// Clic afuera GUARDA, igual que el formulario grande: el usuario ya eligió la hora, y
+// hacerle perder el cambio por clickear al lado sería un castigo. Mismo `composedPath()`
+// que `handleOutsideClick`, que es lo que hace que funcione con el desplegable nativo del
+// campo de hora.
+function handleTimeOutsideClick(e) {
+  const path = e.composedPath()
+  if (timeEditRef.value && path.includes(timeEditRef.value)) return
+  saveTime()
+}
+
 async function confirmDelete() {
   if (props.isNew) return
   const ok = await useDialog().confirm({
@@ -438,6 +557,10 @@ watch(editing, (val) => {
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleOutsideClick)
   document.removeEventListener('keydown', handleEditKeydown)
+  // El editor de hora tiene su propio listener y la fila se desmonta al reordenarse —cambiar
+  // una hora RECOLOCA la fila en la lista, que está ordenada por hora—, así que este remove
+  // no es defensivo: es el camino normal.
+  document.removeEventListener('click', handleTimeOutsideClick)
 })
 
 // Normalize a stored department reference (id, key or name) into the group's key.
@@ -894,6 +1017,7 @@ function save() {
   width: 90px;
   flex-shrink: 0;
   padding-top: 1px;
+  position: relative; /* ancla del editor de hora, que se sale de estos 90px */
 }
 .dir-time-main {
   font-size: .82rem;
@@ -906,6 +1030,54 @@ function save() {
   color: var(--muted);
   margin-top: 2px;
 }
+
+/* La hora, clickeable. Se dibuja igual que el texto que reemplaza —un botón que se ve como
+   botón acá sería ruido en una lista de veinte filas— y solo se delata en el hover, que es
+   donde el usuario está preguntando "¿esto se puede tocar?". */
+.dir-time-hit {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 2px 5px;
+  margin: -2px -5px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .12s, border-color .12s;
+}
+.dir-time-hit:hover {
+  background: var(--surface-3, rgba(255,255,255,.05));
+  border-color: var(--border);
+}
+.dir-time-hit:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+.dir-time-hit .dir-time-sec { display: block; }
+
+/* Editor flotante: no cabe en los 90px de la columna, así que se sale por encima de la fila.
+   Que tape el título un segundo es aceptable —es transitorio y el foco está en la hora—; que
+   la columna se ensanche movería toda la lista en cada clic. */
+.dir-time-edit {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  z-index: 20;
+  width: 292px; /* lo que necesitan los cinco botones en UNA fila: en dos, el editor tapa
+                   media pantalla de la fila y se lee como un formulario, que es lo que
+                   este atajo existe para no ser */
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  background: var(--surface, #141817);
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  box-shadow: 0 10px 28px -10px rgba(0,0,0,.7);
+}
+.dir-time-edit .dir-time-type { flex-wrap: wrap; }
 
 /* ── Content ── */
 .dir-content { flex: 1; min-width: 0; }
