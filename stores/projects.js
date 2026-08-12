@@ -367,10 +367,19 @@ export const useProjectsStore = defineStore('projects', {
           ...normTemplates,
         ]
 
-        // Select most recently edited active project if current selection is gone
+        // Open the most recently edited active calendar when there's no selection
+        // (every page load starts here — selectedId is not persisted).
+        //
+        // Sorts by the SAME key as the sidebar (`projectsSortedByUpdated` → editedAt,
+        // "last meaningful user edit"). It used to sort by `updatedAt`, which the server
+        // deliberately does NOT bump on save (dao.update runs with timestamps:false, so
+        // saving doesn't reshuffle the list). That made `updatedAt` mean "last written to
+        // Mongo for any reason", so a reload opened a calendar nobody had touched in weeks
+        // while the one at the top of the sidebar sat there unselected.
         if (!this.selectedId || !this.projects.find(p => p.id === this.selectedId)) {
-          const active = this.projects.filter(p => p.status !== 'archived' && p.isActive !== false)
-          active.sort((a, b) => (Date.parse(b.updatedAt || b.createdAt || '') || 0) - (Date.parse(a.updatedAt || a.createdAt || '') || 0))
+          const active = this.projectsSortedByUpdated.filter(
+            p => p.status !== 'archived' && p.isActive !== false
+          )
           if (active[0]) this.selectedId = active[0].id
         }
 

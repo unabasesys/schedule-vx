@@ -128,9 +128,18 @@
           </div>
         </div>
 
-        <!-- Stage -->
+        <!-- Stage. The swatch shows the colour this stage gives the event in the
+             calendar — the stage is what paints the bar, and without it the colour
+             only became visible after saving. -->
         <div class="field field--spaced">
-          <label>{{ lang === 'en' ? 'Stage' : 'Etapa' }}</label>
+          <label class="ev-stage-label">
+            <span>{{ lang === 'en' ? 'Stage' : 'Etapa' }}</span>
+            <span
+              class="ev-stage-swatch"
+              :style="{ background: evModalStageColor }"
+              :title="lang === 'en' ? 'Colour this event will have in the calendar' : 'Color que tendrá este evento en el calendario'"
+            ></span>
+          </label>
           <select v-model="evModalStage" class="settings-select" style="width:100%">
             <option v-for="s in project.stages?.filter(s => s.active !== false)" :key="s.key" :value="s.key">
               {{ lang === 'en' ? (s.nameEN || s.name) : s.name }}
@@ -646,6 +655,47 @@ function onDaySelect(dateStr) {
   })
 }
 
+// Which stage a brand-new event should start in.
+//
+// This used to be "the first active stage", which on a production calendar is always
+// the earliest phase (Bidding). The stage is what paints the bar, so an event created
+// in post-production territory silently landed in Bidding and came out in Bidding's
+// colour — the event was fine, the colour looked broken, and the only clue was a
+// dropdown the user had no reason to re-read.
+//
+// So follow the neighbours instead: the stage of the dated event closest to the day
+// being clicked is the phase the user is almost certainly adding to. Ties go to the
+// event that starts earlier — a new event usually continues the phase already under
+// way rather than opening the next one.
+function stageForNewEvent(dateStr) {
+  const stages = (props.project.stages || []).filter(s => s.active !== false)
+  if (!stages.length) return 'pre'
+  const fallback = stages[0].key
+
+  const target = Date.parse(`${dateStr}T00:00:00Z`)
+  if (Number.isNaN(target)) return fallback
+
+  const allowed = new Set(stages.map(s => s.key))
+  let best = null
+  for (const e of props.project.events || []) {
+    if (!e.date || e.active === false || !allowed.has(e.stage)) continue
+    const start = Date.parse(`${e.date}T00:00:00Z`)
+    if (Number.isNaN(start)) continue
+    const dist = Math.abs(target - start)
+    if (!best || dist < best.dist || (dist === best.dist && start < best.start)) {
+      best = { dist, start, stage: e.stage }
+    }
+  }
+  return best?.stage || fallback
+}
+
+// The colour the event will get in the calendar. Shown next to the Stage label so the
+// consequence of that dropdown is visible while choosing, not after saving.
+const evModalStageColor = computed(() => {
+  const stage = (props.project.stages || []).find(s => s.key === evModalStage.value)
+  return stage?.color || props.project.color || '#20a789'
+})
+
 // ── Modal handlers ────────────────────────────────────────────────
 function onDayClick(dateStr) {
   if (props.readOnly) return
@@ -655,12 +705,11 @@ function onDayClick(dateStr) {
     const defaultName = props.lang === 'en' ? 'New Stage' : 'Nueva Etapa'
     projectsStore.addStage(props.project.id, defaultName)
   }
-  const firstStage = (props.project.stages || []).find(s => s.active !== false)
   evModalMode.value     = 'create'
   evModalId.value       = ''
   evModalName.value     = ''
   unlinkSuggestion()
-  evModalStage.value    = firstStage?.key || 'pre'
+  evModalStage.value    = stageForNewEvent(dateStr)
   evModalDays.value     = 1
   evModalDayType.value  = 'calendar'
   evModalKeyDate.value  = false
@@ -1175,6 +1224,18 @@ onUnmounted(() => {
 .modal-title-row h2 { margin: 0; }
 
 .field--spaced { margin-top: 12px; }
+
+/* Stage label + the colour the stage gives the event */
+.ev-stage-label {
+  display: flex; align-items: center; gap: 7px;
+}
+.ev-stage-swatch {
+  width: 10px; height: 10px; border-radius: 50%;
+  /* Theme border, not a hardcoded dark one: the Shoot stage is near-black and its
+     swatch would otherwise vanish into the modal in dark mode. */
+  border: 1px solid var(--border);
+  flex: 0 0 auto;
+}
 
 .ev-days-row {
   flex-direction: row; gap: 8px; align-items: flex-end;
