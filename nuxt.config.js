@@ -11,7 +11,7 @@ export default defineNuxtConfig({
     }
   },
   ssr: false,
-  modules: ['@pinia/nuxt', '@nuxtjs/i18n', '@vueuse/nuxt'],
+  modules: ['@pinia/nuxt'],
   components: [
     { path: '~/components', pathPrefix: false },
   ],
@@ -28,15 +28,10 @@ export default defineNuxtConfig({
       relationsUrl:   process.env.NUXT_PUBLIC_RELATIONS_URL || 'https://relations.unabase.com',
     }
   },
-  i18n: {
-    locales: [
-      { code: 'es', file: 'es.json' },
-      { code: 'en', file: 'en.json' },
-    ],
-    langDir: '../locales/',
-    defaultLocale: 'es',
-    strategy: 'no_prefix',
-  },
+  // Sin @nuxtjs/i18n a propósito: el idioma de esta app lo maneja globalStore.lang y
+  // cada componente elige su texto con `lang === 'en' ? ... : ...`. El módulo estaba
+  // cargado, se le seteaba el locale desde globalStore y NADIE lo leía — no hay un solo
+  // $t en el código. Mismo caso con @vueuse/nuxt: cero composables usados.
   imports: {
     dirs: ['stores', 'composables', 'utils'],
   }

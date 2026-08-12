@@ -117,6 +117,15 @@
       @click="globalStore.setView('tmpl')"
     >Templates</button>
 
+    <!-- Ayuda. Esto faltaba: HelpModal existía, se montaba con globalStore.helpOpen y
+         NADA llamaba a openHelp() — así que era inalcanzable. Y no es un extra: es el
+         único lugar donde se puede volver a mostrar la guía de funciones, justamente lo
+         que la guía promete al ocultarla ("está en el menú de ayuda"). -->
+    <button class="sb-suggest-btn" @click="globalStore.openHelp()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.2-3 4"/><line x1="12" y1="17.5" x2="12" y2="17.5"/></svg>
+      {{ globalStore.lang === 'en' ? 'Help' : 'Ayuda' }}
+    </button>
+
     <!-- Sugerir una idea — mismo flujo que en Relations -->
     <button class="sb-suggest-btn" @click="globalStore.openSuggest()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z"/></svg>

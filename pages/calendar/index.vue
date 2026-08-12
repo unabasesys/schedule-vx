@@ -321,7 +321,6 @@
 definePageMeta({ middleware: 'auth' })
 import { fmtWhen } from '~/utils/helpers'
 
-const { locale } = useI18n()
 const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()
 const settingsStore = useSettingsStore()
@@ -352,8 +351,6 @@ onMounted(() => {
   // Sin organización no se llama a la API: cada request saldría sin el header Organization
   // y volvería 400. Se inicializa en cuanto exista una.
   if (!needsOrg.value) projectsStore.init()
-  // Sync i18n locale
-  locale.value = globalStore.lang
 })
 
 watch(needsOrg, (missing, wasMissing) => {
@@ -362,7 +359,6 @@ watch(needsOrg, (missing, wasMissing) => {
 
 function setLang(l) {
   globalStore.setLang(l)
-  locale.value = l
   if (projectsStore.currentProject) {
     projectsStore.setProjectLang(projectsStore.currentProject.id, l)
   }
