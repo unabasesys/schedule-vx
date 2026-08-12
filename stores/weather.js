@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { toDisplayTemp } from '~/utils/helpers'
+import { toDisplayTemp, isoToday, ymd } from '~/utils/helpers'
 import { weatherEmoji } from '~/utils/weatherCodes'
 
 export const useWeatherStore = defineStore('weather', {
@@ -14,13 +14,14 @@ export const useWeatherStore = defineStore('weather', {
       return `${projId}_${cityIdx}`
     },
 
-    // Returns true when dateStr falls within the Open-Meteo 15-day forecast window
+    // Returns true when dateStr falls within the Open-Meteo 15-day forecast window.
+    // Local dates, not UTC: read in UTC, the window slid a day every evening in the
+    // Americas, so today's own forecast dropped out of range and the 16th slipped in.
     isInForecastRange(dateStr) {
-      const today = new Date().toISOString().split('T')[0]
+      const today = isoToday()
       const limit = new Date()
       limit.setDate(limit.getDate() + 15)
-      const limitStr = limit.toISOString().split('T')[0]
-      return dateStr >= today && dateStr <= limitStr
+      return dateStr >= today && dateStr <= ymd(limit)
     },
 
     async fetchWeather(proj, cityIdx, dateStr) {

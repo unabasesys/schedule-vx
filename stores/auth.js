@@ -2,6 +2,41 @@ import { defineStore } from 'pinia'
 
 const API = () => useRuntimeConfig().public.apiUrl
 
+// ── Where the session lives ───────────────────────────────────────────────────
+//
+// "Keep me signed in" used to be a dead control: handleSubmit never read it, and the
+// session went to localStorage either way — so on a shared edit-suite machine, leaving
+// it unchecked did exactly nothing.
+//
+//   checked (the default, = today's behaviour) → localStorage, survives closing the browser
+//   unchecked                                  → sessionStorage, dies with the tab
+//
+// Reads check both, so an already-signed-in person is not logged out by this change.
+// Writes go to whichever store the session already lives in, so a later setUser /
+// switch-org never silently promotes a session the user asked NOT to keep.
+const REMEMBER_KEY = 'ub_remember'
+
+const store = (remember) => {
+  try { return remember ? localStorage : sessionStorage } catch { return null }
+}
+
+const authRead = (key) => {
+  try { return localStorage.getItem(key) ?? sessionStorage.getItem(key) } catch { return null }
+}
+
+// Which store the current session is in: whichever one holds the token.
+const sessionStore = () => {
+  try { return localStorage.getItem('ub_token') ? localStorage : sessionStorage } catch { return null }
+}
+
+const authWrite = (key, value, target = sessionStore()) => {
+  try { target?.setItem(key, value) } catch { /* storage full or blocked */ }
+}
+
+const authClear = (key) => {
+  try { localStorage.removeItem(key); sessionStorage.removeItem(key) } catch { /* ignore */ }
+}
+
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     token: null,
@@ -25,10 +60,10 @@ export const useAuthStore = defineStore('auth', {
 
   actions: {
     init() {
-      const token = localStorage.getItem('ub_token')
-      const raw   = localStorage.getItem('ub_auth_user')
-      const org   = localStorage.getItem('ub_auth_org')
-      const orgs  = localStorage.getItem('ub_auth_orgs')
+      const token = authRead('ub_token')
+      const raw   = authRead('ub_auth_user')
+      const org   = authRead('ub_auth_org')
+      const orgs  = authRead('ub_auth_orgs')
 
       if (token && raw) {
         try {
@@ -47,13 +82,23 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    _persist() {
-      if (this.token) {
-        localStorage.setItem('ub_token', this.token)
-        localStorage.setItem('ub_auth_user', JSON.stringify(this.user))
-        if (this.organization)  localStorage.setItem('ub_auth_org',  JSON.stringify(this.organization))
-        if (this.organizations) localStorage.setItem('ub_auth_orgs', JSON.stringify(this.organizations))
+    // `remember` is only passed on a fresh sign-in; later calls (renew, switch-org)
+    // leave the session where it already is.
+    _persist(remember = null) {
+      if (!this.token) return
+      const target = remember === null ? sessionStore() : store(remember)
+      if (remember !== null) {
+        // Moving stores: clear the old copy so a stale token can't outlive the choice.
+        authClear('ub_token'); authClear('ub_auth_user')
+        authClear('ub_auth_org'); authClear('ub_auth_orgs')
+        // A UI preference, not a session: kept in localStorage either way so the
+        // checkbox comes back the way the user left it.
+        try { localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0') } catch { /* ignore */ }
       }
+      authWrite('ub_token', this.token, target)
+      authWrite('ub_auth_user', JSON.stringify(this.user), target)
+      if (this.organization)  authWrite('ub_auth_org',  JSON.stringify(this.organization), target)
+      if (this.organizations) authWrite('ub_auth_orgs', JSON.stringify(this.organizations), target)
     },
 
     _headers() {
@@ -64,11 +109,11 @@ export const useAuthStore = defineStore('auth', {
       }
     },
 
-    _setSession({ token, user, organization }) {
+    _setSession({ token, user, organization }, remember = null) {
       this.token        = token
       this.user         = user
       this.organization = organization || null
-      this._persist()
+      this._persist(remember)
       if (organization) {
         const settingsStore = useSettingsStore()
         settingsStore._applyOrgToStore(organization)
@@ -100,7 +145,7 @@ export const useAuthStore = defineStore('auth', {
     },
 
     // ── Login ──────────────────────────────────────────────────────────────
-    async login({ email, password }) {
+    async login({ email, password, remember = true }) {
       this.loading = true
       this.error   = null
       try {
@@ -111,7 +156,7 @@ export const useAuthStore = defineStore('auth', {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Email o contraseña incorrectos')
-        this._setSession(data)
+        this._setSession(data, remember)
         return true
       } catch (err) {
         this.error = err.message
@@ -122,7 +167,7 @@ export const useAuthStore = defineStore('auth', {
     },
 
     // ── Google login ───────────────────────────────────────────────────────
-    async loginWithGoogle(credential, lang) {
+    async loginWithGoogle(credential, lang, remember = true) {
       this.loading = true
       this.error   = null
       try {
@@ -133,7 +178,7 @@ export const useAuthStore = defineStore('auth', {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Error al iniciar sesión con Google')
-        this._setSession(data)
+        this._setSession(data, remember)
         return true
       } catch (err) {
         this.error = err.message
@@ -257,7 +302,7 @@ export const useAuthStore = defineStore('auth', {
         if (!res.ok) return
         const orgs = await res.json()
         this.organizations = orgs
-        localStorage.setItem('ub_auth_orgs', JSON.stringify(orgs))
+        authWrite('ub_auth_orgs', JSON.stringify(orgs))
         // If current org was removed from the user, auto-switch to another (or clear)
         if (this.organization?._id) {
           const currentOrgId = this.organization._id.toString()
@@ -267,7 +312,7 @@ export const useAuthStore = defineStore('auth', {
               await this.switchOrg(orgs[0]._id)
             } else {
               this.organization = null
-              localStorage.removeItem('ub_auth_org')
+              authClear('ub_auth_org')
             }
           }
         }
@@ -340,12 +385,12 @@ export const useAuthStore = defineStore('auth', {
           return { ok: false, error: data.error || null }
         }
         this.organizations = this.organizations.filter(o => o._id?.toString() !== orgId.toString())
-        localStorage.setItem('ub_auth_orgs', JSON.stringify(this.organizations))
+        authWrite('ub_auth_orgs', JSON.stringify(this.organizations))
         if (this.organizations.length) {
           await this.switchOrg(this.organizations[0]._id)
         } else {
           this.organization = null
-          localStorage.removeItem('ub_auth_org')
+          authClear('ub_auth_org')
         }
         return { ok: true }
       } catch {
@@ -360,21 +405,21 @@ export const useAuthStore = defineStore('auth', {
       this.user          = null
       this.organization  = null
       this.organizations = []
-      localStorage.removeItem('ub_token')
-      localStorage.removeItem('ub_auth_user')
-      localStorage.removeItem('ub_auth_org')
-      localStorage.removeItem('ub_auth_orgs')
+      authClear('ub_token')
+      authClear('ub_auth_user')
+      authClear('ub_auth_org')
+      authClear('ub_auth_orgs')
       navigateTo('/login')
     },
 
     setUser(user) {
       this.user = user
-      localStorage.setItem('ub_auth_user', JSON.stringify(user))
+      authWrite('ub_auth_user', JSON.stringify(user))
     },
 
     setOrganization(org) {
       this.organization = org
-      localStorage.setItem('ub_auth_org', JSON.stringify(org))
+      authWrite('ub_auth_org', JSON.stringify(org))
     },
   },
 })

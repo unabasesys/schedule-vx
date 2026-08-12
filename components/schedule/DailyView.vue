@@ -59,23 +59,29 @@
       </div>
 
       <div v-if="!localTzs.length" class="dv-tz-empty-msg">
-        {{ isEN ? 'No timezone configured. Add one below.' : 'Sin zona horaria. Agregá una abajo.' }}
+        {{ readOnly
+          ? (isEN ? 'No timezone configured.' : 'Sin zona horaria.')
+          : (isEN ? 'No timezone configured. Add one below.' : 'Sin zona horaria. Agregá una abajo.') }}
       </div>
 
       <div v-for="(tz, idx) in localTzs" :key="idx" class="dv-tz-item">
         <span class="dv-tz-badge" :class="{ primary: idx === 0 }">
           {{ idx === 0 ? (isEN ? 'Primary' : 'Principal') : (isEN ? 'Secondary' : 'Secundaria') }}
         </span>
+        <!-- An archived calendar can still be READ here — which timezone the call sheet
+             was built in is part of the record. It just can't be changed. -->
+        <span v-if="readOnly" class="dv-tz-readonly">{{ tzCityName(tz) }}</span>
         <DailyTzPicker
+          v-else
           :model-value="tz"
           :is-en="isEN"
           :is-primary="idx === 0"
           @update:model-value="val => setLocalTz(idx, val)"
         />
-        <button v-if="idx > 0" class="dv-tz-remove" @click="removeTz(idx)">×</button>
+        <button v-if="!readOnly && idx > 0" class="dv-tz-remove" @click="removeTz(idx)">×</button>
       </div>
 
-      <div class="dv-tz-panel-actions">
+      <div v-if="!readOnly" class="dv-tz-panel-actions">
         <button class="dv-tz-add" @click="addTz">
           + {{ isEN ? 'Add secondary timezone' : 'Agregar zona secundaria' }}
         </button>
@@ -556,6 +562,8 @@ function duplicateItem(item) {
   flex-shrink: 0;
 }
 .dv-tz-badge.primary { background: rgba(32,167,137,.15); color: var(--accent); }
+/* Read-only stand-in for the picker on an archived calendar */
+.dv-tz-readonly { font-size: .8rem; color: var(--text); }
 .dv-tz-remove {
   background: none;
   border: none;

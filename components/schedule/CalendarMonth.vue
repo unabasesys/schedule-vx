@@ -356,7 +356,7 @@ function ds(y, m, d) {
 function addDays(dateStr, n) {
   const d = new Date(dateStr + 'T12:00:00')
   d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
+  return ymd(d)
 }
 
 function weekEventsHeight(week) {

@@ -160,7 +160,7 @@ function eventsFromTemplate(tmpl) {
 // ── API helpers (module-level) ────────────────────────────────────────────────
 const _syncTimers             = new Map()
 const _dailySyncTimers        = new Map()
-const _inFlight               = new Set()   // projIds with a PUT in flight — serializes saves so we never send a stale baseRev
+const _inFlight               = new Map()   // projId → tail of its write chain; serializes saves so we never send a stale baseRev
 const _pendingFlush           = new Map()   // projId → { baseRev, writes } sent by an unload flush whose response we couldn't read
 const _retries                = new Map()   // projId → consecutive failed writes, for retry backoff
 const _creating               = new Set()   // local ids with a create POST in flight
@@ -176,6 +176,25 @@ let   _unloadListenerRegistered = false
 let   _holidayWarnAt          = 0           // throttles the "holidays unavailable" notice
 
 const isMongoId = (id) => /^[0-9a-f]{24}$/i.test(id || '')
+
+// Runs `fn` after every write already queued for this project has finished, and hands
+// back a promise that settles when THIS write is done.
+//
+// Writes have to be serialized: each one sends `baseRev` and adopts the rev the server
+// assigns, so two in parallel means the second carries a stale guard and 409s against
+// its own sibling. That part was already handled — but by bailing out and re-arming a
+// timer, which meant `await syncProjectNow()` could resolve without having written
+// anything. Queuing keeps the serialization AND makes awaiting mean something, which is
+// what the print pages rely on.
+const _queueWrite = (projId, fn) => {
+  // .catch on the tail: one failed write must not poison the writes behind it.
+  const run  = (_inFlight.get(projId) || Promise.resolve()).catch(() => {}).then(fn)
+  const tail = run.catch(() => {})
+  _inFlight.set(projId, tail)
+  // Drop the entry once idle, so `_inFlight.has()` keeps meaning "a write is pending".
+  tail.then(() => { if (_inFlight.get(projId) === tail) _inFlight.delete(projId) })
+  return run
+}
 
 // "This tab is holding work the server doesn't have yet."
 //
@@ -575,37 +594,42 @@ export const useProjectsStore = defineStore('projects', {
     // opening the print pages: they re-fetch the project from the API, so a
     // debounced sync still in flight makes the PDF render stale data
     // (classic symptom: PDF one version behind the app).
+    //
+    // Awaiting this really means "the server has my current state". It used to be
+    // possible for it to resolve having written nothing at all: if any write was in
+    // flight, _putProject re-armed a 400ms timer and returned immediately, so the
+    // print tab opened against the previous revision — the exact PDF-one-version-behind
+    // symptom this function exists to prevent. Also drains a pending daily PATCH so
+    // the queue below is genuinely empty when we return.
     async syncProjectNow(projId) {
       if (!isMongoId(projId)) return
       if (_syncTimers.has(projId)) {
         clearTimeout(_syncTimers.get(projId))
         _syncTimers.delete(projId)
       }
+      if (_dailySyncTimers.has(projId)) {
+        clearTimeout(_dailySyncTimers.get(projId))
+        _dailySyncTimers.delete(projId)
+      }
       await this._putProject(projId)
     },
 
     // The single writer for project PUTs. Carries baseRev (optimistic
     // concurrency), adopts the server-assigned rev on success, and on a 409
-    // conflict hands off to the conflict flow instead of overwriting. Saves are
-    // serialized per project so an in-flight PUT can't be followed by another
-    // one carrying a now-stale baseRev.
-    async _putProject(projId) {
-      if (!isMongoId(projId)) return
+    // conflict hands off to the conflict flow instead of overwriting.
+    //
+    // Queued per project (see _queueWrite) rather than skipped-and-retried, so every
+    // caller's promise resolves only after ITS write has been through the server, and
+    // each write still reads `rev` after the previous one adopted it.
+    _putProject(projId) {
+      if (!isMongoId(projId)) return Promise.resolve()
+      return _queueWrite(projId, () => this._doPutProject(projId))
+    },
+
+    async _doPutProject(projId) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj || proj.conflicted) return
 
-      // Another save for this project is still in flight — retry shortly so we
-      // send the freshly-adopted rev rather than a stale one.
-      if (_inFlight.has(projId)) {
-        if (_syncTimers.has(projId)) clearTimeout(_syncTimers.get(projId))
-        _syncTimers.set(projId, setTimeout(() => {
-          _syncTimers.delete(projId)
-          this._putProject(projId)
-        }, 400))
-        return
-      }
-
-      _inFlight.add(projId)
       this.saveState = 'saving'
       try {
         const { hidden: _hidden, conflicted: _conflicted, ...payload } = proj
@@ -626,8 +650,6 @@ export const useProjectsStore = defineStore('projects', {
         } else {
           this._onWriteFailed(projId, e)
         }
-      } finally {
-        _inFlight.delete(projId)
       }
     },
 
@@ -808,6 +830,7 @@ export const useProjectsStore = defineStore('projects', {
 
       const flush = (isUnloading) => {
         if (!isUnloading) {
+          const putting = new Set(_syncTimers.keys())
           for (const [projId, timer] of [..._syncTimers]) {
             clearTimeout(timer)
             _syncTimers.delete(projId)
@@ -816,7 +839,11 @@ export const useProjectsStore = defineStore('projects', {
           for (const [projId, timer] of [..._dailySyncTimers]) {
             clearTimeout(timer)
             _dailySyncTimers.delete(projId)
-            this._patchDaily(projId)
+            // The PUT above already carries dailySchedule + dailyConfig, so a PATCH
+            // for the same project is a second write that only advances rev again and
+            // hands every other editor a phantom conflict. Same rule _scheduleSyncDaily
+            // applies when a PUT is already pending.
+            if (!putting.has(projId)) this._patchDaily(projId)
           }
           return
         }
@@ -842,6 +869,7 @@ export const useProjectsStore = defineStore('projects', {
           else _pendingFlush.set(projId, { baseRev, writes: 1 })
         }
 
+        const flushedPut = new Set()
         for (const [projId, timer] of [..._syncTimers]) {
           clearTimeout(timer)
           _syncTimers.delete(projId)
@@ -850,6 +878,7 @@ export const useProjectsStore = defineStore('projects', {
           const { hidden: _h, conflicted: _c, ...payload } = proj
           payload.baseRev = proj.rev ?? 0   // carries the guard: a stale flush is rejected, never clobbers
           note(projId, payload.baseRev)
+          flushedPut.add(projId)
           fetch(`${BASE}/projects/${projId}`, {
             method: 'PUT', keepalive: true, headers,
             body: JSON.stringify(payload),
@@ -861,6 +890,11 @@ export const useProjectsStore = defineStore('projects', {
           _dailySyncTimers.delete(projId)
           const proj = this.projects.find(p => p.id === projId)
           if (!proj || proj.conflicted) continue
+          // Here we can't await, so a PATCH alongside the PUT above races it with the
+          // SAME baseRev — the server accepts whichever lands first and rejects the
+          // other, silently dropping half the flush. The PUT already carries the daily
+          // data, so it wins and the PATCH is skipped.
+          if (flushedPut.has(projId)) continue
           note(projId, proj.rev ?? 0)
           fetch(`${BASE}/projects/${projId}/daily`, {
             method: 'PATCH', keepalive: true, headers,
@@ -931,26 +965,18 @@ export const useProjectsStore = defineStore('projects', {
 
     // The single writer for daily PATCHes. Mirrors _putProject: carries baseRev
     // (optimistic concurrency), adopts the server-assigned rev on success, and
-    // on a 409 hands off to the conflict flow. Shares `_inFlight` with
-    // _putProject so a project PUT and a daily PATCH for the same project are
-    // serialized and never race each other into a self-inflicted conflict.
-    async _patchDaily(projId) {
-      if (!isMongoId(projId)) return
+    // on a 409 hands off to the conflict flow. Goes through the SAME per-project
+    // queue as _putProject, so a project PUT and a daily PATCH are serialized and
+    // never race each other into a self-inflicted conflict.
+    _patchDaily(projId) {
+      if (!isMongoId(projId)) return Promise.resolve()
+      return _queueWrite(projId, () => this._doPatchDaily(projId))
+    },
+
+    async _doPatchDaily(projId) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj || proj.conflicted) return
 
-      // A save for this project is still in flight — retry shortly so we send
-      // the freshly-adopted rev rather than a stale one.
-      if (_inFlight.has(projId)) {
-        if (_dailySyncTimers.has(projId)) clearTimeout(_dailySyncTimers.get(projId))
-        _dailySyncTimers.set(projId, setTimeout(() => {
-          _dailySyncTimers.delete(projId)
-          this._patchDaily(projId)
-        }, 400))
-        return
-      }
-
-      _inFlight.add(projId)
       this.saveState = 'saving'
       try {
         const updated = await useApi().patch(`/projects/${projId}/daily`, {
@@ -970,8 +996,6 @@ export const useProjectsStore = defineStore('projects', {
         } else {
           this._onWriteFailed(projId, e)
         }
-      } finally {
-        _inFlight.delete(projId)
       }
     },
 
@@ -1400,13 +1424,18 @@ export const useProjectsStore = defineStore('projects', {
           .filter(e => e.stage === targetStageKey && e.id !== evId)
           .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
         const targetIdx = stageEvs.findIndex(e => e.id === targetEvId)
-        const insertAt  = position === 'above' ? targetIdx : targetIdx + 1
+        // No target in this stage (dropped on itself, or the target was deleted
+        // mid-drag): findIndex gives -1, and splicing at -1 dropped the row one from
+        // the end while renumbering every sibling — a drop that changed nothing
+        // visibly reshuffled the whole stage. Append instead.
+        const insertAt  = targetIdx === -1 ? stageEvs.length
+                        : position === 'above' ? targetIdx : targetIdx + 1
         stageEvs.splice(insertAt, 0, ev)
         stageEvs.forEach((e, i) => { e.order = i })
       }
 
       proj.hasChanges = true
-      proj.updatedAt  = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.recalcAndSave(projId)
     },
 
@@ -1549,7 +1578,7 @@ export const useProjectsStore = defineStore('projects', {
       ev1.order  = ev2.order ?? 0
       ev2.order  = tmp
       proj.hasChanges = true
-      proj.updatedAt  = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save()
     },
 
@@ -1632,7 +1661,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj) return
       proj.disabledHolidays = disabledDates
       proj.hasChanges = true
-      proj.updatedAt  = new Date().toISOString()
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.recalcAndSave(projId)
     },
 

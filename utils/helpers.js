@@ -27,11 +27,11 @@ export function addDays(dateStr, n, dayType = 'calendar', holidayDates = null) {
     while (added < Math.abs(n)) {
       d.setDate(d.getDate() + step)
       const dow = d.getDay()
-      const ds  = d.toISOString().split('T')[0]
+      const ds  = ymd(d)
       if (dow !== 0 && dow !== 6 && (!holidayDates || !holidayDates.has(ds))) added++
     }
   }
-  return d.toISOString().split('T')[0]
+  return ymd(d)
 }
 
 export function subtractDays(dateStr, n, dayType = 'calendar', holidayDates = null) {
@@ -64,7 +64,7 @@ export function nearestBusinessDay(dateStr, holidayDates = null) {
   function offset(d, n) {
     const dt = new Date(d + 'T12:00:00')
     dt.setDate(dt.getDate() + n)
-    return dt.toISOString().split('T')[0]
+    return ymd(dt)
   }
 
   const dow = new Date(dateStr + 'T12:00:00').getDay()
@@ -93,9 +93,21 @@ export function nearestBusinessDay(dateStr, holidayDates = null) {
   return dateStr // fallback
 }
 
-export function isoToday() {
-  const d = new Date()
+/**
+ * "YYYY-MM-DD" for a Date, read in the LOCAL calendar.
+ *
+ * Never use `toISOString().split('T')[0]` for this: that reads the date in UTC, so a
+ * Date built from local parts comes back shifted a day whenever the local clock and
+ * UTC disagree about which day it is — which is most of every evening in the Americas.
+ * The date strings in this app ARE the user's calendar days, so they have to be read
+ * the way the user reads them.
+ */
+export function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+export function isoToday() {
+  return ymd(new Date())
 }
 
 const MONTHS_SHORT_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']

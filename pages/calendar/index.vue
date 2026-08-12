@@ -26,7 +26,11 @@
             @click="globalStore.setView('daily')"
           >Daily</button>
 
+          <!-- Hidden on an archived calendar: Una's whole job is to ADD events, and
+               everything else that writes is already locked there, so offering it only
+               led to filling in a preview that could never be applied. -->
           <button
+            v-if="!isArchived"
             class="hey-una-btn"
             :title="globalStore.lang === 'en' ? 'Ask Una — turn what you say into events' : 'Pídele a Una — convierte lo que dices en eventos'"
             @click="globalStore.openAssistant()"

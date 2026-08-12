@@ -521,7 +521,10 @@ const coloredEvents = computed(() => {
   return merged
 })
 
-const focusDate = ref(new Date().toISOString().split('T')[0])
+// isoToday(), not toISOString(): the latter reads the date in UTC, so from mid-afternoon
+// onward in the Americas the calendar focused tomorrow and the weather strip fetched the
+// wrong day.
+const focusDate = ref(isoToday())
 
 const todayLabel = computed(() => {
   const now = new Date()
@@ -544,7 +547,7 @@ function scrollToToday() {
 // — first event before today → land on today's month
 function scrollToInitialMonth() {
   nextTick(() => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = isoToday()
     const dates = allProjects.value
       .flatMap(proj => (proj.events || []).filter(e => e.active && e.date).map(e => e.date))
       .sort()
@@ -590,7 +593,7 @@ function shiftDate(dateStr, n) {
   if (!dateStr || n === 0) return dateStr
   const d = new Date(dateStr + 'T12:00:00')
   d.setDate(d.getDate() + n)
-  return d.toISOString().split('T')[0]
+  return ymd(d)
 }
 
 function calcTo(from, days, dayType) {
@@ -879,7 +882,7 @@ function snapWeekend(dateStr) {
   const dow = d.getDay() // 0 = Sun, 6 = Sat
   if (dow === 6) d.setDate(d.getDate() - 1) // Sat → Fri
   if (dow === 0) d.setDate(d.getDate() + 1) // Sun → Mon
-  return d.toISOString().split('T')[0]
+  return ymd(d)
 }
 
 // Returns active holiday dates for any project

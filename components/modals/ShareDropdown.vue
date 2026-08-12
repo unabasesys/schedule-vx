@@ -53,8 +53,11 @@
           </div>
         </button>
 
-        <!-- Version button — always visible -->
-        <button class="share-action-btn share-action-btn--version" @click="downloadNewVersion">
+        <!-- Version button. Hidden on an archived calendar: publishing a new version
+             WRITES (bumpVersion + a save), and an archived calendar is read-only
+             everywhere else. Draft above still opens the PDF, which is all that's
+             actually needed to look at an old job. -->
+        <button v-if="!isArchived" class="share-action-btn share-action-btn--version" @click="downloadNewVersion">
           <div class="share-action-main">
             <span class="share-action-label">
               {{ project.hasChanges
@@ -130,6 +133,8 @@ const globalStore   = useGlobalStore()
 const props = defineProps({
   project: { type: Object, required: true },
 })
+
+const isArchived = computed(() => props.project?.status === 'archived')
 
 // Who the document is for. One single pair of words for both PDFs (and for the
 // print pages), because it is one single concept: whether the internal (locked)

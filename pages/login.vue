@@ -116,7 +116,10 @@ if (authStore.isLoggedIn) {
 
 const form         = reactive({ email: '', password: '' })
 const showPassword = ref(false)
-const rememberMe   = ref(false)
+// Default ON — that is what the app has always done, so nobody starts getting logged
+// out because this checkbox became real. Unchecking it is now honoured, and the choice
+// is remembered for the next visit.
+const rememberMe   = ref(true)
 const lang         = ref('es')
 const isEN         = computed(() => lang.value === 'en')
 
@@ -127,10 +130,11 @@ function setLang(l) {
 
 onMounted(() => {
   lang.value = localStorage.getItem('ub_lang') || 'es'
+  try { rememberMe.value = localStorage.getItem('ub_remember') !== '0' } catch { /* ignore */ }
 })
 
 const handleSubmit = async () => {
-  const ok = await authStore.login(form)
+  const ok = await authStore.login({ ...form, remember: rememberMe.value })
   if (ok) {
     const inviteToken = route.query.inviteToken
     if (inviteToken) await authStore.acceptInvitation(inviteToken)
@@ -151,7 +155,7 @@ onMounted(() => {
     window.google.accounts.id.initialize({
       client_id: clientId,
       callback: async ({ credential }) => {
-        const ok = await authStore.loginWithGoogle(credential)
+        const ok = await authStore.loginWithGoogle(credential, undefined, rememberMe.value)
         if (ok) {
           const inviteToken = route.query.inviteToken
           if (inviteToken) await authStore.acceptInvitation(inviteToken)

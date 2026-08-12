@@ -522,7 +522,7 @@ const endDate = computed(() => {
   } else {
     d.setDate(d.getDate() + dur - 1)
   }
-  return d.toISOString().split('T')[0]
+  return ymd(d)
 })
 
 function formatDate(dateStr) {

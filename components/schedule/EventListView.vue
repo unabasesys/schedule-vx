@@ -726,6 +726,10 @@ function onEvDragOver(e, targetEv, stageKey) {
 
 function onEvDrop(e, targetEv, stageKey) {
   if (!listDragId.value) { clearListDrag(); return }
+  // Dropping a row on itself is a cancelled drag, not a move — and onEvDragOver
+  // already refuses to draw an indicator for it, so there was nothing on screen
+  // suggesting anything would happen.
+  if (listDragId.value === targetEv.id) { clearListDrag(); return }
   const rect     = e.currentTarget.getBoundingClientRect()
   const position = e.clientY < rect.top + rect.height / 2 ? 'above' : 'below'
   projectsStore.moveEventInList(props.project.id, listDragId.value, targetEv.id, position, stageKey)
