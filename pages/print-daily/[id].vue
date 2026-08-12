@@ -496,12 +496,45 @@ async function doPrint() {
     const docEl   = docRef.value
     const docRect = docEl.getBoundingClientRect()
 
+    // How sharp we can afford to render.
+    //
+    // Unlike the calendar PDF (which captures one A4 element per page), this one
+    // rasterises the WHOLE call sheet into a single canvas and slices it afterwards —
+    // the page-break logic needs the continuous bitmap to find the white bands between
+    // items. But browsers cap a canvas's height and its total area, and past that limit
+    // they don't throw: html2canvas hands back an empty canvas and every page of the PDF
+    // comes out blank. A long shoot hit that silently.
+    //
+    // So scale to fit. 3× stays the default for anything normal-sized; only a genuinely
+    // long document trades sharpness for existing at all.
+    const DOC_W    = 794                      // A4 width in CSS px, set in onclone
+    const MAX_DIM  = 60000                     // under Chrome's 65535 per-side limit
+    const MAX_AREA = 240e6                     // under Chrome's 2^28 total-pixel limit
+    const docH     = Math.max(1, Math.ceil(docRect.height))
+    const scale    = Math.min(
+      3,
+      MAX_DIM / docH,
+      Math.sqrt(MAX_AREA / (DOC_W * docH)),
+    )
+
+    if (scale < 0.5) {
+      // Even at half size this won't fit in one canvas. Say so, instead of handing over
+      // a PDF of blank pages: splitting the range into two exports actually works.
+      await useDialog().alert({
+        title: isEN.value ? 'This range is too long' : 'Este rango es demasiado largo',
+        body:  isEN.value
+          ? 'This date range is too long to export as a single PDF. Export it in two shorter ranges.'
+          : 'Este rango de fechas es demasiado largo para un solo PDF. Exportalo en dos rangos más cortos.',
+      })
+      return
+    }
+
     // Measure date-hdr positions and capture text content before html2canvas clones the DOM
     const dateHdrPositions = Array.from(docEl.querySelectorAll('.date-hdr')).map(el => {
       const r = el.getBoundingClientRect()
       return {
-        topPx:    Math.round((r.top - docRect.top) * 3),
-        heightPx: Math.round(r.height * 3),
+        topPx:    Math.round((r.top - docRect.top) * scale),
+        heightPx: Math.round(r.height * scale),
         dow:   el.querySelector('.date-dow')?.textContent?.trim()   || '',
         label: el.querySelector('.date-label')?.textContent?.trim() || '',
         year:  el.querySelector('.date-year')?.textContent?.trim()  || '',
@@ -509,7 +542,7 @@ async function doPrint() {
     })
 
     const canvas = await html2canvas(docEl, {
-      scale: 3,
+      scale,
       useCORS: true,
       backgroundColor: '#ffffff',
       logging: false,
@@ -548,7 +581,7 @@ async function doPrint() {
     // MIN_BAND = 32 sits reliably between them.
     const cutCandidates = (() => {
       const { width, height } = canvas
-      const imgData = canvas.getContext('2d').getImageData(0, 0, width, height).data
+      const ctx      = canvas.getContext('2d')
       const MIN_BAND = 32
       const THRESH   = 230          // includes --line-soft #ececec (R=236), blocks text AA
       const xStep    = Math.round(50 * sc)
@@ -556,20 +589,31 @@ async function doPrint() {
       const xEnd     = width - xStart
       const out      = []
       let bandStart  = -1
-      for (let y = 0; y < height; y++) {
-        let white = true
-        for (let x = xStart; x < xEnd; x += xStep) {
-          const i = (y * width + x) * 4
-          if (imgData[i] < THRESH || imgData[i + 1] < THRESH || imgData[i + 2] < THRESH) {
-            white = false; break
+
+      // Read the bitmap in horizontal strips. One getImageData over the whole canvas
+      // asks for width × height × 4 bytes in a single allocation — most of a gigabyte on
+      // a long call sheet — which either dies or grinds the tab to a halt. Strips keep
+      // the memory flat regardless of how long the document is.
+      const STRIP = 4096
+      for (let stripY = 0; stripY < height; stripY += STRIP) {
+        const stripH  = Math.min(STRIP, height - stripY)
+        const imgData = ctx.getImageData(0, stripY, width, stripH).data
+        for (let row = 0; row < stripH; row++) {
+          const y = stripY + row
+          let white = true
+          for (let x = xStart; x < xEnd; x += xStep) {
+            const i = (row * width + x) * 4
+            if (imgData[i] < THRESH || imgData[i + 1] < THRESH || imgData[i + 2] < THRESH) {
+              white = false; break
+            }
           }
-        }
-        if (white) {
-          if (bandStart < 0) bandStart = y
-        } else if (bandStart >= 0) {
-          const bh = y - bandStart
-          if (bh >= MIN_BAND) out.push(bandStart + Math.round(bh / 2))
-          bandStart = -1
+          if (white) {
+            if (bandStart < 0) bandStart = y
+          } else if (bandStart >= 0) {
+            const bh = y - bandStart
+            if (bh >= MIN_BAND) out.push(bandStart + Math.round(bh / 2))
+            bandStart = -1
+          }
         }
       }
       if (bandStart >= 0 && (height - bandStart) >= MIN_BAND)
