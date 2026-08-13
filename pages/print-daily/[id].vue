@@ -147,9 +147,13 @@
               </span>
             </div>
 
-            <div v-if="item.participants" class="item-meta-row">
+            <div v-if="participantsOf(item).length" class="item-meta-row">
               <span class="meta-label">Contact:</span>
-              <span>{{ item.participants }}</span>
+              <span>
+                <template v-for="(p, i) in participantsOf(item)" :key="p.name + i">
+                  <span v-if="i">, </span>{{ p.name }}<span v-if="p.role" class="item-role"> · {{ p.role }}</span>
+                </template>
+              </span>
             </div>
 
             <div v-if="item.notes" class="item-notes">{{ item.notes }}</div>
@@ -224,6 +228,8 @@ onMounted(async () => {
     const [proj] = await Promise.all([
       useApi().get(`/projects/${projectId.value}`),
       settingsStore.fetchOrg().catch(e => console.warn('print-daily: fetchOrg failed', e)),
+      // Roles printed next to each participant live in the org directory, not on the event.
+      contactsStore.loadContacts().catch(e => console.warn('print-daily: loadContacts failed', e)),
     ])
     project.value = proj
     orgName.value = settingsStore.studioName || authStore.organization?.name || 'Mi Productora'
@@ -254,6 +260,20 @@ function weatherForDate(date) {
   const cached = weatherStore.getWeather(project.value.id, 0)
   if (!cached?.forecast15) return null
   return cached.forecast15.find(d => d.date === date) || null
+}
+
+// ── Participants with their cargo ─────────────────────────────────────────────
+// Read from the org directory at print time, so a role fixed in Contacts shows up
+// in the next PDF without reopening every event.
+const contactsStore = useContactsStore()
+const contactById   = computed(() => {
+  const m = {}
+  for (const c of contactsStore.contacts) m[c.id] = c
+  return m
+})
+const contactByName = computed(() => contactsByUniqueName(contactsStore.contacts))
+function participantsOf(item) {
+  return participantEntries(item, contactById.value, contactByName.value)
 }
 
 const primaryTz    = computed(() => (project.value?.dailyConfig?.timezones || []).find(t => t.primary) || null)
@@ -532,12 +552,19 @@ async function doPrint() {
     // Measure date-hdr positions and capture text content before html2canvas clones the DOM
     const dateHdrPositions = Array.from(docEl.querySelectorAll('.date-hdr')).map(el => {
       const r = el.getBoundingClientRect()
+      // The weather chip is part of the day, so a day continuing on the next page keeps it.
+      const w = el.querySelector('.date-weather')
       return {
         topPx:    Math.round((r.top - docRect.top) * scale),
         heightPx: Math.round(r.height * scale),
         dow:   el.querySelector('.date-dow')?.textContent?.trim()   || '',
         label: el.querySelector('.date-label')?.textContent?.trim() || '',
         year:  el.querySelector('.date-year')?.textContent?.trim()  || '',
+        weather: w ? {
+          emoji: w.querySelector('.dw-emoji')?.textContent?.trim() || '',
+          city:  w.querySelector('.dw-city')?.textContent?.trim()  || '',
+          temps: (w.querySelector('.dw-temps')?.textContent || '').replace(/\s+/g, ' ').trim(),
+        } : null,
       }
     })
 
@@ -702,6 +729,62 @@ async function doPrint() {
         ctx.font      = `italic 300 ${Math.round(15 * sc)}px Fraunces, serif`
         ctx.fillStyle = '#9a9a9a'
         ctx.fillText(hdr.year, padX + dowW + gap + labelW + Math.round(4 * sc), textY)
+      }
+
+      // Weather chip, right-aligned and vertically centred like the CSS one
+      drawWeatherChip(ctx, hdr.weather, canvas.width - padX, y + Math.round((hdr.heightPx - sc) / 2))
+    }
+
+    // Repaint of the `.date-weather` chip: the repeated header is drawn, not sliced
+    // from the bitmap, so anything the CSS header shows has to be drawn here too.
+    function drawWeatherChip(ctx, w, rightX, centerY) {
+      if (!w || (!w.emoji && !w.city && !w.temps)) return
+
+      const padL = Math.round(7 * sc)
+      const padR = Math.round(9 * sc)
+      const gap  = Math.round(4 * sc)
+      const emojiFont = `${Math.round(12 * sc)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
+      const cityFont  = `600 ${Math.round(9.5 * sc)}px Inter, sans-serif`
+      const tempFont  = `${Math.round(9.5 * sc)}px Inter, sans-serif`
+
+      ctx.textAlign    = 'left'
+      ctx.textBaseline = 'middle'
+
+      ctx.font = emojiFont; const emojiW = w.emoji ? ctx.measureText(w.emoji).width : 0
+      ctx.font = cityFont;  const cityW  = w.city  ? ctx.measureText(w.city).width  : 0
+      ctx.font = tempFont;  const tempW  = w.temps ? ctx.measureText(w.temps).width : 0
+
+      const widths = [emojiW, cityW, tempW].filter(v => v > 0)
+      const inner  = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, widths.length - 1)
+      const boxW   = padL + inner + padR
+      const boxH   = Math.round(19 * sc)
+      const boxX   = rightX - boxW
+      const boxY   = Math.round(centerY - boxH / 2)
+      const radius = Math.round(4 * sc)
+
+      ctx.fillStyle = '#f5f6fa'
+      if (typeof ctx.roundRect === 'function') {
+        ctx.beginPath()
+        ctx.roundRect(boxX, boxY, boxW, boxH, radius)
+        ctx.fill()
+      } else {
+        ctx.fillRect(boxX, boxY, boxW, boxH)
+      }
+
+      let x = boxX + padL
+      if (emojiW) {
+        ctx.font = emojiFont; ctx.fillStyle = '#111111'
+        ctx.fillText(w.emoji, x, centerY)
+        x += emojiW + gap
+      }
+      if (cityW) {
+        ctx.font = cityFont; ctx.fillStyle = '#2b2b2b'
+        ctx.fillText(w.city, x, centerY)
+        x += cityW + gap
+      }
+      if (tempW) {
+        ctx.font = tempFont; ctx.fillStyle = '#9a9a9a'
+        ctx.fillText(w.temps, x, centerY)
       }
     }
 
@@ -1146,6 +1229,7 @@ html, body {
   line-height: 1.5;
   margin-top: 1px;
 }
+.item-role { color: var(--muted-2); }
 .meta-label {
   flex-shrink: 0;
   font-size: 8.5px;

@@ -91,9 +91,13 @@
           >{{ item.locationAddress }}</a>
           <span v-else-if="item.locationAddress" class="dir-address">{{ item.locationAddress }}</span>
         </div>
-        <div v-if="item.participants" class="dir-meta">
+        <div v-if="participantsDisplay.length" class="dir-meta">
           <span class="dir-meta-icon">👥</span>
-          <span>{{ item.participants }}</span>
+          <span class="dir-meta-people">
+            <template v-for="(p, i) in participantsDisplay" :key="p.name + i">
+              <span v-if="i" >, </span>{{ p.name }}<span v-if="p.role" class="dir-meta-role"> · {{ p.role }}</span>
+            </template>
+          </span>
         </div>
         <div v-if="item.notes" class="dir-notes">{{ item.notes }}</div>
         <div v-if="relatedEventName" class="dir-related">
@@ -235,7 +239,7 @@
                 :class="{ 'dir-part-chip--adhoc': chip.adhoc, 'dir-part-chip--missing': chip.missing }"
                 :title="chip.missing ? (isEN ? 'This contact was removed from the directory' : 'Este contacto ya no está en el directorio') : (chip.adhoc ? (isEN ? 'Typed in (not in directory)' : 'Escrito a mano (no está en el directorio)') : chip.title)"
               >
-                {{ chip.label }}
+                {{ chip.label }}<span v-if="chip.title" class="dir-part-chip-role">· {{ chip.title }}</span>
                 <button
                   type="button"
                   class="dir-part-chip-x"
@@ -665,6 +669,12 @@ const participantChips = computed(() => {
   }))
   return [...idChips, ...nameChips]
 })
+
+// Collapsed row: names with the cargo the directory has for each one. Read from the
+// directory at render time, so editing a cargo in Contacts updates every event.
+const contactByName = computed(() => contactsByUniqueName(contactsStore.contacts))
+const participantsDisplay = computed(() =>
+  participantEntries(props.item, contactById.value, contactByName.value))
 
 // Directory contacts matching the query and not already picked.
 const partMatches = computed(() => {
@@ -1115,6 +1125,9 @@ function save() {
   flex-wrap: wrap;
 }
 .dir-meta-icon { font-size: .7rem; }
+.dir-meta-role { color: var(--muted); opacity: .7; }
+/* Names wrap inside their own column instead of dropping the whole list below the icon */
+.dir-meta-people { flex: 1 1 0; min-width: 0; }
 .dir-loc-link { color: var(--accent); text-decoration: none; }
 .dir-loc-link:hover { text-decoration: underline; }
 .dir-address { color: var(--muted); opacity: .7; font-size: .68rem; }
@@ -1332,6 +1345,11 @@ function save() {
   color: var(--accent);
   font-size: .72rem;
   font-weight: 600;
+}
+.dir-part-chip-role {
+  margin-left: 4px;
+  font-weight: 400;
+  opacity: .75;
 }
 .dir-part-chip--adhoc {
   border-color: var(--border);

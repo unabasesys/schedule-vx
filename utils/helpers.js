@@ -141,6 +141,63 @@ export function fmtWhen(value, en = false) {
     : `el ${d.getDate()} ${MONTHS_SHORT_ES[d.getMonth()]}, ${time}`
 }
 
+/**
+ * Participants of a daily event, each with the role (`title`) the directory has for
+ * them — "Ana Pérez · Productora". The role is looked up at render time instead of
+ * being baked into the saved `participants` string, so changing a cargo in Contacts
+ * updates every event that person is in.
+ *
+ * Order matches what the event stored: linked contacts first, then ad-hoc names.
+ * Anyone whose contact can't be resolved (deleted from the directory, or the
+ * directory hasn't loaded yet) is recovered from the saved string, so a participant
+ * never disappears just because we couldn't look them up.
+ *
+ * @param {object} item          - daily event
+ * @param {object} contactById   - map of contact id → contact
+ * @param {object} [contactByName] - map of lowercased name → contact, or null if
+ *                                 ambiguous; used to give legacy events their roles
+ * @returns {Array<{name: string, role: string}>}
+ */
+export function participantEntries(item, contactById = {}, contactByName = {}) {
+  const ids   = Array.isArray(item?.participantIds)   ? item.participantIds   : []
+  const extra = Array.isArray(item?.participantNames) ? item.participantNames : []
+  const saved = String(item?.participants || '').split(',').map(s => s.trim()).filter(Boolean)
+
+  const roleFor = (name) => contactByName?.[String(name || '').trim().toLowerCase()]?.title || ''
+
+  const out  = []
+  const seen = new Set()
+  const push = (name, role) => {
+    if (!name) return
+    out.push({ name, role: role || '' })
+    seen.add(name)
+  }
+
+  for (const id of ids) {
+    const c = contactById?.[id]
+    if (c?.name) push(c.name, c.title)
+  }
+  for (const n of extra) push(n, roleFor(n))
+  for (const n of saved) if (!seen.has(n)) push(n, roleFor(n))
+
+  return out
+}
+
+/**
+ * Lowercased name → contact, but only for names that belong to exactly one contact.
+ * Two people called "Ana" make the name useless as a key, and guessing which cargo
+ * to print is worse than printing none.
+ */
+export function contactsByUniqueName(contacts = []) {
+  const m = {}
+  for (const c of contacts) {
+    const k = String(c?.name || '').trim().toLowerCase()
+    if (!k) continue
+    m[k] = k in m ? null : c
+  }
+  return m
+}
+
 export function toDisplayTemp(c, unit) {
   return unit === 'F' ? Math.round(c * 9 / 5 + 32) : c
 }
