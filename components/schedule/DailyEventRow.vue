@@ -220,11 +220,16 @@
         <!-- Notes -->
         <div class="dir-form-row">
           <label class="dir-form-label">{{ isEN ? 'Notes' : 'Notas' }}</label>
-          <textarea
-            v-model="form.notes"
-            class="dir-input dir-textarea"
-            rows="2"
-          ></textarea>
+          <!-- The mirror span holds the same text and sets the height: the box grows as
+               you type, without measuring anything on screen. -->
+          <div class="dir-grow">
+            <textarea
+              v-model="form.notes"
+              class="dir-input dir-textarea"
+              rows="2"
+            ></textarea>
+            <span class="dir-grow-mirror" aria-hidden="true">{{ form.notes }}&nbsp;</span>
+          </div>
         </div>
 
         <!-- Participants -->
@@ -1242,7 +1247,30 @@ function save() {
 .dir-input:focus { outline: none; border-color: var(--accent); }
 .dir-input--time { flex: none; width: 130px; }
 .dir-input--half { flex: none; width: 150px; }
-.dir-textarea { resize: vertical; min-height: 52px; line-height: 1.5; }
+.dir-textarea { resize: none; overflow: hidden; }
+
+/* Notes box that grows with its text. The textarea and a hidden copy of the text share
+   one grid cell: the copy sets the height, the textarea stretches to fill it. No
+   measuring, so it can't get the height wrong while the form is still being laid out.
+   Both boxes MUST keep the same font, padding and border, or the height won't match. */
+.dir-grow { flex: 1; min-width: 0; display: grid; }
+.dir-grow > .dir-textarea,
+.dir-grow > .dir-grow-mirror {
+  grid-area: 1 / 1 / 2 / 2;
+  box-sizing: border-box;
+  min-height: 52px;
+  padding: 5px 9px;
+  border: 1.5px solid transparent;
+  font-family: inherit;
+  font-size: .78rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+/* The border belongs to the textarea; the copy only reserves the same space for it. */
+.dir-grow > .dir-textarea { border-color: var(--border); }
+.dir-grow > .dir-textarea:focus { border-color: var(--accent); }
+.dir-grow-mirror { visibility: hidden; }
 .dir-select { cursor: pointer; }
 .dir-select option, .dir-select optgroup { background: var(--surface); }
 
