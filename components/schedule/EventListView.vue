@@ -991,9 +991,11 @@ watch(stageColorPickerId, (val) => {
 
 /* ── Rows container ── */
 .ev-list-scroll { flex: 1; overflow: auto; }
-/* Bottom padding lets the last rows scroll up so the native date picker
-   (~330px tall) has room below them — see openDatePicker() in EventRow */
-.ev-rows { display: flex; flex-direction: column; padding-bottom: 340px; }
+/* Antes acá había 340px de relleno abajo para que las últimas filas pudieran subir
+   con scroll y el calendario NATIVO (~330px) tuviera dónde caber. Nuestro calendario
+   se posiciona solo —se abre hacia arriba cuando no hay espacio—, así que el relleno
+   se fue con él: era un hueco enorme al final de la lista. */
+.ev-rows { display: flex; flex-direction: column; padding-bottom: 24px; }
 
 .ev-stage-count { font-size: .65rem; color: var(--muted); }
 

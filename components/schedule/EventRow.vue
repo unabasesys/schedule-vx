@@ -176,22 +176,25 @@
         @click="!readOnly && updateDurDayType((event.durDayType || 'calendar') === 'calendar' ? 'business' : 'calendar')"
       >{{ (event.durDayType || 'calendar') === 'business' ? L.businessDays : L.calendarDays }}</button>
 
-      <!-- Date wrapper: shows 2-digit year, click anywhere opens native picker -->
+      <!-- Date cell: muestra el año en 2 dígitos y al clickearla se abre NUESTRO
+           calendario (flotante). Antes acá había un `input type="date"` invisible
+           encima del texto para poder usar el calendario del navegador: mostraba el
+           orden del idioma del sistema y había que empujar la lista con scroll para
+           que el panel nativo no saliera cortado. -->
       <div
-        class="ev-date-label"
+        class="ev-date-label ev-date-dp"
         :class="{ 'ev-date-auto': event.dateMode === 'auto', 'ev-date-broken': event.dep?.broken }"
         :title="L.startDate"
-        @click="!readOnly && openDatePicker()"
       >
-        <span class="ev-date-text">{{ formattedStartDate || '— / — / —' }}</span>
-        <input
-          ref="datePickerInput"
-          type="date"
-          class="ev-date-native"
-          :value="event.date"
+        <DatePicker
+          bare
+          :model-value="event.date"
+          :lang="lang"
           :disabled="readOnly"
-          @change="!readOnly && onDatePicked($event)"
-        />
+          @change="updateDate"
+        >
+          <span class="ev-date-text">{{ formattedStartDate || '— / — / —' }}</span>
+        </DatePicker>
       </div>
       <span class="ev-dates-arrow">→</span>
       <span class="ev-end-date" :class="{ 'ev-end-empty': !endDate }" :title="L.endDate">
@@ -537,26 +540,9 @@ function formatDate(dateStr) {
 const formattedStartDate = computed(() => formatDate(props.event.date))
 const formattedEndDate   = computed(() => formatDate(endDate.value))
 
-const datePickerInput = ref(null)
-
-// Safari's native picker drops below the input and doesn't flip when there is
-// no room, so rows near the viewport bottom get a cut-off calendar. Scroll the
-// list just enough to fit it before opening (synchronous, keeps user activation).
-const PICKER_HEIGHT = 330
-function openDatePicker() {
-  const el = datePickerInput.value
-  if (!el) return
-  const spaceBelow = window.innerHeight - el.getBoundingClientRect().bottom
-  if (spaceBelow < PICKER_HEIGHT) {
-    el.closest('.ev-list-scroll')?.scrollBy({ top: PICKER_HEIGHT - spaceBelow })
-  }
-  try { el.showPicker() } catch { el.click() }
-}
-
-function onDatePicked(e) {
-  updateDate(e.target.value)
-  e.target.blur() // Safari keeps the native picker open after selecting a day
-}
+// El calendario propio (`common/DatePicker.vue`) se posiciona solo: se abre hacia
+// arriba cuando no cabe abajo, así que ya no hace falta empujar la lista con scroll
+// para que el panel no salga cortado (lo que hacía el calendario nativo de Safari).
 
 // ── Mutations ─────────────────────────────────────────────────────────────────
 function update(body) {
@@ -843,10 +829,10 @@ function updateDepAnchor(anchor) {
   font-size: .70rem; font-family: inherit; color: var(--text);
   white-space: nowrap; pointer-events: none; line-height: 1;
 }
-.ev-date-native {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  opacity: 0; cursor: pointer; border: none; padding: 0;
-}
+/* El disparador del calendario llena la celda: clickear en cualquier parte de la
+   fecha la abre, igual que antes con el input invisible. */
+.ev-date-dp :deep(.dp) { width: 100%; }
+.ev-date-dp :deep(.dp-field) { width: 100%; justify-content: flex-start; }
 
 /* Dependency single-button toggles (day type + anchor) */
 .ev-dep-toggle-btn {

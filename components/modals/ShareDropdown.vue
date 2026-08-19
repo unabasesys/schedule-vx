@@ -93,11 +93,11 @@
         <template v-else>
           <div class="field-row">
             <label class="field-label">{{ lang === 'en' ? 'From' : 'Desde' }}</label>
-            <input type="date" v-model="dailyFrom" class="field-input" />
+            <DatePicker v-model="dailyFrom" :lang="lang" class="field-input-dp" />
           </div>
           <div class="field-row">
             <label class="field-label">{{ lang === 'en' ? 'To' : 'Hasta' }}</label>
-            <input type="date" v-model="dailyTo" class="field-input" />
+            <DatePicker v-model="dailyTo" :lang="lang" :min="dailyFrom" class="field-input-dp" />
           </div>
           <div class="field-row">
             <label class="field-label">{{ L.audience }}</label>
@@ -328,6 +328,9 @@ function onKeyDown(e) {
   border-radius: 6px; padding: 5px 9px; font-size: .78rem; color: var(--text); font-family: inherit;
 }
 .field-input:focus { outline: none; border-color: var(--accent); }
+/* Los rangos de fecha usan el calendario propio: ocupa el resto de la fila. */
+.field-input-dp { flex: 1; min-width: 0; }
+.field-input-dp :deep(.dp-field) { padding: 5px 9px; font-size: .78rem; border-width: 1.5px; border-radius: 6px; }
 .seg { display: flex; gap: 4px; }
 .seg-btn {
   padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 6px;

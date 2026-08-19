@@ -188,11 +188,11 @@
         <div class="field field--spaced" style="flex-direction:row;gap:10px;">
           <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
             <label>{{ lang === 'en' ? 'From' : 'Desde' }}</label>
-            <input v-model="evModalFrom" type="date" @change="onFromChange" />
+            <DatePicker v-model="evModalFrom" :lang="lang" @change="onFromChange" />
           </div>
           <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
             <label>{{ lang === 'en' ? 'To' : 'Hasta' }}</label>
-            <input v-model="evModalTo" type="date" @change="onToChange" />
+            <DatePicker v-model="evModalTo" :lang="lang" :min="evModalFrom" @change="onToChange" />
           </div>
         </div>
 

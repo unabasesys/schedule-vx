@@ -60,7 +60,7 @@
               <div class="una-ev-fields">
                 <div class="una-fld">
                   <span class="una-fld-lbl">{{ isEN ? 'Start' : 'Inicio' }}</span>
-                  <input class="una-in-date" type="date" v-model="ev.date" @change="onStartChange(i)" />
+                  <DatePicker class="una-in-date-dp" v-model="ev.date" :lang="isEN ? 'en' : 'es'" @change="onStartChange(i)" />
                 </div>
 
                 <div v-if="ev.endDate" class="una-fld">
@@ -68,7 +68,7 @@
                     {{ isEN ? 'End' : 'Fin' }}
                     <button class="una-end-clear" @click="clearEnd(i)" :title="isEN ? 'Make it a single day' : 'Dejar en un solo día'">✕</button>
                   </span>
-                  <input class="una-in-date" type="date" v-model="ev.endDate" :min="ev.date" @change="onEndChange(i)" />
+                  <DatePicker class="una-in-date-dp" v-model="ev.endDate" :lang="isEN ? 'en' : 'es'" :min="ev.date" @change="onEndChange(i)" />
                 </div>
                 <button
                   v-else
@@ -503,12 +503,13 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   display: flex; align-items: center; gap: 5px;
   font-size: .6rem; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 700;
 }
-.una-in-date, .una-stage-select, .una-newstage {
+.una-stage-select, .una-newstage {
   border: 1.5px solid var(--border); border-radius: 7px; background: var(--surface);
   color: var(--text); font-size: .74rem; font-family: inherit; padding: 5px 7px; min-width: 0;
 }
-.una-in-date { width: 132px; }
-.una-in-date:focus, .una-stage-select:focus, .una-newstage:focus { outline: none; border-color: var(--accent); }
+.una-in-date-dp { width: 168px; }
+.una-in-date-dp :deep(.dp-field) { padding: 6px 9px; font-size: .78rem; }
+.una-stage-select:focus, .una-newstage:focus { outline: none; border-color: var(--accent); }
 .una-fld--stage { flex: 1; min-width: 130px; }
 .una-fld--stage .una-ev-stage { display: flex; align-items: center; gap: 4px; width: 100%; }
 .una-stage-select { flex: 1; cursor: pointer; }

@@ -164,7 +164,7 @@
         <!-- Date -->
         <div class="dir-form-row">
           <label class="dir-form-label">{{ isEN ? 'Date' : 'Fecha' }} *</label>
-          <input type="date" v-model="form.date" class="dir-input dir-input--half" />
+          <DatePicker v-model="form.date" :lang="isEN ? 'en' : 'es'" class="dir-date" />
         </div>
 
         <!-- Title -->
@@ -1247,6 +1247,8 @@ function save() {
 .dir-input:focus { outline: none; border-color: var(--accent); }
 .dir-input--time { flex: none; width: 130px; }
 .dir-input--half { flex: none; width: 150px; }
+/* El calendario ocupa lo que necesita la fecha escrita ("mié, 19 ago 2026"). */
+.dir-date { flex: none; width: 200px; }
 .dir-textarea { resize: none; overflow: hidden; }
 
 /* Notes box that grows with its text. The textarea and a hidden copy of the text share
