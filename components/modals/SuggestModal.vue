@@ -59,7 +59,10 @@ async function submit() {
   if (!text || sending.value) return
   sending.value = true
   try {
-    await useApi().post('/feedback', { message: text })
+    // De qué app viene: la bandeja del equipo es UNA para todo el ecosistema
+    // (Relations, Leads y Calendar escriben en la misma colección), así que sin esto
+    // un "no funciona la fecha" llega sin decir de qué app habla.
+    await useApi().post('/feedback', { message: text, app: 'calendar' })
     $toast(lang.value === 'en' ? 'Thanks! Your idea was sent. 🙌' : '¡Gracias! Tu idea fue enviada. 🙌', { type: 'success' })
     globalStore.closeSuggest()
   } catch (e) {
