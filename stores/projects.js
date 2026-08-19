@@ -167,6 +167,8 @@ const _creating               = new Set()   // local ids with a create POST in f
 const _createTimers           = new Map()   // local id → retry timer for a failed create
 const _createRetries          = new Map()   // local id → consecutive failed creates
 const _conflictDialogs        = new Set()   // projIds whose conflict dialog is open
+const _unreachable            = new Set()   // projIds the API answers 404/403 for: wrong org, or access lost
+const _unreachableDialogs     = new Set()   // projIds whose "wrong organization" notice is open
 const _lastFreshCheck         = new Map()   // projId → ts of the last single-calendar probe
 let   _lastAllCheck           = 0           // ts of the last whole-org probe
 let   _freshTimer             = null        // interval that probes the open calendar
@@ -176,6 +178,88 @@ let   _unloadListenerRegistered = false
 let   _holidayWarnAt          = 0           // throttles the "holidays unavailable" notice
 
 const isMongoId = (id) => /^[0-9a-f]{24}$/i.test(id || '')
+
+// ── Local backup of unsaved work ──────────────────────────────────────────────
+//
+// Until now this store kept everything in memory and nowhere else. That was fine
+// while "the save failed" meant "the network blinked", but it is not fine at all
+// when a save can fail for hours: on 19-Aug-2026 a tab held four hours of edits that
+// no retry could ever land (the session's organization had changed underneath it, so
+// every PUT 404'd), and closing that tab would have destroyed all of it. The unload
+// flush is not a safety net either — it uses `keepalive`, whose 64 KB quota is shared
+// across all in-flight requests, and one real calendar serializes to ~50 KB, so a
+// flush of two or more silently sends nothing.
+//
+// So: every time an edit arms a save, the project also goes to localStorage, and it
+// stays there until the server confirms the write. Cheap, synchronous, and it survives
+// a closed tab, a crash and a reload.
+const BACKUP_PREFIX = 'ub_cal_unsaved_'
+
+const _backupWrite = (proj, orgId) => {
+  if (typeof localStorage === 'undefined' || !proj || !isMongoId(proj.id)) return
+  const { hidden: _h, conflicted: _c, ...clean } = proj
+  const record = JSON.stringify({
+    orgId:   orgId || null,
+    rev:     proj.rev ?? 0,
+    savedAt: new Date().toISOString(),
+    project: clean,
+  })
+  try {
+    localStorage.setItem(BACKUP_PREFIX + proj.id, record)
+  } catch {
+    // Quota. Drop every OTHER backup and keep this one: the calendar being edited
+    // right now is the one whose loss would hurt, and a backup we failed to write
+    // is indistinguishable from no backup at all.
+    try {
+      _backupKeys().forEach(k => { if (k !== BACKUP_PREFIX + proj.id) localStorage.removeItem(k) })
+      localStorage.setItem(BACKUP_PREFIX + proj.id, record)
+    } catch { /* nothing more we can do here */ }
+  }
+}
+
+const _backupKeys = () => {
+  if (typeof localStorage === 'undefined') return []
+  const keys = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)
+    if (k && k.startsWith(BACKUP_PREFIX)) keys.push(k)
+  }
+  return keys
+}
+
+const _backupClear = (projId) => {
+  if (typeof localStorage === 'undefined') return
+  try { localStorage.removeItem(BACKUP_PREFIX + projId) } catch { /* ignore */ }
+}
+
+// A write must go to the organization that owns the DOCUMENT, which is not always the
+// one the session is using: /auth/renew adopts whatever org is current for the account
+// on the server, and that changes whenever the user switches org in any other unabase
+// app — under a page that is already open, with calendars from the old org still on
+// screen. Sending the session's org there made the API answer "Proyecto no encontrado"
+// for a calendar that was sitting right in front of the user.
+const _orgHeader = (proj) =>
+  proj?.organization ? { Organization: String(proj.organization) } : {}
+
+// Compares what a user would call "the same calendar", ignoring the bookkeeping the
+// server and this session own: rev/updatedAt move on their own, and hidden/conflicted
+// are per-tab UI state that never belonged to the document.
+const _sameContent = (a, b) => {
+  const strip = (o) => {
+    const { rev: _r, updatedAt: _u, editedAt: _e, revAt: _ra, revBy: _rb,
+            hidden: _h, conflicted: _c, baseRev: _br, ...rest } = o || {}
+    return JSON.stringify(rest)
+  }
+  return strip(a) === strip(b)
+}
+
+const _backupRead = (projId) => {
+  if (typeof localStorage === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(BACKUP_PREFIX + projId)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
 
 // Runs `fn` after every write already queued for this project has finished, and hands
 // back a promise that settles when THIS write is done.
@@ -210,7 +294,12 @@ const hasUnsyncedWork = (projId) =>
   _inFlight.has(projId) ||
   _syncTimers.has(projId) ||
   _dailySyncTimers.has(projId) ||
-  _retries.has(projId)
+  _retries.has(projId) ||
+  // `_unreachable` belongs here for the same reason `_retries` does, only more so:
+  // that path deliberately cancels every timer and clears the retry count, so without
+  // this line a calendar the server refuses would look perfectly synced — and the
+  // freshness probe would then adopt the server's older copy right over the edits.
+  _unreachable.has(projId)
 
 const normalizeDoc = (doc) => {
   if (!doc) return doc
@@ -386,6 +475,12 @@ export const useProjectsStore = defineStore('projects', {
           ...normTemplates,
         ]
 
+        // Give back anything this browser is still holding that the server never got.
+        // Has to run here: the assignment above replaced the whole list, so without
+        // this a reload after a failed save just showed the server's older copy as if
+        // nothing had happened.
+        this._restoreUnsavedBackups()
+
         // Open the most recently edited active calendar when there's no selection
         // (every page load starts here — selectedId is not persisted).
         //
@@ -446,7 +541,7 @@ export const useProjectsStore = defineStore('projects', {
 
       let info
       try {
-        info = await useApi().get(`/projects/${id}/rev`)
+        info = await useApi().get(`/projects/${id}/rev`, _orgHeader(proj))
       } catch {
         return   // offline or transient. Staying quiet is right: the write path still guards.
       }
@@ -583,6 +678,11 @@ export const useProjectsStore = defineStore('projects', {
       if (!isMongoId(projId)) return
       const proj = this.projects.find(p => p.id === projId)
       if (proj?.conflicted) return   // autosave paused until the user reloads
+      // On disk before anything else: from here until the server confirms the write,
+      // this edit exists in exactly two places, and one of them is a browser tab.
+      // Keyed to the org the CALENDAR belongs to, not the session's current one —
+      // those two can differ, and that difference is what makes the save fail.
+      _backupWrite(proj, proj?.organization)
       if (_syncTimers.has(projId)) clearTimeout(_syncTimers.get(projId))
       _syncTimers.set(projId, setTimeout(() => {
         _syncTimers.delete(projId)
@@ -634,7 +734,7 @@ export const useProjectsStore = defineStore('projects', {
       try {
         const { hidden: _hidden, conflicted: _conflicted, ...payload } = proj
         payload.baseRev = proj.rev ?? 0
-        const updated = normalizeDoc(await useApi().put(`/projects/${projId}`, payload))
+        const updated = normalizeDoc(await useApi().put(`/projects/${projId}`, payload, _orgHeader(proj)))
         const live = this.projects.find(p => p.id === projId)
         if (live) {
           live.rev = updated.rev
@@ -656,6 +756,9 @@ export const useProjectsStore = defineStore('projects', {
     // ── Write outcome: surface it, and retry instead of dropping the edit ───────
     _onWriteOk(projId) {
       _retries.delete(projId)
+      _unreachable.delete(projId)
+      // The server confirmed the write, so the local copy has no job left to do.
+      _backupClear(projId)
       // Another calendar stuck in a conflict still has unsaved work — a successful
       // write here must not paint over that.
       if (this.projects.some(p => p.conflicted)) { this.saveState = 'conflict'; return }
@@ -676,6 +779,16 @@ export const useProjectsStore = defineStore('projects', {
     // and the UI looked normal. Retry with backoff and keep the state visible.
     _onWriteFailed(projId, err) {
       console.warn('Project sync failed:', projId, err?.message)
+      // 404 and 403 are not "the network blinked" — they are "this calendar is not
+      // reachable with the organization this session is currently using" (it belongs
+      // to another one) or "this account lost access to it". No number of retries
+      // fixes either, and pretending otherwise is what turned a wrong-org session
+      // into four hours of edits behind a pill that promised a retry that could never
+      // succeed. Say what actually happened and stop.
+      if (err?.status === 404 || err?.status === 403) {
+        this._onWriteUnreachable(projId, err)
+        return
+      }
       this.saveState = 'error'
       const attempt = (_retries.get(projId) || 0) + 1
       _retries.set(projId, attempt)
@@ -758,6 +871,139 @@ export const useProjectsStore = defineStore('projects', {
       return this._handleConflict(proj.id, null)
     },
 
+    // The API says this calendar is not there (404) or not allowed (403). Both are
+    // terminal. The write path already sends the calendar's OWN organization, so this
+    // is no longer a wrong-header problem: the calendar was deleted, or this account
+    // lost access to it. Retrying cannot change either outcome.
+    //
+    // What stops here is only the retry loop and the pill that promised it. The edits
+    // stay on screen and in localStorage — on 19-Aug-2026 a tab sat for four hours
+    // showing "Unsaved — retrying" while the retries had already given up, and the
+    // work existed nowhere but that tab.
+    _onWriteUnreachable(projId, err) {
+      _unreachable.add(projId)
+      if (_syncTimers.has(projId))      { clearTimeout(_syncTimers.get(projId));      _syncTimers.delete(projId) }
+      if (_dailySyncTimers.has(projId)) { clearTimeout(_dailySyncTimers.get(projId)); _dailySyncTimers.delete(projId) }
+      _retries.delete(projId)
+      this.saveState = 'unreachable'
+
+      const proj = this.projects.find(p => p.id === projId)
+      if (proj) _backupWrite(proj, proj.organization)
+
+      if (_unreachableDialogs.has(projId)) return   // already asking; don't stack dialogs
+      _unreachableDialogs.add(projId)
+
+      const en = useGlobalStore().lang === 'en'
+      const { alert } = useDialog()
+      const name = proj?.name || (en ? 'this calendar' : 'este calendario')
+      alert({
+        title: en ? "This calendar can't be saved" : 'Este calendario no se puede guardar',
+        body: en
+          ? `The server no longer has "${name}" for your account — it may have been deleted, or your access removed (error ${err?.status || '?'}). Nothing you typed is lost: it is still on screen, and a copy is kept in this browser. Save anything you need elsewhere before closing this tab.`
+          : `El servidor ya no tiene "${name}" para tu cuenta — puede que lo hayan borrado, o que te hayan quitado el acceso (error ${err?.status || '?'}). Nada de lo que escribiste se perdió: sigue en pantalla y hay una copia guardada en este navegador. Guarda en otra parte lo que necesites antes de cerrar esta pestaña.`,
+        confirmLabel: en ? 'OK' : 'Entendido',
+      }).finally(() => _unreachableDialogs.delete(projId))
+    },
+
+    // The account's active organization changed under a page that is already running:
+    // a switch from the org menu, an accepted invitation, or — the one that actually
+    // bit — /auth/renew adopting whichever org is current for the account on the
+    // server, which changes whenever the user switches org in ANY other unabase app.
+    //
+    // Everything in `projects` belongs to the previous organization and has to be
+    // replaced by the new org's calendars. Order matters: loadFromApi() overwrites the
+    // whole list, so anything still unsaved when it runs is gone — which is precisely
+    // the loss this method exists to prevent. Land the pending writes first (they
+    // carry their own calendar's organization, so they still reach the right place),
+    // and only then swap the list.
+    async onOrgChanged() {
+      const pending = this.projects.filter(p => isMongoId(p.id) && hasUnsyncedWork(p.id))
+
+      // On disk before anything else — every step after this one can fail.
+      pending.forEach(p => _backupWrite(p, p.organization))
+
+      for (const proj of pending) {
+        if (_syncTimers.has(proj.id))      { clearTimeout(_syncTimers.get(proj.id));      _syncTimers.delete(proj.id) }
+        if (_dailySyncTimers.has(proj.id)) { clearTimeout(_dailySyncTimers.get(proj.id)); _dailySyncTimers.delete(proj.id) }
+        // _doPutProject swallows its own errors, so a rejection here is not the signal.
+        // A surviving backup is: _onWriteOk is the only thing that clears one.
+        await this._putProject(proj.id).catch(() => {})
+      }
+      const stranded = pending.filter(p => _backupRead(p.id)).map(p => p.name)
+
+      _unreachable.clear()
+      this.projects  = []
+      this.templates = []
+      this.saveState = 'idle'
+      await this.loadFromApi()
+
+      if (stranded.length) {
+        const en = useGlobalStore().lang === 'en'
+        useDialog().alert({
+          title: en ? 'Unsaved work kept aside' : 'Trabajo sin guardar puesto a resguardo',
+          body: en
+            ? `The organization changed, and these calendars had edits the server never accepted: ${stranded.join(', ')}. A copy is kept in this browser and will be offered back the next time you open the organization they belong to.`
+            : `Cambió la organización y estos calendarios tenían ediciones que el servidor nunca aceptó: ${stranded.join(', ')}. Se guardó una copia en este navegador y se te va a ofrecer de vuelta la próxima vez que entres a la organización a la que pertenecen.`,
+          confirmLabel: en ? 'OK' : 'Entendido',
+        })
+      }
+    },
+
+    // Re-apply edits kept in localStorage that never reached the server — a tab closed
+    // mid-failure, a crash, a session that ended in the wrong organization.
+    //
+    // Only when it is unambiguous. The backup's rev must still match the server's: if
+    // the calendar moved on in between, re-applying would erase whoever wrote it, so
+    // the copy stays on disk and the user is told rather than surprised.
+    _restoreUnsavedBackups() {
+      const staleBefore = Date.now() - 7 * 24 * 60 * 60 * 1000
+      const restored    = []
+      const heldBack    = []
+
+      for (const key of _backupKeys()) {
+        const projId = key.slice(BACKUP_PREFIX.length)
+        const rec    = _backupRead(projId)
+        if (!rec?.project)                              { _backupClear(projId); continue }
+        // Housekeeping: a backup nobody claimed in a week is not coming back, and
+        // localStorage is a shared 5 MB budget across every unabase app on this origin.
+        if (!(Date.parse(rec.savedAt || '') > staleBefore)) { _backupClear(projId); continue }
+
+        const live = this.projects.find(p => p.id === projId)
+        // Not in this org's list. It may well belong to another organization the user
+        // has — leave it alone, this same method runs again when they open that one.
+        if (!live) continue
+
+        if (_sameContent(rec.project, live)) { _backupClear(projId); continue }
+        if ((rec.rev ?? 0) !== (live.rev ?? 0)) { heldBack.push(live.name); continue }
+
+        // Keep the fields that belong to THIS session rather than to the backup:
+        // `hidden` is a per-user visibility pref the server just applied, and `id` is
+        // the normalized one the rest of the store indexes by.
+        Object.assign(live, rec.project, { id: live.id, hidden: live.hidden })
+        restored.push(live.name)
+        this._scheduleSyncProject(projId)
+      }
+
+      if (!restored.length && !heldBack.length) return
+      const en = useGlobalStore().lang === 'en'
+      const parts = []
+      if (restored.length) {
+        parts.push(en
+          ? `Edits that never reached the server were put back and are saving now: ${restored.join(', ')}.`
+          : `Se repusieron ediciones que nunca llegaron al servidor y se están guardando: ${restored.join(', ')}.`)
+      }
+      if (heldBack.length) {
+        parts.push(en
+          ? `These moved on the server while your copy was waiting, so nothing was overwritten — the copy is still in this browser: ${heldBack.join(', ')}.`
+          : `Estos avanzaron en el servidor mientras tu copia esperaba, así que no se sobrescribió nada — la copia sigue en este navegador: ${heldBack.join(', ')}.`)
+      }
+      useDialog().alert({
+        title: en ? 'Recovered unsaved work' : 'Se recuperó trabajo sin guardar',
+        body: parts.join(' '),
+        confirmLabel: en ? 'OK' : 'Entendido',
+      })
+    },
+
     // Replace the local copy of a project with the authoritative server copy.
     // `quiet` skips the save-state bump: adopting because the calendar moved ahead
     // is not a save, and flashing "Saved" for it would be a lie.
@@ -787,7 +1033,7 @@ export const useProjectsStore = defineStore('projects', {
       }
 
       try {
-        finish(normalizeDoc(await useApi().get(`/projects/${projId}`)))
+        finish(normalizeDoc(await useApi().get(`/projects/${projId}`, _orgHeader(this.projects[idx]))))
         return true
       } catch (e) {
         console.warn('Reload after conflict failed:', e.message)
@@ -879,8 +1125,13 @@ export const useProjectsStore = defineStore('projects', {
           payload.baseRev = proj.rev ?? 0   // carries the guard: a stale flush is rejected, never clobbers
           note(projId, payload.baseRev)
           flushedPut.add(projId)
+          // `keepalive` caps ALL in-flight keepalive bodies at 64 KB combined, and one
+          // real calendar serializes to ~50 KB — so a flush of two or more fails
+          // outright, with no response to read and nothing to retry. That is exactly
+          // why _scheduleSyncProject already put each of these in localStorage: this
+          // request is best-effort, the local copy is the actual safety net.
           fetch(`${BASE}/projects/${projId}`, {
-            method: 'PUT', keepalive: true, headers,
+            method: 'PUT', keepalive: true, headers: { ...headers, ..._orgHeader(proj) },
             body: JSON.stringify(payload),
           }).catch(() => {})
         }
@@ -897,7 +1148,7 @@ export const useProjectsStore = defineStore('projects', {
           if (flushedPut.has(projId)) continue
           note(projId, proj.rev ?? 0)
           fetch(`${BASE}/projects/${projId}/daily`, {
-            method: 'PATCH', keepalive: true, headers,
+            method: 'PATCH', keepalive: true, headers: { ...headers, ..._orgHeader(proj) },
             body: JSON.stringify({
               dailySchedule: proj.dailySchedule,
               dailyConfig:   proj.dailyConfig,
@@ -933,7 +1184,7 @@ export const useProjectsStore = defineStore('projects', {
         const proj = this.projects.find(p => p.id === projId)
         if (!proj || proj.conflicted || !isMongoId(projId)) continue
         try {
-          const fresh = await useApi().get(`/projects/${projId}`)
+          const fresh = await useApi().get(`/projects/${projId}`, _orgHeader(proj))
           const serverRev = fresh?.rev ?? 0
           const live = this.projects.find(p => p.id === projId)
           if (!live || live.conflicted) continue
@@ -983,7 +1234,7 @@ export const useProjectsStore = defineStore('projects', {
           dailySchedule: proj.dailySchedule,
           dailyConfig:   proj.dailyConfig,
           baseRev:       proj.rev ?? 0,
-        })
+        }, _orgHeader(proj))
         const live = this.projects.find(p => p.id === projId)
         if (live && updated?.rev != null) live.rev = updated.rev
         // Same as _putProject: a daily edit bumps rev, so we are the last writer now.
@@ -1307,7 +1558,7 @@ export const useProjectsStore = defineStore('projects', {
       if (authStore?.isLoggedIn && isMongoId(id)) {
         // Send the state we just switched to — the endpoint used to always archive,
         // so "restore" archived the calendar again on the server.
-        useApi().patch(`/projects/${id}/archive`, { archived: proj.status === 'archived' })
+        useApi().patch(`/projects/${id}/archive`, { archived: proj.status === 'archived' }, _orgHeader(proj))
           .catch(e => console.warn('archive API failed:', e.message))
       }
     },

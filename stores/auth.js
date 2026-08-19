@@ -198,7 +198,19 @@ export const useAuthStore = defineStore('auth', {
         })
         if (!res.ok) { this.logout(); return false }
         const data = await res.json()
+        // /auth/renew returns whichever organization is CURRENT FOR THE ACCOUNT on the
+        // server — which changes whenever the user switches org in any other unabase
+        // app. So this call can quietly move the running page to a different org while
+        // the calendars of the previous one are still loaded and being edited. Until
+        // 19-Aug-2026 nothing reconciled that: every save went out with the new org,
+        // the API answered 404, and four hours of work sat trapped in the tab behind a
+        // pill that said it was retrying.
+        const prevOrgId = this.organization?._id ? String(this.organization._id) : null
         this._setSession(data)
+        const newOrgId = this.organization?._id ? String(this.organization._id) : null
+        if (prevOrgId && newOrgId && prevOrgId !== newOrgId) {
+          await useProjectsStore().onOrgChanged()
+        }
         return true
       } catch {
         return false
@@ -221,10 +233,9 @@ export const useAuthStore = defineStore('auth', {
         this._setSession(data)
         const settingsStore = useSettingsStore()
         settingsStore._applyOrgToStore(data.organization)
-        const projectsStore = useProjectsStore()
-        projectsStore.projects  = []
-        projectsStore.templates = []
-        await projectsStore.loadFromApi()
+        // Same reconciliation as switchOrg: rescue pending writes before the list is
+        // replaced, instead of clearing and refetching over the top of them.
+        await useProjectsStore().onOrgChanged()
         return true
       } catch (err) {
         this.error = err.message
@@ -337,11 +348,12 @@ export const useAuthStore = defineStore('auth', {
         // Update settings immediately so the sidebar reflects the new org right away
         const settingsStore = useSettingsStore()
         settingsStore._applyOrgToStore(data.organization)
-        // Reload projects for the new org
-        const projectsStore = useProjectsStore()
-        projectsStore.projects  = []
-        projectsStore.templates = []
-        await projectsStore.loadFromApi()
+        // Reload projects for the new org. This used to clear the list and refetch
+        // right here, which threw away any edit whose debounced save hadn't fired yet
+        // — switching org was a silent way to lose the last few seconds of work.
+        // onOrgChanged lands those writes first (each one carries its own calendar's
+        // organization, so it still reaches the right place) and only then swaps.
+        await useProjectsStore().onOrgChanged()
         return true
       } catch { return false }
     },

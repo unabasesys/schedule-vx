@@ -372,6 +372,10 @@ const saveStateLabel = computed(() => {
     case 'error':    return en ? 'Unsaved — retrying' : 'Sin guardar — reintentando'
     // Not retrying: it's waiting on the user, so don't imply a retry is coming.
     case 'conflict': return en ? 'Unsaved' : 'Sin guardar'
+    // Not retrying either, and never will: the API doesn't have this calendar for
+    // this account. Saying "retrying" here is what let four hours of work pile up
+    // behind a promise nothing was keeping.
+    case 'unreachable': return en ? "Unsaved — can't save" : 'Sin guardar — no se puede guardar'
     default:         return ''
   }
 })
@@ -402,8 +406,14 @@ const lastUpdateTitle = computed(() => {
 })
 
 const saveStateTitle = computed(() => {
+  const en = globalStore.lang === 'en'
+  if (projectsStore.saveState === 'unreachable') {
+    return en
+      ? 'The server does not have this calendar for your account. Your edits are still here and a copy is kept in this browser.'
+      : 'El servidor no tiene este calendario para tu cuenta. Tus ediciones siguen acá y hay una copia guardada en este navegador.'
+  }
   if (projectsStore.saveState !== 'conflict') return saveStateLabel.value
-  return globalStore.lang === 'en'
+  return en
     ? 'Saving is paused because someone else saved this calendar. Click to resolve.'
     : 'El guardado está pausado porque otra persona guardó este calendario. Hacé clic para resolverlo.'
 })
@@ -520,6 +530,14 @@ function createFromTemplate(tmplId) {
 }
 .save-state--conflict:hover { background: rgba(224,82,82,.16); }
 .save-state--conflict .save-state-dot { animation: savePulse 1.4s ease-in-out infinite; }
+/* Terminal, not in progress: no pulse. A blinking dot reads as "working on it",
+   which is the exact impression this state exists to remove. */
+.save-state--unreachable {
+  color: var(--danger, #e05252);
+  border-color: rgba(224,82,82,.45);
+  background: rgba(224,82,82,.08);
+}
+.save-state--unreachable .save-state-dot { animation: none; }
 @keyframes savePulse { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
 @media (max-width: 860px) { .save-state-txt { display: none; } }
 

@@ -56,8 +56,8 @@ export const useApi = () => {
   }
 
   return {
-    get: (path) =>
-      fetch(`${BASE}${path}`, { headers: headers() }).then(handleResponse),
+    get: (path, extra = {}) =>
+      fetch(`${BASE}${path}`, { headers: headers(extra) }).then(handleResponse),
 
     post: (path, body) =>
       fetch(`${BASE}${path}`, {
@@ -66,17 +66,24 @@ export const useApi = () => {
         body: JSON.stringify(body),
       }).then(handleResponse),
 
-    put: (path, body) =>
+    // `extra` agrega cabeceras a esta llamada. Se usa para mandar `Organization` con
+    // la organización a la que pertenece EL DOCUMENTO y no la que la sesión tenga
+    // activa en ese momento: son cosas distintas y pueden separarse solas —
+    // /auth/renew adopta la organización actual de la cuenta, que cambia cada vez
+    // que la persona cambia de organización en cualquier otra app de unabase. Cuando
+    // eso pasaba, todo guardado salía con la organización equivocada, el back
+    // respondía 404 y el trabajo se quedaba encerrado en la pestaña.
+    put: (path, body, extra = {}) =>
       fetch(`${BASE}${path}`, {
         method: 'PUT',
-        headers: headers(),
+        headers: headers(extra),
         body: JSON.stringify(body),
       }).then(handleResponse),
 
-    patch: (path, body) =>
+    patch: (path, body, extra = {}) =>
       fetch(`${BASE}${path}`, {
         method: 'PATCH',
-        headers: headers(),
+        headers: headers(extra),
         body: JSON.stringify(body),
       }).then(handleResponse),
 
