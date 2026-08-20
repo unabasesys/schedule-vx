@@ -66,6 +66,7 @@
             @hover-event="id => hoverEvId = id"
             @bar-menu="p => openCtxMenu('event', p)"
             @day-menu="p => openCtxMenu('day', p)"
+            @delete-event="deleteEventNow"
           />
         </div>
       </div>
@@ -81,6 +82,10 @@
         <button class="cal-ctx-item" @click="ctxCopy">
           {{ lang === 'en' ? 'Copy event' : 'Copiar evento' }}
           <span class="cal-ctx-key">{{ modKeyLabel }}C</span>
+        </button>
+        <button class="cal-ctx-item cal-ctx-item--del" @click="ctxDelete">
+          {{ lang === 'en' ? 'Delete event' : 'Eliminar evento' }}
+          <span class="cal-ctx-key">{{ modKeyLabel }}click</span>
         </button>
       </template>
       <template v-else>
@@ -1174,6 +1179,69 @@ async function pasteInto(dateStr) {
   await projectsStore.syncProjectNow(clip.projId)
 }
 
+// ── Borrar sin preguntar, con deshacer ────────────────────────────────────────
+// Jorge pidió que ⌘+click borre sin diálogo. El diálogo existe porque no había forma de
+// volver atrás; la respuesta correcta a "no me preguntes" no es borrar a ciegas, es que
+// se pueda deshacer. Así que se borra en el acto y el aviso ES el botón de deshacer
+// (click en el aviso, o ⌘Z). Dura más que un aviso normal porque hay que alcanzar a
+// leerlo, y va en rojo para que un ⌘+click accidental no pase inadvertido.
+// Una PILA, no un solo hueco: borrar tres eventos seguidos deja tres avisos en pantalla
+// a la vez, y cada uno tiene que devolver el suyo. Con un único "último borrado", clickear
+// el aviso de arriba resucitaba otro evento y el usuario creía haber deshecho lo que veía.
+const deletedStack = ref([])
+const UNDO_MAX = 20
+
+function deleteEventNow(evId) {
+  if (props.readOnly || !evId) return
+  const projId = projIdFor(evId)
+  const proj   = projectsStore.projects.find(p => p.id === projId)
+  const index  = (proj?.events || []).findIndex(e => e.id === evId)
+  if (index < 0) return
+  const entry = { projId, index, ev: JSON.parse(JSON.stringify(proj.events[index])) }
+
+  deletedStack.value.push(entry)
+  if (deletedStack.value.length > UNDO_MAX) deletedStack.value.shift()
+
+  projectsStore.deleteEvent(projId, evId)
+  // Recalcular: si algún otro evento dependía de éste, su dependencia queda colgando y
+  // hay que marcarla. El borrado desde el formulario nunca lo hacía.
+  projectsStore.recalcAndSave(projId)
+
+  const en = props.lang === 'en'
+  $toast(
+    en ? `Deleted “${eventLabel(entry.ev)}” — click here to undo (${modKeyLabel.value}Z)`
+       : `Eliminado «${eventLabel(entry.ev)}» — click acá para deshacer (${modKeyLabel.value}Z)`,
+    { type: 'error', autoClose: 9000, onClick: () => restoreDeleted(entry) },
+  )
+  projectsStore.syncProjectNow(projId)
+}
+
+function restoreDeleted(entry) {
+  if (!entry) return
+  const i = deletedStack.value.indexOf(entry)
+  if (i === -1) return                       // ya se restauró (aviso clickeado dos veces)
+  deletedStack.value.splice(i, 1)
+
+  const proj = projectsStore.projects.find(p => p.id === entry.projId)
+  if (!proj) return
+  if ((proj.events || []).some(e => e.id === entry.ev.id)) return
+  // Devuelto a su lugar en el array, no al final: `order` desempata dentro de un día y
+  // reaparecer en otra posición se ve como si el deshacer hubiera movido algo.
+  proj.events.splice(Math.min(entry.index, proj.events.length), 0, entry.ev)
+  projectsStore.recalcAndSave(entry.projId)
+  projectsStore.selectProject(entry.projId)
+  $toast(
+    props.lang === 'en' ? `Restored “${eventLabel(entry.ev)}”.` : `Restaurado «${eventLabel(entry.ev)}».`,
+    { type: 'success' },
+  )
+  projectsStore.syncProjectNow(entry.projId)
+}
+
+// ⌘Z deshace el último borrado, y otra vez el anterior, como en cualquier parte.
+function undoLastDelete() {
+  restoreDeleted(deletedStack.value[deletedStack.value.length - 1])
+}
+
 // ── Menú del click derecho ────────────────────────────────────────────────────
 function openCtxMenu(kind, payload) {
   if (props.readOnly) return
@@ -1191,6 +1259,11 @@ function ctxPaste() {
   closeCtxMenu()
   if (date) pasteInto(date)
 }
+function ctxDelete() {
+  const evId = ctxMenu.value?.evId
+  closeCtxMenu()
+  if (evId) deleteEventNow(evId)
+}
 function ctxNewEvent() {
   const date = ctxMenu.value?.date
   closeCtxMenu()
@@ -1205,14 +1278,31 @@ function isTypingTarget(t) {
 
 function onCopyPasteKeydown(e) {
   if (props.readOnly) return
-  if (!(e.metaKey || e.ctrlKey) || e.altKey) return
+  if (e.altKey) return
   const k = (e.key || '').toLowerCase()
-  if (k !== 'c' && k !== 'v') return
-  // En un campo de texto ⌘C/⌘V son del campo, no del calendario. Igual si hay cualquier
-  // modal abierto, o si el usuario seleccionó texto y quiere copiar ese texto.
+  // En un campo de texto los atajos son del campo, no del calendario. Igual si hay
+  // cualquier modal abierto (el formulario tiene su propio teclado).
   if (isTypingTarget(e.target)) return
   if (evModalOpen.value) return
   if (typeof document !== 'undefined' && document.querySelector('.modal-backdrop')) return
+
+  // Borrar el evento que está bajo el cursor. Con o sin ⌘: ⌘⌫ es lo que ya usa el
+  // formulario, y ⌫ a secas es lo que hace cualquier calendario.
+  if ((k === 'backspace' || k === 'delete') && hoverEvId.value) {
+    e.preventDefault()
+    deleteEventNow(hoverEvId.value)
+    return
+  }
+
+  if (!(e.metaKey || e.ctrlKey)) return
+
+  if (k === 'z' && !e.shiftKey && deletedStack.value.length) {
+    e.preventDefault()
+    undoLastDelete()
+    return
+  }
+
+  if (k !== 'c' && k !== 'v') return
   if (k === 'c' && String(window.getSelection?.() || '').trim()) return
 
   if (k === 'c') {
@@ -1262,18 +1352,12 @@ async function onHolidayClick({ date, name }) {
   projectsStore.updateDisabledHolidays(props.project.id, current)
 }
 
-async function deleteEvModal() {
-  const ok = await useDialog().confirm({
-    title:        props.lang === 'en' ? 'Delete event?'  : '¿Eliminar evento?',
-    body:         props.lang === 'en'
-      ? 'This action cannot be undone.'
-      : 'Esta acción no se puede deshacer.',
-    confirmLabel: props.lang === 'en' ? 'Delete'         : 'Eliminar',
-    cancelLabel:  props.lang === 'en' ? 'Cancel'         : 'Cancelar',
-  })
-  if (!ok) return
-  projectsStore.deleteEvent(evModalProjId.value || props.project.id, evModalId.value)
+// Sin diálogo, igual que ⌘+click: ahora hay deshacer, y el cartel de "no se puede
+// deshacer" era además falso. Un solo camino de borrado para las dos rutas.
+function deleteEvModal() {
+  const evId = evModalId.value
   evModalOpen.value = false
+  deleteEventNow(evId)
 }
 
 // Pause / resume the event's dependency from the edit card.
@@ -1391,6 +1475,8 @@ onUnmounted(() => {
 .cal-ctx-item:hover:not(:disabled) { background: var(--surface-2); }
 .cal-ctx-item:disabled { color: var(--muted); cursor: default; }
 .cal-ctx-key { font-size: .68rem; color: var(--muted); }
+.cal-ctx-item--del { color: #e06c6c; }
+.cal-ctx-item--del:hover:not(:disabled) { background: rgba(224,108,108,.12); }
 
 .cal-nav-btn {
   background: none; border: 1.5px solid var(--border); border-radius: 6px;

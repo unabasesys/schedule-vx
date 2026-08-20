@@ -70,7 +70,7 @@
           }"
           :title="bar.isHoliday ? bar.name : barTooltip(bar)"
           :draggable="!readOnly && !bar.isHoliday && !bar.outOfMonth"
-          @click.stop="onBarClick(bar)"
+          @click.stop="onBarClick(bar, $event)"
           @mouseenter="emit('hover-event', bar.isHoliday || bar.outOfMonth ? null : bar.evId)"
           @mouseleave="emit('hover-event', null)"
           @contextmenu="onBarMenu($event, bar)"
@@ -180,7 +180,7 @@ const dailyEventIds = computed(() => new Set(dailyCountByEvent.value.keys()))
 
 const emit = defineEmits([
   'day-click', 'day-select', 'event-click', 'holiday-click', 'reorder-events', 'reschedule-event',
-  'hover-day', 'hover-event', 'bar-menu', 'day-menu',
+  'hover-day', 'hover-event', 'bar-menu', 'day-menu', 'delete-event',
 ])
 
 // Qué día está debajo del cursor, para que copiar/pegar caiga donde apunta el mouse.
@@ -223,13 +223,20 @@ function onBarMenu(e, bar) {
   emit('bar-menu', { evId: bar.evId, x: e.clientX, y: e.clientY })
 }
 
-function onBarClick(bar) {
+function onBarClick(bar, e) {
   if (props.readOnly) return
   if (bar.isHoliday) {
     emit('holiday-click', { date: bar.evStart, name: bar.name })
-  } else if (!bar.outOfMonth) {
-    emit('event-click', bar.event)
+    return
   }
+  if (bar.outOfMonth) return
+  // ⌘/Ctrl + click borra el evento en el acto. No abre el formulario además: sería
+  // borrar y quedarse mirando la ficha de algo que ya no existe.
+  if (e && (e.metaKey || e.ctrlKey)) {
+    emit('delete-event', bar.evId)
+    return
+  }
+  emit('event-click', bar.event)
 }
 
 // Shared drag state injected from CalendarView — enables cross-month drag
