@@ -62,12 +62,38 @@
             @holiday-click="onHolidayClick"
             @reorder-events="onReorderEvents"
             @reschedule-event="onRescheduleEvent"
+            @hover-day="d => hoverDate = d"
+            @hover-event="id => hoverEvId = id"
+            @bar-menu="p => openCtxMenu('event', p)"
+            @day-menu="p => openCtxMenu('day', p)"
           />
         </div>
       </div>
       <div v-if="showAddMonth" class="add-month-wrap">
         <button class="add-month-btn" @click="addNextMonth" :title="lang === 'en' ? 'Add next month' : 'Agregar mes siguiente'">+</button>
       </div>
+    </div>
+
+    <!-- Menú del click derecho — el camino visible a copiar/pegar. Sin él, los atajos
+         de teclado sólo los conoce quien ya sabe que existen. -->
+    <div v-if="ctxMenu" class="cal-ctx" :style="ctxMenuStyle" @click.stop @contextmenu.prevent>
+      <template v-if="ctxMenu.kind === 'event'">
+        <button class="cal-ctx-item" @click="ctxCopy">
+          {{ lang === 'en' ? 'Copy event' : 'Copiar evento' }}
+          <span class="cal-ctx-key">{{ modKeyLabel }}C</span>
+        </button>
+      </template>
+      <template v-else>
+        <button class="cal-ctx-item" :disabled="!clipboard" @click="ctxPaste">
+          {{ clipboard
+            ? (lang === 'en' ? `Paste “${clipboard.label}” here` : `Pegar «${clipboard.label}» aquí`)
+            : (lang === 'en' ? 'Nothing copied' : 'No hay nada copiado') }}
+          <span v-if="clipboard" class="cal-ctx-key">{{ modKeyLabel }}V</span>
+        </button>
+        <button class="cal-ctx-item" @click="ctxNewEvent">
+          {{ lang === 'en' ? 'New event here' : 'Nuevo evento aquí' }}
+        </button>
+      </template>
     </div>
 
     <!-- Unified event modal (create + edit) -->
@@ -257,6 +283,7 @@
 const globalStore   = useGlobalStore()
 const projectsStore = useProjectsStore()
 const holidaysStore = useHolidaysStore()
+const { $toast }    = useNuxtApp()
 
 // Shared drag state — all CalendarMonth instances read/write this to enable cross-month drag
 const activeDrag = reactive({ evId: null, evStart: null, isBusiness: false })
@@ -1013,6 +1040,212 @@ async function onRescheduleEvent({ evId, newDate }) {
   savingEvId.value = null
 }
 
+// ── Copiar y pegar eventos ────────────────────────────────────────────────────
+// Un usuario pidió lo que hacía en su planilla: copiar un evento y pegarlo donde lo
+// quiere. Acá el "donde" es el día bajo el cursor; si el mouse no está sobre el
+// calendario, el día seleccionado (el que queda resaltado al hacerle click). Se llega
+// por teclado (⌘C/⌘V) y por click derecho, que es lo único que se descubre solo.
+const clipboard = ref(null)   // { projId, projName, label, events: [...] }
+const hoverDate = ref(null)
+const hoverEvId = ref(null)
+const ctxMenu   = ref(null)   // { kind: 'event' | 'day', x, y, evId?, date? }
+
+const isMac = computed(() => typeof navigator !== 'undefined' && /Mac|iP(hone|ad)/.test(navigator.platform || ''))
+const modKeyLabel = computed(() => (isMac.value ? '⌘' : 'Ctrl+'))
+
+const ctxMenuStyle = computed(() => {
+  if (!ctxMenu.value) return {}
+  const W = 230, H = 90
+  const maxX = (typeof window !== 'undefined' ? window.innerWidth  : 1200) - W - 8
+  const maxY = (typeof window !== 'undefined' ? window.innerHeight : 800) - H - 8
+  return { left: Math.max(8, Math.min(ctxMenu.value.x, maxX)) + 'px',
+           top:  Math.max(8, Math.min(ctxMenu.value.y, maxY)) + 'px' }
+})
+
+function eventLabel(ev) {
+  return (props.lang === 'en' ? (ev.nameEN || ev.name) : ev.name) || (props.lang === 'en' ? 'Event' : 'Evento')
+}
+
+// Copia el evento del STORE, no el de `coloredEvents`: ese trae campos de pintado
+// (`_projId`, colores) que no son del evento y no deben viajar a la copia.
+function copyEventById(evId) {
+  const projId = projIdFor(evId)
+  const proj   = projectsStore.projects.find(p => p.id === projId)
+  const src    = (proj?.events || []).find(e => e.id === evId)
+  if (!src) return false
+  clipboard.value = {
+    projId,
+    projName: proj?.name || '',
+    label:    eventLabel(src),
+    events:   [JSON.parse(JSON.stringify(src))],
+  }
+  $toast(
+    props.lang === 'en'
+      ? `Copied “${clipboard.value.label}”. Pick a day and press ${modKeyLabel.value}V.`
+      : `Copiado «${clipboard.value.label}». Elegí un día y apretá ${modKeyLabel.value}V.`,
+    { type: 'info' },
+  )
+  return true
+}
+
+// ⌘C sin apuntar a una barra copia el día entero, como copiar una celda de la planilla.
+// Un día puede tener eventos de varios calendarios comparados y el portapapeles guarda
+// uno solo, así que gana el calendario activo.
+function copyDay(dateStr) {
+  const onDay = coloredEvents.value.filter(e => e.date === dateStr)
+  if (!onDay.length) return false
+  const projId = onDay.some(e => e._projId === props.project.id)
+    ? props.project.id
+    : onDay[0]._projId
+  const proj = projectsStore.projects.find(p => p.id === projId)
+  const ids  = new Set(onDay.filter(e => e._projId === projId).map(e => e.id))
+  const list = (proj?.events || []).filter(e => ids.has(e.id))
+  if (!list.length) return false
+  if (list.length === 1) return copyEventById(list[0].id)
+
+  clipboard.value = {
+    projId,
+    projName: proj?.name || '',
+    label:    props.lang === 'en' ? `${list.length} events` : `${list.length} eventos`,
+    events:   JSON.parse(JSON.stringify(list)),
+  }
+  $toast(
+    props.lang === 'en'
+      ? `Copied ${list.length} events. Pick a day and press ${modKeyLabel.value}V.`
+      : `Copiados ${list.length} eventos. Elegí un día y apretá ${modKeyLabel.value}V.`,
+    { type: 'info' },
+  )
+  return true
+}
+
+async function pasteInto(dateStr) {
+  if (props.readOnly || !dateStr) return
+  const clip = clipboard.value
+  if (!clip?.events?.length) return
+  const proj = projectsStore.projects.find(p => p.id === clip.projId)
+  if (!proj) { clipboard.value = null; return }
+  const en = props.lang === 'en'
+
+  // Un evento de Días Hábiles no puede arrancar en fin de semana ni en feriado. Es la
+  // misma pregunta que hace el arrastre, hecha una sola vez para todo el pegado.
+  let forceCalendar = false
+  if (clip.events.some(e => e.durDayType === 'business')
+      && !isBusinessDay(dateStr, getActiveHolidayDatesFor(proj))) {
+    const ok = await useDialog().confirm({
+      title: en ? 'Business day event' : 'Evento de Días Hábiles',
+      body:  en
+        ? `“${clip.label}” is a Business Day event and that date is not a business day.\n\nPaste it as Calendar Days?`
+        : `«${clip.label}» es de Días Hábiles y esa fecha no es un día hábil.\n\n¿Pegarlo como Días Corridos?`,
+      confirmLabel: en ? 'Paste as Calendar Days' : 'Pegar como Días Corridos',
+      cancelLabel:  en ? 'Cancel' : 'Cancelar',
+    })
+    if (!ok) return
+    forceCalendar = true
+  }
+
+  clip.events.forEach((src, i) => {
+    projectsStore.addEvent(clip.projId, {
+      ...src,
+      id:         uid(),
+      date:       dateStr,
+      dateMode:   'manual',
+      active:     true,
+      // Una copia nace sin hacer: pegar algo terminado en otra fecha es planificar, no
+      // registrar que ya se hizo.
+      completed:  false,
+      // Y nace sin la dependencia del original, que la ataría a un evento que el usuario
+      // no está mirando y la movería sola en cuanto ese otro se corra.
+      dep:        { active: false, eventId: '', relation: 'after', days: 1, broken: false },
+      durDayType: forceCalendar ? 'calendar' : (src.durDayType || 'calendar'),
+      order:      (proj.events || []).length + i,
+    })
+  })
+  projectsStore.recalcAndSave(clip.projId)
+  projectsStore.selectProject(clip.projId)
+  focusDate.value = dateStr
+
+  const where = clip.projId !== props.project.id && clip.projName ? ` (${clip.projName})` : ''
+  $toast(
+    en ? `Pasted “${clip.label}”${where}.` : `Pegado «${clip.label}»${where}.`,
+    { type: 'success' },
+  )
+  // Guardar ya, sin esperar el debounce: recargar la página justo después de pegar no
+  // puede perder el evento.
+  await projectsStore.syncProjectNow(clip.projId)
+}
+
+// ── Menú del click derecho ────────────────────────────────────────────────────
+function openCtxMenu(kind, payload) {
+  if (props.readOnly) return
+  ctxMenu.value = { kind, ...payload }
+}
+function closeCtxMenu() { ctxMenu.value = null }
+
+function ctxCopy() {
+  const evId = ctxMenu.value?.evId
+  closeCtxMenu()
+  if (evId) copyEventById(evId)
+}
+function ctxPaste() {
+  const date = ctxMenu.value?.date
+  closeCtxMenu()
+  if (date) pasteInto(date)
+}
+function ctxNewEvent() {
+  const date = ctxMenu.value?.date
+  closeCtxMenu()
+  if (date) onDayClick(date)
+}
+
+// ── Atajos ────────────────────────────────────────────────────────────────────
+function isTypingTarget(t) {
+  if (!t) return false
+  return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable
+}
+
+function onCopyPasteKeydown(e) {
+  if (props.readOnly) return
+  if (!(e.metaKey || e.ctrlKey) || e.altKey) return
+  const k = (e.key || '').toLowerCase()
+  if (k !== 'c' && k !== 'v') return
+  // En un campo de texto ⌘C/⌘V son del campo, no del calendario. Igual si hay cualquier
+  // modal abierto, o si el usuario seleccionó texto y quiere copiar ese texto.
+  if (isTypingTarget(e.target)) return
+  if (evModalOpen.value) return
+  if (typeof document !== 'undefined' && document.querySelector('.modal-backdrop')) return
+  if (k === 'c' && String(window.getSelection?.() || '').trim()) return
+
+  if (k === 'c') {
+    const done = hoverEvId.value
+      ? copyEventById(hoverEvId.value)
+      : copyDay(hoverDate.value || focusDate.value)
+    if (done) e.preventDefault()
+    return
+  }
+
+  const target = hoverDate.value || focusDate.value
+  if (!clipboard.value || !target) return
+  e.preventDefault()
+  pasteInto(target)
+}
+
+function onCtxDismissKeydown(e) {
+  if (e.key === 'Escape' && ctxMenu.value) { e.stopPropagation(); closeCtxMenu() }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onCopyPasteKeydown)
+  window.addEventListener('keydown', onCtxDismissKeydown)
+  window.addEventListener('click', closeCtxMenu)
+  window.addEventListener('blur', closeCtxMenu)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', onCopyPasteKeydown)
+  window.removeEventListener('keydown', onCtxDismissKeydown)
+  window.removeEventListener('click', closeCtxMenu)
+  window.removeEventListener('blur', closeCtxMenu)
+})
+
 async function onHolidayClick({ date, name }) {
   if (props.readOnly) return
   const ok = await useDialog().confirm({
@@ -1123,6 +1356,41 @@ onUnmounted(() => {
 .cal-wrap {
   display: flex; flex-direction: column; flex: 1; overflow: hidden;
 }
+
+/* ── Menú del click derecho ── */
+.cal-ctx {
+  position: fixed;
+  z-index: 400;
+  min-width: 190px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.32);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.cal-ctx-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: .78rem;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cal-ctx-item:hover:not(:disabled) { background: var(--surface-2); }
+.cal-ctx-item:disabled { color: var(--muted); cursor: default; }
+.cal-ctx-key { font-size: .68rem; color: var(--muted); }
 
 .cal-nav-btn {
   background: none; border: 1.5px solid var(--border); border-radius: 6px;

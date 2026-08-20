@@ -8,7 +8,7 @@
     <!-- Week rows -->
     <div v-for="(week, wi) in weeks" :key="wi" class="cal-week-row">
       <!-- Date number row -->
-      <div class="cal-week-days">
+      <div class="cal-week-days" @mouseleave="emit('hover-day', null)">
         <div
           v-for="cell in week.cells"
           :key="cell.dateStr"
@@ -24,6 +24,8 @@
           }"
           @click="cell.inMonth && emit('day-select', cell.dateStr)"
           @dblclick="!readOnly && cell.inMonth && emit('day-click', cell.dateStr)"
+          @mouseenter="emit('hover-day', cell.inMonth ? cell.dateStr : null)"
+          @contextmenu="onDayCellMenu($event, cell)"
           @dragover="onDayCellDragOver($event, cell)"
           @dragleave="onDayCellDragLeave(cell)"
           @drop="onDayCellDrop($event, cell)"
@@ -39,6 +41,9 @@
         :style="{ height: weekEventsHeight(week) + 'px' }"
         @dragover="onBarsLayerDragOver($event, week)"
         @drop="onBarsLayerDrop($event, week)"
+        @mousemove="onBarsLayerHover($event, week)"
+        @mouseleave="onBarsLayerHoverOut"
+        @contextmenu="onBarsLayerMenu($event, week)"
       >
         <div
           v-for="bar in week.bars"
@@ -66,6 +71,9 @@
           :title="bar.isHoliday ? bar.name : barTooltip(bar)"
           :draggable="!readOnly && !bar.isHoliday && !bar.outOfMonth"
           @click.stop="onBarClick(bar)"
+          @mouseenter="emit('hover-event', bar.isHoliday || bar.outOfMonth ? null : bar.evId)"
+          @mouseleave="emit('hover-event', null)"
+          @contextmenu="onBarMenu($event, bar)"
           @dragstart="onBarDragStart($event, bar)"
           @dragover="onBarDragOver($event, bar)"
           @dragleave="onBarDragLeave(bar)"
@@ -170,7 +178,50 @@ const dailyCountByEvent = computed(() => {
 
 const dailyEventIds = computed(() => new Set(dailyCountByEvent.value.keys()))
 
-const emit = defineEmits(['day-click', 'day-select', 'event-click', 'holiday-click', 'reorder-events', 'reschedule-event'])
+const emit = defineEmits([
+  'day-click', 'day-select', 'event-click', 'holiday-click', 'reorder-events', 'reschedule-event',
+  'hover-day', 'hover-event', 'bar-menu', 'day-menu',
+])
+
+// Qué día está debajo del cursor, para que copiar/pegar caiga donde apunta el mouse.
+// La capa de barras no tiene una celda por día (las barras se posicionan por porcentaje),
+// así que la columna se saca de la X — lo mismo que ya hace el drop. `mousemove` sube
+// desde las barras hasta esta capa, así que un solo listener cubre barras y hueco vacío.
+let lastHoverDate = null
+function onBarsLayerHover(e, week) {
+  const dateStr = getBarsLayerDate(e, week)
+  if (dateStr === lastHoverDate) return   // un emit por pixel no le sirve a nadie
+  lastHoverDate = dateStr
+  emit('hover-day', dateStr)
+}
+function onBarsLayerHoverOut() {
+  lastHoverDate = null
+  emit('hover-day', null)
+  emit('hover-event', null)
+}
+// Sólo se le quita el menú del navegador cuando de verdad tenemos uno que ofrecer:
+// tragárselo para no mostrar nada es peor que no hacer nada.
+function onBarsLayerMenu(e, week) {
+  if (props.readOnly) return
+  const dateStr = getBarsLayerDate(e, week)
+  if (!dateStr) return
+  e.preventDefault()
+  emit('day-menu', { date: dateStr, x: e.clientX, y: e.clientY })
+}
+
+function onDayCellMenu(e, cell) {
+  if (props.readOnly || !cell.inMonth) return
+  e.preventDefault()
+  e.stopPropagation()
+  emit('day-menu', { date: cell.dateStr, x: e.clientX, y: e.clientY })
+}
+
+function onBarMenu(e, bar) {
+  if (props.readOnly || bar.isHoliday || bar.outOfMonth) return
+  e.preventDefault()
+  e.stopPropagation()
+  emit('bar-menu', { evId: bar.evId, x: e.clientX, y: e.clientY })
+}
 
 function onBarClick(bar) {
   if (props.readOnly) return
