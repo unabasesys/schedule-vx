@@ -123,8 +123,9 @@
           >+</button>
         </div>
 
-        <div class="dv-day-items">
-          <template v-for="item in group.items" :key="item.id">
+        <div class="dv-day-items" :data-day="group.date">
+          <template v-for="(item, idx) in group.items" :key="item.id">
+            <div v-if="showDropLine(group.date, idx)" class="dv-drop-line"></div>
             <DailyEventRow
               :item="item"
               :project="project"
@@ -133,11 +134,14 @@
               :secondary-tzs="secondaryTzs"
               :read-only="readOnly"
               :start-editing="item.id === justDuplicatedId"
+              :data-eid="item.id"
+              :class="{ 'dir--dragging': drag && drag.id === item.id }"
               @update="body => { projectsStore.updateDailyEvent(project.id, item.id, body); if (justDuplicatedId === item.id) justDuplicatedId = null }"
               @delete="() => { projectsStore.deleteDailyEvent(project.id, item.id); if (justDuplicatedId === item.id) justDuplicatedId = null }"
               @cancel="() => { if (justDuplicatedId === item.id) justDuplicatedId = null }"
               @duplicate="duplicateItem(item)"
               @add-below="addBelow(item)"
+              @grab="ev => onGrab(group, item, ev)"
             />
             <DailyEventRow
               v-if="addingAfterId === item.id"
@@ -151,6 +155,8 @@
               @cancel="cancelNewItem"
             />
           </template>
+
+          <div v-if="showDropLine(group.date, group.items.length)" class="dv-drop-line"></div>
 
           <DailyEventRow
             v-if="addingForDate === group.date && !addingAfterId"
@@ -174,7 +180,7 @@
 </template>
 
 <script setup>
-import { isoToday, uid } from '~/utils/helpers'
+import { isoToday, uid, sortDailyItems, sameDailySlot, fmt12h } from '~/utils/helpers'
 
 const props = defineProps({
   project:  { type: Object, required: true },
@@ -184,6 +190,7 @@ const props = defineProps({
 
 const projectsStore = useProjectsStore()
 const isEN = computed(() => props.lang === 'en')
+const { $toast } = useNuxtApp()
 
 // ── Timezone ─────────────────────────────────────────────────────────────────
 const tzPanelOpen = ref(false)
@@ -255,19 +262,6 @@ function formatDateLabel(dateStr) {
   return `${d.getDate()} de ${MONTH_ES[d.getMonth()]} de ${d.getFullYear()}`
 }
 
-function sortItems(items) {
-  const P = { 'All Day': 0, 'AM': 1, 'PM': 4, 'TBD': 5 }
-  return [...items].sort((a, b) => {
-    const ap = a.timeType === 'specific_time' ? 2 : (P[a.timeLabel] ?? 5)
-    const bp = b.timeType === 'specific_time' ? 2 : (P[b.timeLabel] ?? 5)
-    if (ap !== bp) return ap - bp
-    if (a.timeType === 'specific_time' && b.timeType === 'specific_time') {
-      return (a.specificTime || '').localeCompare(b.specificTime || '')
-    }
-    return 0
-  })
-}
-
 // ── Departments filter ───────────────────────────────────────────────────────
 const selectedGroups = ref([])
 
@@ -332,7 +326,7 @@ const groupedDays = computed(() => {
       date,
       dowLabel:  formatDow(date),
       dateLabel: formatDateLabel(date),
-      items:     sortItems(items),
+      items:     sortDailyItems(items),
     }))
 })
 
@@ -376,6 +370,131 @@ function addBelow(item) {
   addingForDate.value = item.date
   addingAfterId.value = item.id
 }
+
+// ── Arrastrar para reordenar ──────────────────────────────────────────────────
+// El reloj manda: la lista sigue ordenada por hora. Lo que el arrastre cambia es el
+// orden DENTRO de una misma hora —tres llamados a las 11:00 es lo normal en un rodaje—
+// y, si sueltas la fila en otro bloque de hora, el evento se muda a esa hora. Con esa
+// regla la fila queda exactamente donde la soltaste, que es lo único que se ve.
+//
+// El arrastre no reordena el DOM mientras lo hacés: mueve sólo una línea de 0px de alto
+// que marca dónde va a caer. Reordenar en vivo cambiaría los rectángulos que estamos
+// midiendo en cada pointermove y la fila temblaría bajo el cursor.
+const drag = ref(null)   // { date, id, from, dropIndex }
+
+function showDropLine(date, idx) {
+  const d = drag.value
+  if (!d || d.date !== date) return false
+  // No dibujar la línea donde soltar no movería nada.
+  if (idx === d.from || idx === d.from + 1) return false
+  return d.dropIndex === idx
+}
+
+function onGrab(group, item, ev) {
+  if (props.readOnly) return
+  const from = group.items.findIndex(i => i.id === item.id)
+  if (from < 0) return
+  drag.value = { date: group.date, id: item.id, from, dropIndex: from }
+  document.body.classList.add('dv-dragging')
+  window.addEventListener('pointermove',   onDragMove)
+  window.addEventListener('pointerup',     onDragDrop)
+  window.addEventListener('pointercancel', endDrag)
+  onDragMove(ev)
+}
+
+function onDragMove(ev) {
+  const d = drag.value
+  if (!d) return
+  const container = document.querySelector(`[data-day="${d.date}"]`)
+  if (!container) return
+  const rows = [...container.querySelectorAll('[data-eid]')]
+  let target = rows.length
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i].getBoundingClientRect()
+    if (ev.clientY < r.top + r.height / 2) { target = i; break }
+  }
+  d.dropIndex = target
+
+  // Días largos no caben en pantalla: acercar el cursor a un borde corre la lista.
+  const scroller = container.closest('.dv-body')
+  if (scroller) {
+    const b = scroller.getBoundingClientRect()
+    if      (ev.clientY < b.top + 44)    scroller.scrollTop -= 12
+    else if (ev.clientY > b.bottom - 44) scroller.scrollTop += 12
+  }
+}
+
+function endDrag() {
+  drag.value = null
+  document.body.classList.remove('dv-dragging')
+  window.removeEventListener('pointermove',   onDragMove)
+  window.removeEventListener('pointerup',     onDragDrop)
+  window.removeEventListener('pointercancel', endDrag)
+}
+
+function onDragDrop() {
+  const d = drag.value
+  endDrag()
+  if (!d) return
+
+  const group = groupedDays.value.find(g => g.date === d.date)
+  if (!group) return
+  // dropIndex es una posición de inserción en la lista CON la fila arrastrada dentro,
+  // así que al sacarla todo lo que venía después corre un lugar.
+  const to = d.dropIndex > d.from ? d.dropIndex - 1 : d.dropIndex
+  if (to === d.from) return
+
+  const visible = [...group.items]
+  const moved   = visible[d.from]
+  if (!moved) return
+  visible.splice(d.from, 1)
+  visible.splice(to, 0, moved)
+
+  // ¿Se mudó de hora? Manda el vecino contra el que quedó apoyada. Pero si alguno de
+  // los dos vecinos está en SU MISMA hora, la fila se queda con la hora que tenía: eso
+  // es alguien ordenando su propio bloque, y soltar justo en el borde entre las 10:00 y
+  // las 11:00 no puede cambiarle la hora a un evento de las 11:00. Para moverlo a otra
+  // hora hay que soltarlo dentro del otro bloque, no en el filo.
+  const above = visible[to - 1] || null
+  const below = visible[to + 1] || null
+  const staysInSlot = (above && sameDailySlot(above, moved)) || (below && sameDailySlot(below, moved))
+  const neighbour = staysInSlot ? null : (above || below)
+  const timePatch = neighbour
+    ? {
+        id:           moved.id,
+        timeType:     neighbour.timeType,
+        timeLabel:    neighbour.timeLabel,
+        specificTime: neighbour.specificTime,
+      }
+    : null
+
+  // El orden se escribe sobre el día COMPLETO, no sobre lo que se ve: con un filtro de
+  // departamento puesto, numerar sólo las filas visibles descolocaría a las escondidas.
+  // Los vecinos visibles sirven igual de ancla porque también están en la lista completa.
+  const all  = sortDailyItems((props.project?.dailySchedule || []).filter(i => i.date === d.date))
+  const rest = all.filter(i => i.id !== moved.id)
+  let at = 0
+  if (above)      at = rest.findIndex(i => i.id === above.id) + 1
+  else if (below) at = rest.findIndex(i => i.id === below.id)
+  if (at < 0) at = rest.length
+  rest.splice(at, 0, moved)
+
+  projectsStore.reorderDailyDay(props.project.id, d.date, rest.map(i => i.id), timePatch)
+
+  if (timePatch) {
+    const label = timePatch.timeType === 'specific_time'
+      ? fmt12h(timePatch.specificTime)
+      : (timePatch.timeLabel || '')
+    $toast(
+      isEN.value
+        ? `“${moved.title || 'Event'}” moved to ${label}.`
+        : `“${moved.title || 'Evento'}” pasó a ${label}.`,
+      { type: 'info' },
+    )
+  }
+}
+
+onUnmounted(endDrag)
 
 // Tracks the id of the just-duplicated event so its row opens in edit mode.
 const justDuplicatedId = ref(null)
@@ -702,4 +821,19 @@ function duplicateItem(item) {
 
 .dv-day-items { padding: 4px 0 6px; }
 
+/* Línea de destino del arrastre. Alto neto 0 a propósito: si empujara las filas hacia
+   abajo, los rectángulos que medimos en cada pointermove cambiarían y la fila temblaría. */
+.dv-drop-line {
+  height: 0;
+  border-top: 2px solid var(--accent);
+  margin: -1px 0;
+  box-shadow: 0 0 6px rgba(6,204,180,.5);
+  pointer-events: none;
+}
+
+</style>
+
+<style>
+/* Global: mientras se arrastra, que el mouse no vaya seleccionando el texto de las filas. */
+body.dv-dragging { user-select: none; cursor: grabbing; }
 </style>

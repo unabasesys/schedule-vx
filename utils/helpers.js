@@ -184,6 +184,41 @@ export function participantEntries(item, contactById = {}, contactByName = {}) {
 }
 
 /**
+ * The order of a day in a call sheet. The clock decides first; inside the same slot
+ * the manual order the user dragged into place decides.
+ *
+ * Several events starting at the same time is normal on a shoot (three 11:00 makeup
+ * calls, say), so the tiebreaker has to be something the user controls rather than
+ * whatever order the events happened to be created in. Events that nobody has dragged
+ * have no `order` and all tie at 0 — Array#sort is stable, so those days keep exactly
+ * the order they had before this existed.
+ *
+ * Both the screen and the printed call sheet sort through here, on purpose: an order
+ * you can drag is worthless if the PDF prints a different one.
+ */
+export function sortDailyItems(items = []) {
+  const P = { 'All Day': 0, 'AM': 1, 'PM': 4, 'TBD': 5 }
+  const bucket = (i) => (i.timeType === 'specific_time' ? 2 : (P[i.timeLabel] ?? 5))
+  return [...items].sort((a, b) => {
+    const ab = bucket(a), bb = bucket(b)
+    if (ab !== bb) return ab - bb
+    if (ab === 2) {
+      const byClock = (a.specificTime || '').localeCompare(b.specificTime || '')
+      if (byClock) return byClock
+    }
+    return (a.order ?? 0) - (b.order ?? 0)
+  })
+}
+
+/** True when two daily events sit in the same time slot — same clock time, or same label. */
+export function sameDailySlot(a, b) {
+  if (!a || !b) return false
+  if ((a.timeType || '') !== (b.timeType || '')) return false
+  if (a.timeType === 'specific_time') return (a.specificTime || '') === (b.specificTime || '')
+  return (a.timeLabel || '') === (b.timeLabel || '')
+}
+
+/**
  * Lowercased name → contact, but only for names that belong to exactly one contact.
  * Two people called "Ana" make the name useless as a key, and guessing which cargo
  * to print is worse than printing none.

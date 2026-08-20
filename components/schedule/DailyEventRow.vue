@@ -11,6 +11,25 @@
            —y muchas veces varios seguidos—, y abrir el formulario completo para tocar un
            solo campo era todo el trabajo por nada. El resto del evento sigue detrás del
            formulario: acá solo la hora. -->
+      <!-- Tirador para arrastrar. Vive en el padding izquierdo de la fila para no
+           empujar nada, y sólo aparece al pasar el mouse por encima. Arrastrar sólo
+           desde acá: si toda la fila fuera agarrable, cualquier click para abrir el
+           evento se convertiría en un arrastre de un pixel. -->
+      <button
+        v-if="!readOnly"
+        type="button"
+        class="dir-grip"
+        :title="isEN ? 'Drag to reorder' : 'Arrastrar para reordenar'"
+        @pointerdown.stop.prevent="$emit('grab', $event)"
+        @click.stop
+      >
+        <svg width="10" height="14" viewBox="0 0 10 16" fill="currentColor" aria-hidden="true">
+          <circle cx="3" cy="4"  r="1.3"/><circle cx="7" cy="4"  r="1.3"/>
+          <circle cx="3" cy="8"  r="1.3"/><circle cx="7" cy="8"  r="1.3"/>
+          <circle cx="3" cy="12" r="1.3"/><circle cx="7" cy="12" r="1.3"/>
+        </svg>
+      </button>
+
       <div class="dir-time-col">
         <div v-if="timeEditing" ref="timeEditRef" class="dir-time-edit" @click.stop>
           <div class="dir-time-type">
@@ -491,7 +510,7 @@ const props = defineProps({
   startEditing: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update', 'delete', 'duplicate', 'save', 'cancel', 'add-below'])
+const emit = defineEmits(['update', 'delete', 'duplicate', 'save', 'cancel', 'add-below', 'grab'])
 
 const isEN     = computed(() => props.lang === 'en')
 const titleRef = ref(null)
@@ -1178,6 +1197,31 @@ function save() {
 .dir--editing { cursor: default; }
 .dir:hover:not(.dir--editing) { background: rgba(255,255,255,.025); }
 .dir--internal { background: rgba(255,160,32,.04); }
+.dir--dragging { opacity: .45; background: var(--surface-2); }
+
+/* ── Tirador de arrastre ── */
+.dir-grip {
+  position: absolute;
+  left: 4px;
+  top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity .12s, color .12s;
+  touch-action: none;   /* que el navegador no haga scroll en vez de arrastrar */
+}
+.dir:hover > .dir-grip { opacity: .55; }
+.dir > .dir-grip:hover { opacity: 1; color: var(--accent); }
+.dir-grip:active { cursor: grabbing; }
+.dir--dragging > .dir-grip { opacity: 1; color: var(--accent); }
 .dir--editing {
   background: var(--surface-2);
   border-bottom: 1px solid var(--border);

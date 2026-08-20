@@ -416,20 +416,6 @@ function groupSecondaryTimes(item) {
   return Object.entries(groups).map(([time, cities]) => `${time} ${cities.join(', ')}`)
 }
 
-// ── Sort items ────────────────────────────────────────────────────────────────
-function sortItems(items) {
-  const P = { 'All Day': 0, 'AM': 1, 'PM': 4, 'TBD': 5 }
-  return [...items].sort((a, b) => {
-    const ap = a.timeType === 'specific_time' ? 2 : (P[a.timeLabel] ?? 5)
-    const bp = b.timeType === 'specific_time' ? 2 : (P[b.timeLabel] ?? 5)
-    if (ap !== bp) return ap - bp
-    if (a.timeType === 'specific_time' && b.timeType === 'specific_time') {
-      return (a.specificTime || '').localeCompare(b.specificTime || '')
-    }
-    return 0
-  })
-}
-
 // ── Filtered & grouped items ──────────────────────────────────────────────────
 const filteredGroups = computed(() => {
   if (!project.value) return []
@@ -457,7 +443,7 @@ const filteredGroups = computed(() => {
       dowLabel:  formatDow(date),
       dateLabel: formatDateNoYear(date),
       yearLabel: (idx === 0 || thisYear !== prevYear) ? String(thisYear) : '',
-      items:     sortItems(dayItems),
+      items:     sortDailyItems(dayItems),
     }
   })
 })

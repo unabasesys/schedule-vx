@@ -2076,6 +2076,35 @@ export const useProjectsStore = defineStore('projects', {
       this._scheduleSyncDaily(projId)
     },
 
+    // Dragging a row rewrites `order` for the WHOLE day, not just the two rows that
+    // swapped: most days have never been ordered by hand, and numbering only part of a
+    // day leaves the rest sorting by accident.
+    //
+    // `timePatch` moves the dragged event to another time slot, which is what dropping
+    // it into a different block of the day means. It rides along in the same write so
+    // the row can't briefly land at the wrong time.
+    reorderDailyDay(projId, date, orderedIds, timePatch = null) {
+      const proj = this.projects.find(p => p.id === projId)
+      if (!proj) return
+      const byId = new Map((proj.dailySchedule || []).map(i => [i.id, i]))
+      if (timePatch?.id) {
+        const it = byId.get(timePatch.id)
+        if (it) {
+          it.timeType     = timePatch.timeType
+          it.timeLabel    = timePatch.timeLabel
+          it.specificTime = timePatch.specificTime
+        }
+      }
+      orderedIds.forEach((id, idx) => {
+        const it = byId.get(id)
+        if (it) it.order = idx
+      })
+      proj.hasChanges = true
+      proj.updatedAt = proj.editedAt = new Date().toISOString()
+      this.save()
+      this._scheduleSyncDaily(projId)
+    },
+
     deleteDailyEvent(projId, itemId) {
       const proj = this.projects.find(p => p.id === projId)
       if (!proj) return
