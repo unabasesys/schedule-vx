@@ -14,8 +14,15 @@ export const useContactsStore = defineStore('contacts', {
   }),
 
   getters: {
-    sorted: (s) => [...s.contacts].sort((a, b) =>
-      (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' })),
+    // Nameless contacts (imports that carried only an email) sink to the bottom:
+    // sorting them first left the directory list and the participants dropdown both
+    // opening on a wall of blank rows.
+    sorted: (s) => [...s.contacts].sort((a, b) => {
+      const an = (a.name || '').trim(), bn = (b.name || '').trim()
+      if (!an !== !bn) return an ? -1 : 1
+      if (!an && !bn) return (a.email || '').localeCompare(b.email || '', undefined, { sensitivity: 'base' })
+      return an.localeCompare(bn, undefined, { sensitivity: 'base' })
+    }),
   },
 
   actions: {

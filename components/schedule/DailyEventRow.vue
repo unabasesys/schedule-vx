@@ -241,19 +241,56 @@
                 v-for="chip in participantChips"
                 :key="chip.key"
                 class="dir-part-chip"
-                :class="{ 'dir-part-chip--adhoc': chip.adhoc, 'dir-part-chip--missing': chip.missing }"
-                :title="chip.missing ? (isEN ? 'This contact was removed from the directory' : 'Este contacto ya no está en el directorio') : (chip.adhoc ? (isEN ? 'Typed in (not in directory)' : 'Escrito a mano (no está en el directorio)') : chip.title)"
+                :class="{
+                  'dir-part-chip--adhoc': chip.adhoc,
+                  'dir-part-chip--missing': chip.missing,
+                  'dir-part-chip--editing': roleEditId === chip.id,
+                }"
               >
-                {{ chip.label }}<span v-if="chip.title" class="dir-part-chip-role">· {{ chip.title }}</span>
+                <!-- Clicking a linked contact opens its cargo. Ad-hoc and removed
+                     contacts have nothing in the directory to edit, so they stay flat. -->
+                <button
+                  v-if="chip.editable"
+                  type="button"
+                  class="dir-part-chip-body dir-part-chip-body--editable"
+                  @click.stop="openRoleEditor(chip)"
+                  :title="isEN ? 'Click to set the role' : 'Click para poner el cargo'"
+                >
+                  {{ chip.label }}<span v-if="chip.title" class="dir-part-chip-role">· {{ chip.title }}</span>
+                </button>
+                <span
+                  v-else
+                  class="dir-part-chip-body"
+                  :title="chip.missing ? (isEN ? 'This contact was removed from the directory' : 'Este contacto ya no está en el directorio') : (isEN ? 'Typed in (not in directory)' : 'Escrito a mano (no está en el directorio)')"
+                >
+                  {{ chip.label }}<span v-if="chip.title" class="dir-part-chip-role">· {{ chip.title }}</span>
+                </span>
                 <button
                   type="button"
                   class="dir-part-chip-x"
                   @click.stop="removeParticipant(chip)"
                   :title="isEN ? 'Remove' : 'Quitar'"
                 >×</button>
+
+                <!-- Cargo editor. Saves on Enter or on leaving the field; empty is fine. -->
+                <div v-if="roleEditId === chip.id" class="dir-part-role-pop" @mousedown.stop>
+                  <input
+                    ref="roleInputRef"
+                    type="text"
+                    v-model.trim="roleDraft"
+                    class="dir-part-role-input"
+                    :placeholder="isEN ? 'Role (optional)' : 'Cargo (opcional)'"
+                    @keydown.enter.prevent="saveRole"
+                    @keydown.esc.stop.prevent="closeRoleEditor"
+                    @blur="saveRole"
+                  />
+                  <span class="dir-part-role-hint">
+                    {{ isEN ? 'Saved on the contact — shows on every event.' : 'Se guarda en el contacto — aparece en todos los eventos.' }}
+                  </span>
+                </div>
               </span>
             </div>
-            <div class="dir-part-search">
+            <div class="dir-part-search" @focusout="onPartFocusOut">
               <input
                 ref="partSearchRef"
                 type="text"
@@ -261,30 +298,50 @@
                 class="dir-input"
                 :placeholder="isEN ? 'Search contacts or type a name…' : 'Buscar contactos o escribir un nombre…'"
                 @focus="partOpen = true"
-                @blur="partOpen = false"
+                @keydown.down.prevent="movePart(1)"
+                @keydown.up.prevent="movePart(-1)"
                 @keydown.enter.prevent="onPartEnter"
-                @keydown.esc.stop.prevent="partOpen = false"
+                @keydown.esc.stop.prevent="closePartMenu"
               />
-              <div v-if="partOpen && (partMatches.length || canAddAdhoc)" class="dir-part-menu">
-                <button
-                  v-for="c in partMatches"
-                  :key="c.id"
-                  type="button"
-                  class="dir-part-opt"
-                  @mousedown.prevent="addContact(c)"
-                >
-                  <span class="dir-part-opt-name">{{ c.name }}</span>
-                  <span v-if="c.title" class="dir-part-opt-role">{{ c.title }}</span>
-                </button>
-                <button
-                  v-if="canAddAdhoc"
-                  type="button"
-                  class="dir-part-opt dir-part-opt--adhoc"
-                  @mousedown.prevent="addAdhoc(partQuery)"
-                >
-                  {{ isEN ? 'Add' : 'Añadir' }} “{{ partQuery.trim() }}”
-                  <span class="dir-part-opt-role">{{ isEN ? 'new contact' : 'nuevo contacto' }}</span>
-                </button>
+              <div v-if="partOpen && partOptions.length" ref="partMenuRef" class="dir-part-menu">
+                <template v-for="(opt, i) in partOptions" :key="opt.key">
+                  <button
+                    v-if="opt.kind === 'contact'"
+                    type="button"
+                    class="dir-part-opt"
+                    :class="{ 'dir-part-opt--active': partIndex === i }"
+                    @mousedown.prevent="addContact(opt.contact)"
+                    @mousemove="partIndex = i"
+                  >
+                    <span class="dir-part-opt-name">{{ opt.contact.name || (isEN ? '(no name)' : '(sin nombre)') }}</span>
+                    <span v-if="opt.contact.title" class="dir-part-opt-role">{{ opt.contact.title }}</span>
+                    <span v-else-if="opt.contact.email" class="dir-part-opt-role">{{ opt.contact.email }}</span>
+                  </button>
+                  <!-- New contact: the cargo is right here, next to the name, and optional. -->
+                  <div
+                    v-else
+                    class="dir-part-opt dir-part-opt--adhoc"
+                    :class="{ 'dir-part-opt--active': partIndex === i }"
+                    @mousemove="partIndex = i"
+                  >
+                    <button
+                      type="button"
+                      class="dir-part-opt-add"
+                      @mousedown.prevent="addAdhoc(partQuery, adhocRole)"
+                    >
+                      {{ isEN ? 'Add' : 'Añadir' }} “{{ partQuery.trim() }}”
+                      <span class="dir-part-opt-role">{{ isEN ? 'new contact' : 'nuevo contacto' }}</span>
+                    </button>
+                    <input
+                      type="text"
+                      v-model.trim="adhocRole"
+                      class="dir-part-role-input dir-part-role-input--inline"
+                      :placeholder="isEN ? 'Role (optional)' : 'Cargo (opcional)'"
+                      @keydown.enter.prevent="addAdhoc(partQuery, adhocRole)"
+                      @keydown.esc.stop.prevent="closePartMenu"
+                    />
+                  </div>
+                </template>
               </div>
             </div>
           </div>
@@ -438,6 +495,7 @@ const emit = defineEmits(['update', 'delete', 'duplicate', 'save', 'cancel', 'ad
 
 const isEN     = computed(() => props.lang === 'en')
 const titleRef = ref(null)
+const { $toast } = useNuxtApp()
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const editing    = ref(props.isNew || props.startEditing)
@@ -639,6 +697,12 @@ const contactsStore = useContactsStore()
 const partQuery     = ref('')
 const partOpen      = ref(false)
 const partSearchRef = ref(null)
+const partMenuRef   = ref(null)
+const partIndex     = ref(-1)     // keyboard-highlighted row; -1 = nothing highlighted
+const adhocRole     = ref('')     // optional cargo typed next to "Add <name>"
+const roleEditId    = ref(null)   // contact id whose cargo is being edited from its chip
+const roleDraft     = ref('')
+const roleInputRef  = ref(null)
 
 const contactById = computed(() => {
   const m = {}
@@ -666,11 +730,14 @@ const participantChips = computed(() => {
       adhoc:   false,
       missing: !c,
       title:   c?.title || '',
+      // Only a contact that's actually in the directory has a cargo to edit.
+      editable: !!c,
       label:   c ? c.name : (isEN.value ? '(removed contact)' : '(contacto eliminado)'),
     }
   })
   const nameChips = form.extraNames.map((n, i) => ({
     key: 'nm:' + i + ':' + n, name: n, adhoc: true, missing: false, title: '', label: n,
+    editable: false,
   }))
   return [...idChips, ...nameChips]
 })
@@ -704,11 +771,87 @@ const canAddAdhoc = computed(() => {
   return true
 })
 
+// The dropdown as one flat list, so the arrow keys and Enter walk the same rows the
+// mouse sees — the "Add <name>" row included.
+const partOptions = computed(() => {
+  const opts = partMatches.value.map(c => ({ kind: 'contact', key: 'c:' + c.id, contact: c }))
+  if (canAddAdhoc.value) opts.push({ kind: 'adhoc', key: 'adhoc' })
+  return opts
+})
+
+// Typing changes the list under the cursor, so the highlight goes back to nothing.
+watch(partQuery, () => { partIndex.value = -1; adhocRole.value = '' })
+
+function movePart(delta) {
+  partOpen.value = true
+  const n = partOptions.value.length
+  if (!n) return
+  const next = partIndex.value + delta
+  partIndex.value = next < 0 ? n - 1 : next >= n ? 0 : next
+}
+
+// Keep the highlighted row visible when the list is longer than the menu.
+watch(partIndex, (i) => {
+  if (i < 0) return
+  nextTick(() => partMenuRef.value?.children?.[i]?.scrollIntoView({ block: 'nearest' }))
+})
+
+function closePartMenu() {
+  partOpen.value = false
+  partIndex.value = -1
+}
+
+// The cargo field for a new contact lives inside the menu, so a plain `blur` on the
+// search box would close the menu the moment the field is clicked. Close only when
+// focus leaves the picker altogether.
+function onPartFocusOut(e) {
+  if (e.currentTarget.contains(e.relatedTarget)) return
+  closePartMenu()
+}
+
 function addContact(c) {
   if (!c?.id) return
   if (!form.pickedIds.includes(c.id)) form.pickedIds.push(c.id)
   partQuery.value = ''
+  partIndex.value = -1
   nextTick(() => partSearchRef.value?.focus())
+}
+
+// ── Cargo straight from the chip ───────────────────────────────────────────────
+// The cargo belongs to the contact in the directory, not to this event, so setting it
+// here fills it in everywhere that person appears. That's the point: the directory is
+// the one place a person's cargo is written down.
+function openRoleEditor(chip) {
+  if (!chip?.editable) return
+  roleEditId.value = chip.id
+  roleDraft.value  = chip.title || ''
+  // The ref sits inside a v-for, so Vue hands it back as an array.
+  nextTick(() => {
+    const el = Array.isArray(roleInputRef.value) ? roleInputRef.value[0] : roleInputRef.value
+    el?.focus()
+    el?.select?.()
+  })
+}
+
+function closeRoleEditor() {
+  roleEditId.value = null
+  roleDraft.value  = ''
+  nextTick(() => partSearchRef.value?.focus())
+}
+
+async function saveRole() {
+  const id = roleEditId.value
+  if (!id) return                       // already closed (Esc, or a second call from blur)
+  const next    = roleDraft.value.trim()
+  const current = contactById.value[id]?.title || ''
+  roleEditId.value = null
+  roleDraft.value  = ''
+  if (next === current) return
+  try {
+    await contactsStore.updateContact(id, { title: next })
+  } catch (e) {
+    $toast(isEN.value ? 'Could not save the role.' : 'No se pudo guardar el cargo.', { type: 'error' })
+  }
 }
 
 // Typing a name that isn't in the directory now CREATES the contact, with just the
@@ -719,10 +862,13 @@ function addContact(c) {
 //
 // The typed name is never lost: if the create fails (offline, API down) it falls back
 // to the ad-hoc string, which still renders and still saves with the event.
-async function addAdhoc(text) {
-  const name = String(text || '').trim()
+async function addAdhoc(text, role = '') {
+  const name  = String(text  || '').trim()
+  const title = String(role  || '').trim()
   if (!name) return
   partQuery.value = ''
+  adhocRole.value = ''
+  partIndex.value = -1
   nextTick(() => partSearchRef.value?.focus())
 
   // The directory loads asynchronously when this editor opens, so someone typing
@@ -734,11 +880,16 @@ async function addAdhoc(text) {
   )
   if (existing) {
     if (!form.pickedIds.includes(existing.id)) form.pickedIds.push(existing.id)
+    // A cargo typed for someone who turned out to be already in the directory fills in
+    // the blank, but never overwrites a cargo that's already there.
+    if (title && !(existing.title || '').trim()) {
+      try { await contactsStore.updateContact(existing.id, { title }) } catch (e) { /* keep the link */ }
+    }
     return
   }
 
   try {
-    const created = await contactsStore.addContact({ name })
+    const created = await contactsStore.addContact(title ? { name, title } : { name })
     if (created?.id) {
       if (!form.pickedIds.includes(created.id)) form.pickedIds.push(created.id)
       return
@@ -759,8 +910,14 @@ function removeParticipant(chip) {
   }
 }
 
-// Enter: prefer an exact contact match, then the first match, else add ad-hoc.
+// Enter: take the row the arrow keys highlighted, if any. Otherwise prefer an exact
+// contact match, then the first match, else add ad-hoc.
 function onPartEnter() {
+  const opt = partIndex.value >= 0 ? partOptions.value[partIndex.value] : null
+  if (opt) {
+    if (opt.kind === 'contact') return addContact(opt.contact)
+    return addAdhoc(partQuery.value, adhocRole.value)
+  }
   const q = partQuery.value.trim()
   if (!q) return
   // Look for the exact name across the WHOLE directory, not just the 8 shown:
@@ -772,7 +929,7 @@ function onPartEnter() {
   )
   if (exact) return addContact(exact)
   if (partMatches.value.length) return addContact(partMatches.value[0])
-  addAdhoc(q)
+  addAdhoc(q, adhocRole.value)
 }
 
 // Human-readable string persisted alongside the structured fields, so the
@@ -1365,10 +1522,11 @@ function save() {
 .dir-part { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .dir-part-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .dir-part-chip {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 5px 3px 10px;
+  gap: 3px;
+  padding: 3px 5px 3px 4px;
   border: 1.5px solid var(--accent);
   border-radius: 6px;
   background: rgba(6,204,180,.08);
@@ -1376,6 +1534,52 @@ function save() {
   font-size: .72rem;
   font-weight: 600;
 }
+.dir-part-chip--editing { border-style: dashed; }
+.dir-part-chip-body {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 1px 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.dir-part-chip-body--editable { cursor: pointer; }
+.dir-part-chip-body--editable:hover { background: rgba(6,204,180,.16); }
+.dir-part-chip--adhoc .dir-part-chip-body--editable:hover,
+.dir-part-chip--missing .dir-part-chip-body--editable:hover { background: rgba(0,0,0,.12); }
+.dir-part-role-pop {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 25;
+  min-width: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 7px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+}
+.dir-part-role-input {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: .74rem;
+  font-family: inherit;
+  font-weight: 400;
+  min-width: 0;
+}
+.dir-part-role-input:focus { outline: none; border-color: var(--accent); }
+.dir-part-role-input--inline { flex: 1; max-width: 160px; }
+.dir-part-role-hint { font-size: .62rem; color: var(--muted); font-weight: 400; line-height: 1.3; }
 .dir-part-chip-role {
   margin-left: 4px;
   font-weight: 400;
@@ -1441,11 +1645,19 @@ function save() {
   font-family: inherit;
   cursor: pointer;
 }
-.dir-part-opt:hover { background: var(--surface-2); }
+.dir-part-opt:hover,
+.dir-part-opt--active { background: var(--surface-2); }
 .dir-part-opt-name { font-weight: 600; }
 .dir-part-opt-role { font-size: .68rem; color: var(--muted); }
-.dir-part-opt--adhoc { border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; margin-top: 2px; }
-.dir-part-opt--adhoc .dir-part-opt-name { color: var(--muted); font-weight: 600; }
+.dir-part-opt--adhoc {
+  border-top: 1px solid var(--border); border-radius: 0 0 6px 6px; margin-top: 2px;
+  align-items: center; gap: 6px; cursor: default;
+}
+.dir-part-opt-add {
+  border: none; background: transparent; color: var(--text); font: inherit;
+  font-weight: 600; cursor: pointer; padding: 0; text-align: left; white-space: nowrap;
+}
+.dir-part-opt-add:hover { color: var(--accent); }
 
 /* Form actions */
 .dir-form-actions {
