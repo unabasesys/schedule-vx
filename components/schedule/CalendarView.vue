@@ -546,7 +546,7 @@ const coloredEvents = computed(() => {
       .forEach(e => merged.push({
         ...e,
         _projId:     proj.id,
-        _projColor:  proj.color || '#20a789',
+        _projColor:  proj.color || 'var(--accent)',
         _stageColor: stageColorMap[e.stage] || null,
       }))
   })
@@ -728,7 +728,7 @@ function stageForNewEvent(dateStr) {
 // consequence of that dropdown is visible while choosing, not after saving.
 const evModalStageColor = computed(() => {
   const stage = (props.project.stages || []).find(s => s.key === evModalStage.value)
-  return stage?.color || props.project.color || '#20a789'
+  return stage?.color || props.project.color || 'var(--accent)'
 })
 
 // ── Modal handlers ────────────────────────────────────────────────
@@ -1450,7 +1450,7 @@ onUnmounted(() => {
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.32);
+  box-shadow: 0 10px 30px var(--shadow-ink-2);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1475,8 +1475,8 @@ onUnmounted(() => {
 .cal-ctx-item:hover:not(:disabled) { background: var(--surface-2); }
 .cal-ctx-item:disabled { color: var(--muted); cursor: default; }
 .cal-ctx-key { font-size: .68rem; color: var(--muted); }
-.cal-ctx-item--del { color: #e06c6c; }
-.cal-ctx-item--del:hover:not(:disabled) { background: rgba(224,108,108,.12); }
+.cal-ctx-item--del { color: var(--danger); }
+.cal-ctx-item--del:hover:not(:disabled) { background: var(--red-soft); }
 
 .cal-nav-btn {
   background: none; border: 1.5px solid var(--border); border-radius: 6px;
@@ -1492,7 +1492,7 @@ onUnmounted(() => {
 /* ── Departments filter panel (shared style with Events/Daily) ── */
 .cal-groups-panel {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 16px; border-bottom: 1px solid rgba(255,255,255,.06);
+  padding: 6px 16px; border-bottom: 1px solid var(--wash-2);
   background: var(--bg); flex-shrink: 0; overflow-x: auto;
 }
 .cal-groups-panel-title {
@@ -1506,7 +1506,7 @@ onUnmounted(() => {
   font-size: .64rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s;
 }
-.cal-group-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
+.cal-group-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .cal-group-chip:hover:not(.active) { border-color: var(--text); color: var(--text); }
 .cal-group-chip-name { line-height: 1; }
 .cal-group-chip-x {
@@ -1514,7 +1514,7 @@ onUnmounted(() => {
   width: 14px; height: 14px; border-radius: 50%; font-size: .68rem; line-height: 1;
   color: var(--muted); transition: all .13s; flex-shrink: 0;
 }
-.cal-group-chip-x:hover { background: rgba(239,68,68,.12); color: var(--danger); }
+.cal-group-chip-x:hover { background: var(--red-soft); color: var(--danger); }
 .cal-group-add-form { display: inline-flex; align-items: center; gap: 3px; }
 .cal-group-add-input {
   height: 24px; padding: 0 8px; border: 1.5px solid var(--accent); border-radius: 20px;
@@ -1527,8 +1527,8 @@ onUnmounted(() => {
   color: var(--muted); font-family: inherit; display: flex; align-items: center;
   justify-content: center; transition: all .15s; padding: 0;
 }
-.cal-group-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.08); }
-.cal-group-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: rgba(234,78,73,.12); }
+.cal-group-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.cal-group-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: var(--red-soft); }
 .cal-group-add-btn {
   width: 22px; height: 22px; border-radius: 50%; border: 1.5px dashed var(--border);
   font-size: .82rem; line-height: 1; cursor: pointer; background: transparent;
@@ -1543,7 +1543,7 @@ onUnmounted(() => {
 }
 .cal-month-col { display: flex; flex-direction: column; gap: 4px; }
 .cal-month-label {
-  font-family: 'Nunito', sans-serif; font-size: .95rem; font-weight: 800;
+  font-size: .95rem; font-weight: 800;
   color: var(--text); letter-spacing: -.2px; line-height: 1;
 }
 
@@ -1613,14 +1613,14 @@ onUnmounted(() => {
   font-size: .66rem; font-weight: 600; cursor: pointer; color: var(--muted);
   font-family: inherit; white-space: nowrap; transition: all .12s;
 }
-.qa-daytype-toggle button.active { background: var(--accent); color: #fff; }
+.qa-daytype-toggle button.active { background: var(--accent); color: var(--accent-ink); }
 
 .key-date-star {
   background: none; border: 1.5px solid var(--border); border-radius: 6px;
   width: 30px; height: 30px; cursor: pointer; font-size: 1rem; color: var(--muted);
   display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0;
 }
-.key-date-star.active { background: rgba(245,158,11,.1); border-color: var(--warning); color: var(--warning); }
+.key-date-star.active { background: var(--amber-soft); border-color: var(--warning); color: var(--warning); }
 
 .modal-internal-btn {
   background: none; border: 1.5px solid var(--border); border-radius: 6px;
@@ -1628,7 +1628,7 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0;
 }
 .modal-internal-btn:hover { border-color: var(--text); color: var(--text); }
-.modal-internal-btn.active { background: rgba(30,41,59,.08); border-color: var(--text); color: var(--text); }
+.modal-internal-btn.active { background: var(--surface); border-color: var(--text); color: var(--text); }
 
 .modal-completed-btn {
   background: none; border: 1.5px solid var(--border); border-radius: 6px;
@@ -1636,14 +1636,14 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: center; transition: all .15s; flex-shrink: 0;
 }
 .modal-completed-btn:hover { border-color: var(--accent); color: var(--accent); }
-.modal-completed-btn.active { background: rgba(32,167,137,.12); border-color: var(--accent); color: var(--accent); }
+.modal-completed-btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 
 /* ── Event edit card: status & dependency panel ─────────────────────────────── */
 .ev-dep-panel {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
-  background: rgba(0,0,0,.015);
+  background: var(--overlay-soft);
   display: flex; flex-direction: column; gap: 8px;
 }
 .ev-dep-panel > label {
@@ -1659,10 +1659,10 @@ onUnmounted(() => {
   padding: 3px 8px; border-radius: 12px;
   border: 1px solid var(--border); background: var(--surface); color: var(--text);
 }
-.ev-chip-active   { border-color: rgba(32,167,137,.35); background: rgba(32,167,137,.08); color: #057a6b; }
-.ev-chip-paused   { border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.08); color: #a05a04; }
-.ev-chip-dep-on   { border-color: rgba(32,167,137,.35); background: rgba(32,167,137,.08); color: #057a6b; }
-.ev-chip-dep-off  { border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.08); color: #a05a04; }
+.ev-chip-active   { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.ev-chip-paused   { border-color: var(--amber-line); background: var(--amber-soft); color: var(--amber); }
+.ev-chip-dep-on   { border-color: var(--accent-line); background: var(--accent-soft); color: var(--accent); }
+.ev-chip-dep-off  { border-color: var(--amber-line); background: var(--amber-soft); color: var(--amber); }
 .ev-chip-none     { color: var(--muted); }
 
 .ev-dep-sentence {
@@ -1683,7 +1683,7 @@ onUnmounted(() => {
   padding: 4px 8px; transition: border-color .12s;
 }
 .ev-modal-group-opt:has(input:checked) {
-  border-color: var(--accent); background: rgba(32,167,137,.08); color: var(--accent);
+  border-color: var(--accent); background: var(--accent-soft); color: var(--accent);
 }
 .ev-modal-group-opt input { display: none; }
 .ev-dep-actions .btn-small {
@@ -1696,7 +1696,7 @@ onUnmounted(() => {
 .ev-suggest-panel {
   position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
   background: var(--surface); border: 1.5px solid var(--border); border-radius: 8px;
-  overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  overflow: hidden; box-shadow: 0 8px 24px var(--shadow-ink-2);
 }
 .ev-suggest-hint {
   font-size: .62rem; color: var(--muted); padding: 6px 10px 4px;

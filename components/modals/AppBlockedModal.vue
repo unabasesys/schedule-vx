@@ -63,12 +63,12 @@ const mailto = computed(() => {
 .abm-backdrop {
   position: fixed; inset: 0; z-index: 1200;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(11,22,38,.55); backdrop-filter: blur(2px);
+  background: var(--overlay); backdrop-filter: blur(2px);
   padding: 20px;
 }
 .abm-panel {
   width: 100%; max-width: 400px; text-align: center;
-  background: var(--card, #fff); border: 1px solid var(--border);
+  background: var(--card, var(--white)); border: 1px solid var(--border);
   border-radius: 14px; padding: 26px 24px 20px;
   display: flex; flex-direction: column; align-items: center; gap: 10px;
 }

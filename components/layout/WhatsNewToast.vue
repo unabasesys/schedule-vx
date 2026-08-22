@@ -54,7 +54,7 @@ function openFull() { markSeen(); globalStore.openWhatsNew() }
   position: fixed; right: 18px; bottom: 18px; z-index: 900;
   width: min(360px, calc(100vw - 36px));
   background: var(--surface); border: 1.5px solid var(--accent); border-radius: 14px;
-  padding: 14px 16px; box-shadow: 0 12px 32px rgba(0,0,0,.4);
+  padding: 14px 16px; box-shadow: 0 12px 32px var(--shadow-ink-2);
 }
 .wnt-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .wnt-badge { font-size: .74rem; font-weight: 800; color: var(--accent); }

@@ -75,17 +75,17 @@ defineEmits(['close'])
 <style scoped>
 .about-modal-hdr {
   margin: -24px -24px 20px;
-  background: linear-gradient(135deg, var(--navy) 0%, #0d2a40 70%, #0a3a3a 100%);
+  background: linear-gradient(135deg, var(--navy) 0%, var(--surface) 70%, var(--surface) 100%);
   border-radius: 11px 11px 0 0; padding: 28px 28px 22px; position: relative; overflow: hidden;
 }
 .about-modal-hdr::after {
   content: ''; position: absolute; right: -30px; top: -30px; width: 160px; height: 160px;
-  border-radius: 50%; background: radial-gradient(circle,rgba(32,167,137,.18) 0%,transparent 70%);
+  border-radius: 50%; background: radial-gradient(circle,var(--green-soft) 0%,transparent 70%);
   pointer-events: none;
 }
 .about-modal-badge {
   display: inline-flex; align-items: center; gap: 5px;
-  background: rgba(32,167,137,.15); border: 1px solid rgba(32,167,137,.3);
+  background: var(--green-soft); border: 1px solid var(--accent-line);
   border-radius: 12px; padding: 3px 10px; margin-bottom: 12px;
 }
 .about-modal-badge-dot {
@@ -93,12 +93,12 @@ defineEmits(['close'])
   animation: pulso 2.2s ease-in-out infinite;
 }
 .about-modal-badge-txt {
-  font-family: 'Nunito', sans-serif; font-size: .58rem; font-weight: 800;
+  font-size: .58rem; font-weight: 800;
   letter-spacing: .8px; color: var(--accent); text-transform: uppercase;
 }
 .about-modal-title {
-  font-family: 'Nunito', sans-serif; font-size: 1.4rem; font-weight: 800;
-  color: #fff; line-height: 1.2; margin-bottom: 6px;
+  font-size: 1.4rem; font-weight: 800;
+  color: var(--text); line-height: 1.2; margin-bottom: 6px;
 }
 .about-modal-title span { color: var(--accent); }
 
@@ -115,8 +115,8 @@ defineEmits(['close'])
   font-size: .74rem; font-weight: 700; cursor: pointer; font-family: inherit;
   transition: background .13s;
 }
-.help-restore-btn:hover { background: rgba(32,167,137,.12); }
-.about-modal-sub { font-size: .75rem; color: rgba(255,255,255,.55); line-height: 1.5; }
+.help-restore-btn:hover { background: var(--accent-soft); }
+.about-modal-sub { font-size: .75rem; color: var(--text-2); line-height: 1.5; }
 
 .about-modal-body { font-size: .82rem; line-height: 1.75; color: var(--text); }
 .about-modal-body p { margin-bottom: 14px; }
@@ -125,9 +125,9 @@ defineEmits(['close'])
 
 .about-modal-email {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 9px 14px; background: rgba(32,167,137,.07); border: 1.5px solid rgba(32,167,137,.2);
+  padding: 9px 14px; background: var(--accent-soft); border: 1.5px solid var(--accent-line);
   border-radius: 8px; font-size: .77rem; font-weight: 700; color: var(--text);
   text-decoration: none; transition: all .18s;
 }
-.about-modal-email:hover { background: rgba(32,167,137,.14); border-color: var(--accent); }
+.about-modal-email:hover { background: var(--green-soft); border-color: var(--accent); }
 </style>

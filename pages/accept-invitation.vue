@@ -85,7 +85,6 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   background: var(--bg);
-  font-family: 'Nunito', sans-serif;
   padding: 24px;
 }
 
@@ -123,9 +122,9 @@ onMounted(async () => {
   font-size: 28px;
   font-weight: 700;
 }
-.success-icon { background: rgba(32,167,137,.12); color: var(--accent); }
-.error-icon   { background: rgba(234,78,73,.12);  color: var(--danger); }
-.team-icon    { background: rgba(32,167,137,.12); font-size: 32px; }
+.success-icon { background: var(--accent-soft); color: var(--accent); }
+.error-icon   { background: var(--red-soft);  color: var(--danger); }
+.team-icon    { background: var(--accent-soft); font-size: 32px; }
 
 .invite-title {
   font-size: 20px;
@@ -163,7 +162,7 @@ onMounted(async () => {
   display: block;
   padding: 13px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   border: none;
   border-radius: 12px;
   font-size: 15px;
@@ -171,7 +170,6 @@ onMounted(async () => {
   cursor: pointer;
   text-align: center;
   text-decoration: none;
-  font-family: 'Nunito', sans-serif;
   transition: background .15s;
 }
 .btn-primary:hover { background: var(--accent-dark); }
@@ -188,7 +186,6 @@ onMounted(async () => {
   cursor: pointer;
   text-align: center;
   text-decoration: none;
-  font-family: 'Nunito', sans-serif;
   transition: border-color .15s, color .15s;
 }
 .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }

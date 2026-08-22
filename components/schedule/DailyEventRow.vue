@@ -1188,15 +1188,15 @@ function save() {
   align-items: flex-start;
   gap: 0;
   padding: 9px 20px;
-  border-bottom: 1px solid rgba(255,255,255,.04);
+  border-bottom: 1px solid var(--wash-2);
   transition: background .1s;
   min-height: 44px;
   cursor: pointer;
   position: relative;
 }
 .dir--editing { cursor: default; }
-.dir:hover:not(.dir--editing) { background: rgba(255,255,255,.025); }
-.dir--internal { background: rgba(255,160,32,.04); }
+.dir:hover:not(.dir--editing) { background: var(--wash-1); }
+.dir--internal { background: var(--amber-soft); }
 .dir--dragging { opacity: .45; background: var(--surface-2); }
 
 /* ── Tirador de arrastre ── */
@@ -1239,7 +1239,6 @@ function save() {
   font-size: .82rem;
   font-weight: 700;
   color: var(--text);
-  font-family: 'Nunito', sans-serif;
 }
 .dir-time-sec {
   font-size: .65rem;
@@ -1264,7 +1263,7 @@ function save() {
   transition: background .12s, border-color .12s;
 }
 .dir-time-hit:hover {
-  background: var(--surface-3, rgba(255,255,255,.05));
+  background: var(--surface-3, var(--wash-1));
   border-color: var(--border);
 }
 .dir-time-hit:focus-visible {
@@ -1288,10 +1287,10 @@ function save() {
   flex-direction: column;
   gap: 7px;
   padding: 8px;
-  background: var(--surface, #141817);
+  background: var(--surface, var(--overlay));
   border: 1.5px solid var(--border);
   border-radius: 9px;
-  box-shadow: 0 10px 28px -10px rgba(0,0,0,.7);
+  box-shadow: 0 10px 28px -10px var(--shadow-ink-3);
 }
 .dir-time-edit .dir-time-type { flex-wrap: wrap; }
 
@@ -1353,7 +1352,7 @@ function save() {
 }
 .dir-related-label { opacity: .6; }
 .dir-related-conflict {
-  color: #e05252;
+  color: var(--danger);
   opacity: .75;
   font-style: italic;
 }
@@ -1404,7 +1403,7 @@ function save() {
   background: var(--danger);
   border: none;
   border-radius: 5px;
-  color: #fff;
+  color: var(--accent-ink);
   cursor: pointer;
   font-family: inherit;
 }
@@ -1493,7 +1492,7 @@ function save() {
   transition: all .12s;
 }
 .dir-time-type-btn:hover { border-color: var(--text); color: var(--text); }
-.dir-time-type-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.1); }
+.dir-time-type-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
 /* More options */
 .dir-more-toggle {
@@ -1537,7 +1536,7 @@ function save() {
   text-align: left;
 }
 .dir-internal-btn:hover { border-color: var(--warning); color: var(--warning); }
-.dir-internal-btn.active { border-color: var(--warning); color: var(--warning); background: rgba(255,161,32,.08); }
+.dir-internal-btn.active { border-color: var(--warning); color: var(--warning); background: var(--amber-soft); }
 
 /* Department chips (multi-select) */
 .dir-dept-chips {
@@ -1560,7 +1559,7 @@ function save() {
   transition: all .13s;
 }
 .dir-dept-chip:hover { border-color: var(--accent); color: var(--accent); }
-.dir-dept-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(6,204,180,.08); }
+.dir-dept-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
 /* Participants picker */
 .dir-part { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
@@ -1573,7 +1572,7 @@ function save() {
   padding: 3px 5px 3px 4px;
   border: 1.5px solid var(--accent);
   border-radius: 6px;
-  background: rgba(6,204,180,.08);
+  background: var(--accent-soft);
   color: var(--accent);
   font-size: .72rem;
   font-weight: 600;
@@ -1591,9 +1590,9 @@ function save() {
   text-align: left;
 }
 .dir-part-chip-body--editable { cursor: pointer; }
-.dir-part-chip-body--editable:hover { background: rgba(6,204,180,.16); }
+.dir-part-chip-body--editable:hover { background: var(--green-soft); }
 .dir-part-chip--adhoc .dir-part-chip-body--editable:hover,
-.dir-part-chip--missing .dir-part-chip-body--editable:hover { background: rgba(0,0,0,.12); }
+.dir-part-chip--missing .dir-part-chip-body--editable:hover { background: var(--overlay-soft); }
 .dir-part-role-pop {
   position: absolute;
   top: calc(100% + 5px);
@@ -1607,7 +1606,7 @@ function save() {
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+  box-shadow: 0 8px 24px var(--shadow-ink-2);
 }
 .dir-part-role-input {
   width: 100%;
@@ -1636,7 +1635,7 @@ function save() {
 }
 .dir-part-chip--missing {
   border-color: var(--danger);
-  background: rgba(239,68,68,.08);
+  background: var(--red-soft);
   color: var(--danger);
 }
 .dir-part-chip-x {
@@ -1655,7 +1654,7 @@ function save() {
   opacity: .7;
   font-family: inherit;
 }
-.dir-part-chip-x:hover { opacity: 1; background: rgba(0,0,0,.15); }
+.dir-part-chip-x:hover { opacity: 1; background: var(--overlay-soft); }
 .dir-part-search { position: relative; }
 .dir-part-menu {
   position: absolute;
@@ -1668,7 +1667,7 @@ function save() {
   background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+  box-shadow: 0 8px 24px var(--shadow-ink-2);
   padding: 4px;
   display: flex;
   flex-direction: column;
@@ -1730,14 +1729,14 @@ function save() {
 .dir-form-btn--delete {
   background: transparent;
   border: 1.5px solid transparent;
-  color: rgba(239,68,68,.5);
+  color: var(--danger);
   margin-right: auto;
 }
 .dir-form-btn--delete:hover { border-color: var(--danger); color: var(--danger); }
 .dir-form-btn--save {
   background: var(--accent);
   border: 1.5px solid var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
 }
 .dir-form-btn--save:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
 .dir-form-btn--save:disabled { opacity: .4; cursor: not-allowed; }

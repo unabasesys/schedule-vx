@@ -109,13 +109,13 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 <style>
 .dlg-backdrop {
   position: fixed; inset: 0; z-index: 650;
-  background: rgba(0,0,0,.32);
+  background: var(--overlay-soft);
   display: flex; align-items: center; justify-content: center;
 }
 
 .dlg-box {
   background: var(--surface); border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0,0,0,.22);
+  box-shadow: 0 12px 40px var(--shadow-ink-1);
   padding: 24px 28px; width: 360px; max-width: 90vw;
   outline: none;
 }
@@ -138,7 +138,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 
 .dlg-input {
   width: 100%; padding: 7px 10px; box-sizing: border-box;
-  background: var(--surface-2, rgba(255,255,255,.06));
+  background: var(--surface-2, var(--wash-1));
   border: 1.5px solid var(--border); border-radius: 7px;
   color: var(--text); font-size: .82rem; font-family: inherit;
   outline: none;
@@ -159,17 +159,17 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 
 .dlg-confirm {
   padding: 7px 16px; border: none; border-radius: 7px;
-  background: var(--surface-2, rgba(255,255,255,.1)); color: var(--text);
+  background: var(--surface-2, var(--wash-2)); color: var(--text);
   font-size: .76rem; font-weight: 700;
   cursor: pointer; font-family: inherit; transition: background .13s;
 }
-.dlg-confirm:hover { background: rgba(255,255,255,.15); }
+.dlg-confirm:hover { background: var(--wash-3); }
 
 .dlg-confirm.dlg-danger {
-  background: var(--danger, #ef4444); color: #fff;
+  background: var(--danger, var(--danger)); color: var(--accent-ink);
 }
-.dlg-confirm.dlg-danger:hover { background: #dc2020; }
-.dlg-confirm.dlg-danger:focus { outline: 2px solid var(--danger, #ef4444); outline-offset: 2px; }
+.dlg-confirm.dlg-danger:hover { background: var(--danger); }
+.dlg-confirm.dlg-danger:focus { outline: 2px solid var(--danger, var(--danger)); outline-offset: 2px; }
 
 .dlg-choices {
   display: flex; flex-direction: column; gap: 8px;
@@ -178,14 +178,14 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 .dlg-choice-btn {
   width: 100%; padding: 9px 16px; border-radius: 7px;
   border: 1.5px solid var(--border);
-  background: var(--surface-2, rgba(255,255,255,.06));
+  background: var(--surface-2, var(--wash-1));
   color: var(--text); font-size: .78rem; font-weight: 600;
   cursor: pointer; font-family: inherit; text-align: left;
   transition: all .13s;
 }
-.dlg-choice-btn:hover { border-color: var(--muted); background: rgba(255,255,255,.1); }
+.dlg-choice-btn:hover { border-color: var(--muted); background: var(--wash-2); }
 .dlg-choice-btn.dlg-choice-primary {
-  background: var(--accent, #20a789); color: #fff; border-color: transparent;
+  background: var(--accent, var(--accent)); color: var(--accent-ink); border-color: transparent;
 }
 .dlg-choice-btn.dlg-choice-primary:hover { filter: brightness(1.1); }
 </style>

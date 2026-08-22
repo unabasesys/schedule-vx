@@ -128,7 +128,7 @@
               <div v-if="!readOnly && !stage._orphan" class="stage-color-wrap" @click.stop>
                 <button
                   class="stage-color-dot"
-                  :style="{ background: stage.color || project.color || '#20a789' }"
+                  :style="{ background: stage.color || project.color || 'var(--accent)' }"
                   :title="lang === 'en' ? 'Stage color' : 'Color de etapa'"
                   @click.stop="openStageColorPicker(stage.id)"
                 ></button>
@@ -886,7 +886,7 @@ watch(stageColorPickerId, (val) => {
 /* ── Toolbar ── */
 .ev-list-toolbar {
   display: flex; align-items: center; gap: 6px; padding: 8px 16px;
-  background: var(--header-bg); border-bottom: 1px solid rgba(255,255,255,.06); flex-shrink: 0;
+  background: var(--header-bg); border-bottom: 1px solid var(--wash-2); flex-shrink: 0;
 }
 
 .ev-new-event-btn {
@@ -905,7 +905,7 @@ watch(stageColorPickerId, (val) => {
 .ev-move-btn:hover { border-color: var(--text); color: var(--text); }
 .ev-deps-toggle-btn.deps-active,
 .ev-deps-enable-btn.deps-active {
-  background: var(--accent); color: #fff; border-color: var(--accent);
+  background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
 }
 .ev-deps-toggle-btn.deps-active:hover,
 .ev-deps-enable-btn.deps-active:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
@@ -917,9 +917,9 @@ watch(stageColorPickerId, (val) => {
   font-size: .68rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s; white-space: nowrap;
 }
-.ev-filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
+.ev-filter-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .ev-filter-btn:hover:not(.active) { border-color: var(--muted); }
-.ev-filter-btn.keydates-btn.active { border-color: var(--warning); color: var(--warning); background: rgba(245,158,11,.08); }
+.ev-filter-btn.keydates-btn.active { border-color: var(--warning); color: var(--warning); background: var(--amber-soft); }
 
 .ev-save-tmpl-btn {
   padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 6px;
@@ -930,14 +930,14 @@ watch(stageColorPickerId, (val) => {
 .ev-save-tmpl-btn--active {
   border-color: var(--accent) !important;
   color: var(--accent) !important;
-  background: rgba(32,167,137,.08) !important;
+  background: var(--accent-soft) !important;
 }
 .ev-save-tmpl-btn:disabled { opacity: .35; cursor: not-allowed; }
 
 /* ── Groups panel ── */
 .groups-panel {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 16px; border-bottom: 1px solid rgba(255,255,255,.06);
+  padding: 6px 16px; border-bottom: 1px solid var(--wash-2);
   background: var(--bg); flex-shrink: 0; overflow-x: auto;
 }
 .groups-panel-title { font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); flex-shrink: 0; }
@@ -948,7 +948,7 @@ watch(stageColorPickerId, (val) => {
   font-size: .64rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s;
 }
-.group-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
+.group-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .group-chip:hover:not(.active) { border-color: var(--text); color: var(--text); }
 .group-chip-name { line-height: 1; }
 .group-chip-x {
@@ -956,7 +956,7 @@ watch(stageColorPickerId, (val) => {
   width: 14px; height: 14px; border-radius: 50%; font-size: .68rem; line-height: 1;
   color: var(--muted); transition: all .13s; flex-shrink: 0;
 }
-.group-chip-x:hover { background: rgba(239,68,68,.12); color: var(--danger); }
+.group-chip-x:hover { background: var(--red-soft); color: var(--danger); }
 
 .group-add-form { display: inline-flex; align-items: center; gap: 3px; }
 .group-add-input {
@@ -970,8 +970,8 @@ watch(stageColorPickerId, (val) => {
   color: var(--muted); font-family: inherit; display: flex; align-items: center;
   justify-content: center; transition: all .15s; padding: 0;
 }
-.group-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.08); }
-.group-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: rgba(234,78,73,.12); }
+.group-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.group-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: var(--red-soft); }
 
 .group-add-btn {
   width: 22px; height: 22px; border-radius: 50%; border: 1.5px dashed var(--border);
@@ -983,7 +983,7 @@ watch(stageColorPickerId, (val) => {
 
 /* ── Conflicts bar ── */
 .conflicts-bar {
-  background: rgba(234,78,73,.12); border-bottom: 1px solid #fee2e2;
+  background: var(--red-soft); border-bottom: 1px solid var(--border);
   padding: 6px 20px; font-size: .72rem; color: var(--danger);
   display: flex; align-items: center; gap: 6px; flex-shrink: 0;
 }
@@ -1011,7 +1011,7 @@ watch(stageColorPickerId, (val) => {
   font-size: .76rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s;
 }
-.move-dir-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
+.move-dir-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .move-dir-btn:hover:not(.active) { border-color: var(--muted); }
 
 .move-amount-row {
@@ -1029,7 +1029,7 @@ watch(stageColorPickerId, (val) => {
   font-size: .76rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s;
 }
-.move-unit-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
+.move-unit-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .move-unit-btn:hover:not(.active) { border-color: var(--muted); }
 
 /* ── Stage header management ── */
@@ -1053,7 +1053,7 @@ watch(stageColorPickerId, (val) => {
   font-family: inherit; display: flex; align-items: center; justify-content: center;
   padding: 0; transition: all .13s;
 }
-.stage-move-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
+.stage-move-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .stage-move-btn:disabled { opacity: .25; cursor: default; }
 
 .stage-del-btn {
@@ -1062,7 +1062,7 @@ watch(stageColorPickerId, (val) => {
   font-family: inherit; display: flex; align-items: center; justify-content: center;
   padding: 0; transition: all .13s;
 }
-.stage-del-btn:hover { border-color: var(--danger); color: var(--danger); background: rgba(234,78,73,.12); }
+.stage-del-btn:hover { border-color: var(--danger); color: var(--danger); background: var(--red-soft); }
 
 .stage-name-input {
   font-size: .7rem; font-weight: 700; font-family: inherit;
@@ -1108,8 +1108,8 @@ watch(stageColorPickerId, (val) => {
   color: var(--muted); font-family: inherit; display: flex; align-items: center;
   justify-content: center; transition: all .15s; padding: 0;
 }
-.stage-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.08); }
-.stage-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: rgba(234,78,73,.12); }
+.stage-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.stage-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: var(--red-soft); }
 
 /* No-stages nudge modal */
 .no-stage-modal { max-width: 380px; }
@@ -1129,7 +1129,7 @@ watch(stageColorPickerId, (val) => {
   color: var(--text); font-family: inherit; text-align: left;
   transition: all .13s;
 }
-.stage-picker-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.05); }
+.stage-picker-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
 /* Delete Stage modal */
 .delete-stage-modal { max-width: 380px; }
@@ -1138,7 +1138,7 @@ watch(stageColorPickerId, (val) => {
 .delete-stage-body { font-size: .78rem; color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
 .btn-danger {
   padding: 8px 18px; border: none; border-radius: 7px;
-  background: var(--danger); color: #fff; font-size: .78rem; font-weight: 700;
+  background: var(--danger); color: var(--accent-ink); font-size: .78rem; font-weight: 700;
   cursor: pointer; font-family: inherit; transition: opacity .13s;
 }
 .btn-danger:hover { opacity: .88; }
@@ -1150,7 +1150,7 @@ watch(stageColorPickerId, (val) => {
 .ev-row-dnd-wrap.ev-drop-below { border-bottom: 2px solid var(--accent); }
 
 .ev-stage-hdr.stage-drop-target {
-  background: rgba(32,167,137,.08);
+  background: var(--accent-soft);
   outline: 1.5px solid var(--accent);
   outline-offset: -1px;
 }
@@ -1161,18 +1161,18 @@ watch(stageColorPickerId, (val) => {
 }
 .stage-color-dot {
   width: 11px; height: 11px; border-radius: 50%;
-  border: 1.5px solid rgba(255,255,255,.18);
+  border: 1.5px solid var(--wash-line);
   cursor: pointer; padding: 0; flex-shrink: 0;
   transition: transform .13s, box-shadow .13s;
 }
 .stage-color-dot:hover {
   transform: scale(1.25);
-  box-shadow: 0 0 0 2px rgba(255,255,255,.12);
+  box-shadow: 0 0 0 2px var(--wash-3);
 }
 .stage-color-picker {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 100;
   background: var(--surface-2, var(--surface)); border: 1px solid var(--border);
-  border-radius: 9px; padding: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.35);
+  border-radius: 9px; padding: 10px; box-shadow: 0 6px 24px var(--shadow-ink-2);
   min-width: 168px;
 }
 .stage-color-swatches {
@@ -1185,7 +1185,7 @@ watch(stageColorPickerId, (val) => {
 }
 .stage-color-swatch:hover { transform: scale(1.2); }
 .stage-color-swatch.selected {
-  border-color: #fff; box-shadow: 0 0 0 1.5px rgba(255,255,255,.5);
+  border-color: var(--white); box-shadow: 0 0 0 1.5px var(--wash-3);
 }
 .stage-color-reset {
   width: 100%; padding: 4px 8px; border-radius: 5px;

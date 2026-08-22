@@ -227,7 +227,7 @@ onMounted(() => {
   z-index: 200;
   max-height: 240px;
   overflow-y: auto;
-  box-shadow: 0 6px 24px rgba(0,0,0,.35);
+  box-shadow: 0 6px 24px var(--shadow-ink-2);
 }
 
 .dtp-drop-header {
@@ -243,11 +243,11 @@ onMounted(() => {
 .dtp-opt {
   padding: 7px 10px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(255,255,255,.03);
+  border-bottom: 1px solid var(--wash-2);
   transition: background .1s;
 }
 .dtp-opt:last-child { border-bottom: none; }
-.dtp-opt:hover { background: rgba(32,167,137,.1); }
+.dtp-opt:hover { background: var(--accent-soft); }
 
 .dtp-opt-main {
   font-size: .74rem;

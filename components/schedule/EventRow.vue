@@ -685,10 +685,10 @@ function updateDepAnchor(anchor) {
   min-height: 38px;
   transition: background .1s;
 }
-.ev-row:hover { background: rgba(0,0,0,.015); }
+.ev-row:hover { background: var(--overlay-soft); }
 .ev-row.ev-inactive { opacity: .45; }
 .ev-row.ev-completed .ev-main { opacity: .6; }
-.ev-row.ev-conflict-row { background: rgba(239,68,68,.03); }
+.ev-row.ev-conflict-row { background: var(--red-soft); }
 
 /* ── ① Actions ── */
 .ev-actions {
@@ -719,7 +719,7 @@ function updateDepAnchor(anchor) {
 .ev-toggle input { display: none; }
 .ev-toggle-slider {
   width: 32px; height: 18px; border-radius: 9px;
-  background: #d1d5db; position: relative;
+  background: var(--surface-3); position: relative;
   transition: background .2s;
   flex-shrink: 0;
 }
@@ -728,7 +728,7 @@ function updateDepAnchor(anchor) {
   width: 14px; height: 14px; border-radius: 50%;
   background: var(--surface); top: 2px; left: 2px;
   transition: transform .2s cubic-bezier(.4,0,.2,1);
-  box-shadow: 0 1px 3px rgba(0,0,0,.22), 0 1px 1px rgba(0,0,0,.1);
+  box-shadow: 0 1px 3px var(--shadow-ink-1), 0 1px 1px var(--shadow-ink-1);
 }
 .ev-toggle input:checked + .ev-toggle-slider { background: var(--accent); }
 .ev-toggle input:checked + .ev-toggle-slider::after { transform: translateX(14px); }
@@ -763,7 +763,7 @@ function updateDepAnchor(anchor) {
   opacity: .45; flex-shrink: 0; transition: all .13s;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.ev-delete-btn:hover { color: var(--danger); opacity: 1; background: rgba(239,68,68,.08); }
+.ev-delete-btn:hover { color: var(--danger); opacity: 1; background: var(--red-soft); }
 
 /* ── ② Name + info ── */
 .ev-main {
@@ -811,7 +811,7 @@ function updateDepAnchor(anchor) {
   font-size: .62rem; font-weight: 700; background: var(--surface); cursor: pointer; font-family: inherit;
   transition: all .13s; white-space: nowrap; line-height: 1; color: var(--muted);
 }
-.ev-dur-type-btn.is-business { border-color: var(--accent); color: var(--text); background: rgba(32,167,137,.08); }
+.ev-dur-type-btn.is-business { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
 .ev-dur-type-btn.is-calendar { border-color: var(--accent); color: var(--accent); }
 .ev-dur-type-btn:hover { border-color: var(--accent); }
 
@@ -871,7 +871,7 @@ function updateDepAnchor(anchor) {
 }
 .ev-dep-section.ev-dep-on {
   border-left-color: var(--accent);
-  background: rgba(32,167,137,.04);
+  background: var(--accent-soft);
 }
 .ev-dep-section.ev-dep-paused {
   border-left-color: var(--border);
@@ -879,7 +879,7 @@ function updateDepAnchor(anchor) {
 }
 .ev-dep-section.ev-dep-broken {
   border-left-color: var(--danger);
-  background: rgba(239,68,68,.04);
+  background: var(--red-soft);
 }
 
 /* Controls wrapper — dimmed when paused so the play button stays fully visible */
@@ -899,7 +899,7 @@ function updateDepAnchor(anchor) {
   cursor: pointer; font-size: .8rem; padding: 3px 6px; color: var(--muted);
   line-height: 1; flex-shrink: 0; transition: all .13s;
 }
-.ev-dep-play.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.08); }
+.ev-dep-play.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .ev-dep-play:hover:not(.active) { border-color: var(--muted); color: var(--text); }
 
 .ev-dep-rel {
@@ -938,8 +938,8 @@ function updateDepAnchor(anchor) {
   flex-shrink: 0; transition: all .13s; white-space: nowrap;
 }
 .ev-group-btn:hover { border-color: var(--text); color: var(--text); }
-.ev-group-btn.has-groups { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.07); }
-.ev-group-btn.has-groups:hover { background: rgba(32,167,137,.14); }
+.ev-group-btn.has-groups { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.ev-group-btn.has-groups:hover { background: var(--green-soft); }
 
 .ev-group-icon { font-size: .72rem; }
 .ev-group-count {
@@ -955,7 +955,7 @@ function updateDepAnchor(anchor) {
 .ev-group-menu-portal {
   position: fixed; z-index: 500;
   background: var(--surface); border: 1.5px solid var(--border);
-  border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.13);
+  border-radius: 8px; box-shadow: 0 6px 24px var(--shadow-ink-1);
   padding: 6px; min-width: 180px; max-width: 260px;
 }
 
@@ -983,13 +983,13 @@ function updateDepAnchor(anchor) {
 /* ── Delete confirmation modal ── */
 .ev-delete-backdrop {
   position: fixed; inset: 0; z-index: 600;
-  background: rgba(0,0,0,.32);
+  background: var(--overlay-soft);
   display: flex; align-items: center; justify-content: center;
 }
 
 .ev-delete-modal {
   background: var(--surface); border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+  box-shadow: 0 12px 40px var(--shadow-ink-1);
   padding: 24px 28px; width: 340px; max-width: 90vw;
 }
 
@@ -1016,16 +1016,16 @@ function updateDepAnchor(anchor) {
 
 .ev-delete-confirm {
   padding: 7px 16px; border: none; border-radius: 7px;
-  background: var(--danger); color: #fff; font-size: .76rem; font-weight: 700;
+  background: var(--danger); color: var(--accent-ink); font-size: .76rem; font-weight: 700;
   cursor: pointer; font-family: inherit; transition: background .13s;
 }
-.ev-delete-confirm:hover { background: #dc2020; }
+.ev-delete-confirm:hover { background: var(--danger); }
 .ev-delete-confirm:focus { outline: 2px solid var(--danger); outline-offset: 2px; }
 
 /* Toggle-off hint modal */
 .ev-off-hint-modal {
   background: var(--surface); border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+  box-shadow: 0 12px 40px var(--shadow-ink-1);
   padding: 24px 28px; width: 360px; max-width: 90vw;
 }
 .ev-off-hint-body {
@@ -1045,5 +1045,5 @@ function updateDepAnchor(anchor) {
 .ev-off-hint-modal .ev-delete-confirm {
   background: var(--accent);
 }
-.ev-off-hint-modal .ev-delete-confirm:hover { background: #19967a; }
+.ev-off-hint-modal .ev-delete-confirm:hover { background: var(--accent); }
 </style>

@@ -74,28 +74,28 @@ function go(a) {
 .apps-group { padding: 4px 12px 8px; }
 .apps-label {
   font-size: .58rem; font-weight: 800; text-transform: uppercase; letter-spacing: .8px;
-  color: rgba(255,255,255,.28); padding: 0 2px 6px;
+  color: var(--dim); padding: 0 2px 6px;
 }
 .apps-item {
   display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 8px;
   background: none; border: none; border-radius: 8px; cursor: pointer;
-  font-family: inherit; text-align: left; color: rgba(255,255,255,.55);
+  font-family: inherit; text-align: left; color: var(--text-2);
   transition: background .14s, color .14s;
 }
 .apps-item + .apps-item { margin-top: 2px; }
-.apps-icon { display: flex; align-items: center; color: rgba(255,255,255,.38); flex-shrink: 0; transition: color .14s; }
+.apps-icon { display: flex; align-items: center; color: var(--muted); flex-shrink: 0; transition: color .14s; }
 .apps-label-text { flex: 1; font-size: .74rem; font-weight: 600; }
-.apps-item:hover { background: rgba(255,255,255,.06); color: #fff; }
-.apps-item:hover .apps-icon { color: rgba(255,255,255,.7); }
+.apps-item:hover { background: var(--wash-1); color: var(--text); }
+.apps-item:hover .apps-icon { color: var(--text-2); }
 
 /* La app de casa, con el mismo verde plano que el resto del menú. */
 .apps-item.active {
-  background: rgba(32,167,137,.12);
+  background: var(--accent-soft);
   color: var(--accent);
   cursor: default;
 }
 .apps-item.active .apps-icon { color: var(--accent); }
-.apps-item.active:hover { background: rgba(32,167,137,.12); color: var(--accent); }
+.apps-item.active:hover { background: var(--accent-soft); color: var(--accent); }
 .apps-item.active:hover .apps-icon { color: var(--accent); }
 
 /* ── Candado (§8.1) ──
@@ -104,12 +104,12 @@ function go(a) {
    `title`, así que el motivo del candado quedaría fuera del alcance del teclado y de
    quien navega con lector de pantalla. El clic se ignora en `go()`. */
 .apps-item.locked { opacity: .45; cursor: default; }
-.apps-item.locked:hover { background: none; color: rgba(255,255,255,.55); }
-.apps-item.locked:hover .apps-icon { color: rgba(255,255,255,.38); }
+.apps-item.locked:hover { background: none; color: var(--text-2); }
+.apps-item.locked:hover .apps-icon { color: var(--muted); }
 /* El candado sí se aviva al pasar por encima: confirma que el gris es intencional y no
    la app a medio cargar. */
-.apps-item.locked:hover .apps-lock { color: rgba(255,255,255,.7); }
-.apps-lock { display: flex; align-items: center; color: rgba(255,255,255,.32); flex-shrink: 0; transition: color .14s; }
+.apps-item.locked:hover .apps-lock { color: var(--text-2); }
+.apps-lock { display: flex; align-items: center; color: var(--muted); flex-shrink: 0; transition: color .14s; }
 
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

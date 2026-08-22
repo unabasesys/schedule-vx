@@ -247,7 +247,7 @@ function onKeyDown(e) {
   color: var(--muted); font-family: inherit; transition: all .15s;
 }
 .hdr-share-btn:hover, .hdr-share-btn.active {
-  border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06);
+  border-color: var(--accent); color: var(--accent); background: var(--accent-soft);
 }
 .hdr-share-btn:disabled {
   opacity: .4; cursor: not-allowed; pointer-events: auto;
@@ -259,7 +259,7 @@ function onKeyDown(e) {
 .share-panel {
   position: absolute; right: 0; top: calc(100% + 6px); z-index: 200;
   background: var(--surface); border: 1.5px solid var(--border); border-radius: 10px;
-  box-shadow: 0 8px 30px rgba(0,30,45,.12); padding: 6px 0; width: 300px;
+  box-shadow: 0 8px 30px var(--shadow-ink-1); padding: 6px 0; width: 300px;
 }
 
 /* ── Sections ── */
@@ -282,11 +282,11 @@ function onKeyDown(e) {
   display: flex; flex-direction: column; gap: 3px;
 }
 .share-action-btn:last-child { margin-bottom: 0; }
-.share-action-btn:hover:not(:disabled) { border-color: var(--accent); background: rgba(32,167,137,.04); }
+.share-action-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
 .share-action-btn:disabled { opacity: .55; cursor: default; }
 
 .share-action-btn--version {
-  border-color: rgba(32,167,137,.35);
+  border-color: var(--accent-line);
 }
 .share-action-btn--version:hover:not(:disabled) {
   border-color: var(--accent);
@@ -300,10 +300,10 @@ function onKeyDown(e) {
 }
 .share-action-badge {
   font-size: .62rem; font-weight: 700; padding: 1px 5px; border-radius: 4px;
-  background: rgba(32,167,137,.15); color: var(--accent);
+  background: var(--green-soft); color: var(--accent);
 }
 .share-action-badge--draft {
-  background: rgba(107,107,107,.1); color: var(--muted);
+  background: var(--slate-soft); color: var(--muted);
 }
 .share-action-spinner {
   font-size: .72rem; color: var(--muted); margin-left: auto;
@@ -338,7 +338,7 @@ function onKeyDown(e) {
   cursor: pointer; font-family: inherit; transition: all .13s;
 }
 .seg-btn:hover { border-color: var(--text); color: var(--text); }
-.seg-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.1); }
+.seg-btn.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
 /* ── Daily Schedule only ── */
 .daily-empty {
@@ -350,7 +350,7 @@ function onKeyDown(e) {
 }
 .daily-export-btn {
   padding: 6px 16px; border: none; border-radius: 7px;
-  background: var(--accent); color: #fff; font-size: .75rem; font-weight: 700;
+  background: var(--accent); color: var(--accent-ink); font-size: .75rem; font-weight: 700;
   cursor: pointer; font-family: inherit; transition: background .13s;
 }
 .daily-export-btn:hover:not(:disabled) { background: var(--accent-dark); }

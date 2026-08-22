@@ -117,7 +117,7 @@ watch(total, (newTotal) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, .45);
+  background: var(--overlay);
   backdrop-filter: blur(2px);
   padding: 24px;
 }
@@ -129,7 +129,7 @@ watch(total, (newTotal) => {
   width: 100%;
   max-width: 400px;
   text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
+  box-shadow: 0 20px 60px var(--shadow-ink-2);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -201,13 +201,12 @@ watch(total, (newTotal) => {
 .inv-btn-accept {
   padding: 13px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   border: none;
   border-radius: 12px;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  font-family: 'Nunito', sans-serif;
   transition: background .15s;
 }
 .inv-btn-accept:hover:not(:disabled) { background: var(--accent-dark); }
@@ -222,7 +221,6 @@ watch(total, (newTotal) => {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  font-family: 'Nunito', sans-serif;
   transition: border-color .15s, color .15s;
 }
 .inv-btn-decline:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }

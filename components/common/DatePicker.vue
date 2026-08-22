@@ -301,7 +301,7 @@ onBeforeUnmount(() => {
   transition: border-color .15s, box-shadow .15s;
 }
 .dp-field:hover:not(:disabled) { border-color: var(--accent); }
-.dp-field.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(32,167,137,.18); }
+.dp-field.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
 .dp-field:disabled { cursor: default; opacity: .6; }
 /* Modo `bare`: la caja la pone quien lo usa. */
 .dp.bare .dp-field {
@@ -322,51 +322,51 @@ onBeforeUnmount(() => {
 <style>
 .dp-cal {
   position: fixed; z-index: 1200; width: 268px; padding: 10px;
-  background: var(--surface, #384752); border: 1px solid var(--border, #545f72);
-  border-radius: 12px; box-shadow: var(--shadow-m, 0 20px 40px -8px rgba(0,0,0,.5));
+  background: var(--surface, var(--surface)); border: 1px solid var(--border, var(--border));
+  border-radius: 12px; box-shadow: var(--shadow-m, 0 20px 40px -8px var(--shadow-ink-2));
   font-family: inherit;
 }
 .dp-cal .dp-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .dp-cal .dp-nav {
   width: 26px; height: 26px; flex: none; display: grid; place-items: center;
-  background: none; border: 1px solid var(--border, #545f72); border-radius: 8px;
-  color: var(--text, #f3f4f6); font-size: 1rem; line-height: 1; cursor: pointer; font-family: inherit;
+  background: none; border: 1px solid var(--border, var(--border)); border-radius: 8px;
+  color: var(--text, var(--text)); font-size: 1rem; line-height: 1; cursor: pointer; font-family: inherit;
   transition: border-color .14s, color .14s;
 }
-.dp-cal .dp-nav:hover { border-color: var(--accent, #20a789); color: var(--accent, #20a789); }
+.dp-cal .dp-nav:hover { border-color: var(--accent, var(--accent-line)); color: var(--accent, var(--accent)); }
 .dp-cal .dp-sel {
   flex: 1; min-width: 0; padding: 5px 6px; font-family: inherit; font-size: .8rem; font-weight: 600;
-  background: var(--surface-2, #404e5c); color: var(--text, #f3f4f6);
-  border: 1px solid var(--border, #545f72); border-radius: 8px; cursor: pointer; outline: none;
+  background: var(--surface-2, var(--surface-3)); color: var(--text, var(--text));
+  border: 1px solid var(--border, var(--border)); border-radius: 8px; cursor: pointer; outline: none;
 }
-.dp-cal .dp-sel:focus { border-color: var(--accent, #20a789); }
+.dp-cal .dp-sel:focus { border-color: var(--accent, var(--accent-line)); }
 .dp-cal .dp-sel-year { flex: 0 0 76px; }
 
 .dp-cal .dp-dows, .dp-cal .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .dp-cal .dp-dows span {
   text-align: center; padding: 4px 0; font-size: .64rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .4px; color: var(--muted, #adb5c2);
+  text-transform: uppercase; letter-spacing: .4px; color: var(--muted, var(--muted));
 }
 .dp-cal .dp-day {
   height: 32px; display: grid; place-items: center;
   background: none; border: 1px solid transparent; border-radius: 8px;
-  color: var(--text, #f3f4f6); font-family: inherit; font-size: .8rem; font-weight: 600;
+  color: var(--text, var(--text)); font-family: inherit; font-size: .8rem; font-weight: 600;
   cursor: pointer; transition: background .12s, color .12s, border-color .12s;
 }
-.dp-cal .dp-day:hover:not(:disabled) { background: rgba(255,255,255,.07); }
-.dp-cal .dp-day:focus-visible { outline: none; border-color: var(--accent, #20a789); }
+.dp-cal .dp-day:hover:not(:disabled) { background: var(--wash-2); }
+.dp-cal .dp-day:focus-visible { outline: none; border-color: var(--accent, var(--accent-line)); }
 /* Días del mes vecino: se ven, pero no compiten con el mes en pantalla. */
-.dp-cal .dp-day.other { color: var(--muted, #adb5c2); font-weight: 400; opacity: .7; }
-.dp-cal .dp-day.today { border-color: var(--accent, #20a789); color: var(--accent, #20a789); }
-.dp-cal .dp-day.sel { background: var(--accent, #20a789); border-color: var(--accent, #20a789); color: #fff; }
-.dp-cal .dp-day:disabled { color: var(--muted, #adb5c2); opacity: .35; cursor: default; }
+.dp-cal .dp-day.other { color: var(--muted, var(--muted)); font-weight: 400; opacity: .7; }
+.dp-cal .dp-day.today { border-color: var(--accent, var(--accent-line)); color: var(--accent, var(--accent)); }
+.dp-cal .dp-day.sel { background: var(--accent, var(--accent)); border-color: var(--accent, var(--accent-line)); color: var(--accent-ink); }
+.dp-cal .dp-day:disabled { color: var(--muted, var(--muted)); opacity: .35; cursor: default; }
 
 .dp-cal .dp-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .dp-cal .dp-chip {
-  padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border, #545f72);
-  background: none; color: var(--muted, #adb5c2); font-family: inherit;
+  padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border, var(--border));
+  background: none; color: var(--muted, var(--muted)); font-family: inherit;
   font-size: .74rem; font-weight: 700; cursor: pointer; transition: all .12s;
 }
-.dp-cal .dp-chip:hover { color: var(--text, #f3f4f6); border-color: var(--muted, #adb5c2); }
-.dp-cal .dp-chip.active { background: rgba(32,167,137,.14); border-color: var(--accent, #20a789); color: var(--accent, #20a789); }
+.dp-cal .dp-chip:hover { color: var(--text, var(--text)); border-color: var(--muted, var(--border)); }
+.dp-cal .dp-chip.active { background: var(--green-soft); border-color: var(--accent, var(--accent-line)); color: var(--accent, var(--accent)); }
 </style>

@@ -178,7 +178,6 @@ const handleReset = async () => {
   align-items: center;
   justify-content: center;
   background: var(--bg);
-  font-family: 'Nunito', sans-serif;
   padding: 24px;
 }
 
@@ -199,7 +198,7 @@ const handleReset = async () => {
   display: flex;
   flex-direction: column;
   padding: 36px 32px;
-  background-image: linear-gradient(160deg, #1e272e 0%, #253035 60%, #1a3040 100%);
+  background-image: radial-gradient(120% 90% at 50% -10%, var(--surface) 0%, var(--overlay) 55%, var(--overlay) 100%);
 }
 
 .panel-logo {
@@ -231,7 +230,7 @@ const handleReset = async () => {
 
 .panel-tagline {
   font-size: 14px;
-  color: rgba(255,255,255,.55);
+  color: var(--text-2);
   line-height: 1.6;
   margin: 0;
 }
@@ -246,7 +245,7 @@ const handleReset = async () => {
   width: 20px;
   height: 3px;
   border-radius: 2px;
-  background: rgba(255,255,255,.25);
+  background: var(--wash-3);
 }
 
 .dot.active {
@@ -298,7 +297,6 @@ const handleReset = async () => {
   border: none;
   color: var(--muted);
   font-size: 13px;
-  font-family: 'Nunito', sans-serif;
   cursor: pointer;
   padding: 0;
   text-align: left;
@@ -330,7 +328,6 @@ const handleReset = async () => {
   background: var(--surface-2);
   outline: none;
   transition: border-color .15s;
-  font-family: 'Nunito', sans-serif;
   width: 100%;
   box-sizing: border-box;
 }
@@ -339,8 +336,8 @@ const handleReset = async () => {
 
 /* Error */
 .auth-error {
-  background: rgba(234, 78, 73, .12);
-  border: 1px solid rgba(234, 78, 73, .3);
+  background: var(--red-soft);
+  border: 1px solid var(--red-line);
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 13px;
@@ -367,14 +364,13 @@ const handleReset = async () => {
 .btn-primary {
   padding: 13px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   border: none;
   border-radius: 12px;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   transition: background .15s, transform .1s;
-  font-family: 'Nunito', sans-serif;
   margin-top: 4px;
   letter-spacing: 0.2px;
 }

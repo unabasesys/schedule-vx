@@ -80,18 +80,18 @@ html, body, #__nuxt {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--navy, #1e272e);
-  color: rgba(255,255,255,.55);
+  background: var(--navy, var(--surface));
+  color: var(--text-2);
   border: none;
   border-radius: 0 8px 8px 0;
   cursor: pointer;
-  box-shadow: 3px 0 10px rgba(0,0,0,.2);
+  box-shadow: 3px 0 10px var(--shadow-ink-1);
   transition: background .15s, color .15s, width .15s;
 }
 .sb-reopen-btn:hover {
   width: 34px;
-  background: var(--accent, #20a789);
-  color: #1e272e;
+  background: var(--accent, var(--accent));
+  color: var(--accent-ink);
 }
 
 /* Fade-in transition for the reopen button */

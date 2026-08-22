@@ -77,7 +77,7 @@ function onKeydown(e) {
   font-family: inherit; display: flex; align-items: center; justify-content: center;
   transition: background .12s, color .12s; user-select: none;
 }
-.num-stepper-btn:hover:not(:disabled) { background: rgba(32,167,137,.1); color: var(--accent); }
+.num-stepper-btn:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
 .num-stepper-btn:disabled { opacity: .35; cursor: default; }
 
 .num-stepper-input {

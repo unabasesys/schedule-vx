@@ -77,6 +77,6 @@ async function save() {
   font-size: .78rem; color: var(--muted); line-height: 1.55; margin: 14px 0 0;
 }
 .create-org-error {
-  margin-top: 8px; font-size: .78rem; color: var(--danger, #e05252);
+  margin-top: 8px; font-size: .78rem; color: var(--danger, var(--danger));
 }
 </style>

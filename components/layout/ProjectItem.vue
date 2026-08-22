@@ -162,9 +162,9 @@ const calendarSpan = computed(() => {
   border-radius: 8px; margin-bottom: 2px; cursor: pointer; position: relative;
   transition: background .12s;
 }
-.proj-item:hover { background: rgba(255,255,255,.07); }
+.proj-item:hover { background: var(--wash-2); }
 .proj-item.selected {
-  background: rgba(32,167,137,.12);
+  background: var(--accent-soft);
   border-left: 2px solid var(--accent);
   padding-left: 6px;
 }
@@ -175,23 +175,23 @@ const calendarSpan = computed(() => {
 
 .proj-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .proj-name {
-  font-size: .79rem; font-weight: 700; color: #fff;
+  font-size: .79rem; font-weight: 700; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.3;
 }
 .proj-sub {
-  font-size: .64rem; color: rgba(255,255,255,.38);
+  font-size: .64rem; color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px;
 }
 .proj-crew {
-  font-size: .61rem; color: rgba(255,255,255,.25);
+  font-size: .61rem; color: var(--dim);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; font-style: italic;
 }
 .proj-version {
-  font-size: .54rem; font-weight: 700; color: rgba(255,255,255,.3); margin-top: 2px; letter-spacing: .3px;
+  font-size: .54rem; font-weight: 700; color: var(--muted); margin-top: 2px; letter-spacing: .3px;
 }
 .proj-version.changed { color: var(--warning); }
 .proj-event-count {
-  font-size: .54rem; font-weight: 600; color: rgba(255,255,255,.25); margin-top: 1px; letter-spacing: .3px;
+  font-size: .54rem; font-weight: 600; color: var(--dim); margin-top: 1px; letter-spacing: .3px;
 }
 
 .proj-badges { display: flex; align-items: center; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
@@ -202,15 +202,15 @@ const calendarSpan = computed(() => {
   cursor: pointer; transition: opacity .15s;
 }
 .proj-status:hover { opacity: .75; }
-.proj-status.competing { background: rgba(245,158,11,.2);  color: #f59e0b; }
-.proj-status.awarded   { background: rgba(16,185,129,.2);  color: #10b981; }
-.proj-status.lost      { background: rgba(244,63,94,.15);  color: #f43f5e; }
-.proj-status.draft     { background: rgba(148,163,184,.15); color: #94a3b8; }
-.proj-status.archived  { background: rgba(255,255,255,.08); color: rgba(255,255,255,.35); }
+.proj-status.competing { background: var(--amber-soft);  color: var(--amber); }
+.proj-status.awarded   { background: var(--green-soft);  color: var(--accent); }
+.proj-status.lost      { background: var(--red-soft);  color: var(--danger); }
+.proj-status.draft     { background: var(--slate-soft); color: var(--muted); }
+.proj-status.archived  { background: var(--wash-2); color: var(--muted); }
 
 .proj-conflict {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; height: 14px; color: #f97316; flex-shrink: 0;
+  width: 14px; height: 14px; color: var(--amber); flex-shrink: 0;
 }
 .proj-conflict svg { width: 12px; height: 12px; }
 
@@ -220,14 +220,14 @@ const calendarSpan = computed(() => {
 }
 .proj-act-btn {
   background: none; border: none; cursor: pointer; padding: 3px;
-  border-radius: 4px; color: rgba(255,255,255,.4);
+  border-radius: 4px; color: var(--muted);
   display: flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity .12s;
 }
 .proj-item:hover .proj-act-btn { opacity: 1; }
 .proj-act-btn--eye-shown { opacity: 1; }
 .proj-act-btn svg { width: 13px; height: 13px; }
-.proj-act-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
-.proj-act-btn--danger { color: rgba(239,68,68,.6); }
-.proj-act-btn--danger:hover { background: rgba(239,68,68,.12); color: #ef4444; }
+.proj-act-btn:hover { background: var(--wash-2); color: var(--text); }
+.proj-act-btn--danger { color: var(--danger); }
+.proj-act-btn--danger:hover { background: var(--red-soft); color: var(--danger); }
 </style>

@@ -594,12 +594,12 @@ function duplicateItem(item) {
 }
 .dv-top-btn:hover { border-color: var(--text); color: var(--text); }
 .dv-top-btn--accent { border-color: var(--accent); color: var(--accent); }
-.dv-top-btn--accent:hover { background: rgba(32,167,137,.15); }
+.dv-top-btn--accent:hover { background: var(--green-soft); }
 
 /* ── Departments filter panel ── */
 .dv-groups-panel {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 16px; border-bottom: 1px solid rgba(255,255,255,.06);
+  padding: 6px 16px; border-bottom: 1px solid var(--wash-2);
   background: var(--bg); flex-shrink: 0; overflow-x: auto;
 }
 .dv-groups-panel-title {
@@ -613,7 +613,7 @@ function duplicateItem(item) {
   font-size: .64rem; font-weight: 600; cursor: pointer; background: var(--surface); color: var(--muted);
   font-family: inherit; transition: all .15s;
 }
-.dv-group-chip.active { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.06); }
+.dv-group-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .dv-group-chip:hover:not(.active) { border-color: var(--text); color: var(--text); }
 .dv-group-chip-name { line-height: 1; }
 .dv-group-chip-x {
@@ -621,7 +621,7 @@ function duplicateItem(item) {
   width: 14px; height: 14px; border-radius: 50%; font-size: .68rem; line-height: 1;
   color: var(--muted); transition: all .13s; flex-shrink: 0;
 }
-.dv-group-chip-x:hover { background: rgba(239,68,68,.12); color: var(--danger); }
+.dv-group-chip-x:hover { background: var(--red-soft); color: var(--danger); }
 
 .dv-group-add-form { display: inline-flex; align-items: center; gap: 3px; }
 .dv-group-add-input {
@@ -635,8 +635,8 @@ function duplicateItem(item) {
   color: var(--muted); font-family: inherit; display: flex; align-items: center;
   justify-content: center; transition: all .15s; padding: 0;
 }
-.dv-group-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.08); }
-.dv-group-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: rgba(234,78,73,.12); }
+.dv-group-add-confirm:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.dv-group-add-cancel:hover  { border-color: var(--danger); color: var(--danger); background: var(--red-soft); }
 
 .dv-group-add-btn {
   width: 22px; height: 22px; border-radius: 50%; border: 1.5px dashed var(--border);
@@ -680,7 +680,7 @@ function duplicateItem(item) {
   white-space: nowrap;
   flex-shrink: 0;
 }
-.dv-tz-badge.primary { background: rgba(32,167,137,.15); color: var(--accent); }
+.dv-tz-badge.primary { background: var(--green-soft); color: var(--accent); }
 /* Read-only stand-in for the picker on an archived calendar */
 .dv-tz-readonly { font-size: .8rem; color: var(--text); }
 .dv-tz-remove {
@@ -704,20 +704,20 @@ function duplicateItem(item) {
   font-weight: 600;
   color: var(--accent);
   background: none;
-  border: 1.5px dashed rgba(32,167,137,.4);
+  border: 1.5px dashed var(--accent-line);
   border-radius: 6px;
   padding: 4px 10px;
   cursor: pointer;
   font-family: inherit;
   transition: all .15s;
 }
-.dv-tz-add:hover { background: rgba(32,167,137,.08); border-color: var(--accent); }
+.dv-tz-add:hover { background: var(--accent-soft); border-color: var(--accent); }
 .dv-tz-save {
   font-size: .72rem;
   font-weight: 700;
   padding: 5px 14px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -743,7 +743,6 @@ function duplicateItem(item) {
   gap: 10px;
 }
 .dv-empty-title {
-  font-family: 'Nunito', sans-serif;
   font-size: .95rem;
   font-weight: 700;
   color: var(--text-title);
@@ -753,7 +752,7 @@ function duplicateItem(item) {
   margin-top: 6px;
   padding: 8px 20px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   border: none;
   border-radius: 20px;
   font-size: .75rem;
@@ -785,7 +784,6 @@ function duplicateItem(item) {
   min-width: 0;
 }
 .dv-day-dow {
-  font-family: 'Nunito', sans-serif;
   font-size: .9rem;
   font-weight: 800;
   color: var(--text-title);
@@ -805,7 +803,7 @@ function duplicateItem(item) {
 .dv-day-tz-sec { opacity: .7; }
 .dv-day-add {
   background: none;
-  border: 1.5px solid rgba(32,167,137,.35);
+  border: 1.5px solid var(--accent-line);
   border-radius: 6px;
   color: var(--accent);
   font-size: .68rem;
@@ -817,7 +815,7 @@ function duplicateItem(item) {
   transition: all .15s;
   flex-shrink: 0;
 }
-.dv-day-add:hover { background: rgba(32,167,137,.12); border-color: var(--accent); }
+.dv-day-add:hover { background: var(--accent-soft); border-color: var(--accent); }
 
 .dv-day-items { padding: 4px 0 6px; }
 
@@ -827,7 +825,7 @@ function duplicateItem(item) {
   height: 0;
   border-top: 2px solid var(--accent);
   margin: -1px 0;
-  box-shadow: 0 0 6px rgba(6,204,180,.5);
+  box-shadow: 0 0 6px var(--accent-glow);
   pointer-events: none;
 }
 

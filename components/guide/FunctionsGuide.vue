@@ -470,7 +470,7 @@ const L = computed(() => LABELS[props.lang] ?? LABELS.es)
 /* The design's own palette is this app's palette one step darker, so it maps onto the
    existing tokens: page --bg, cards --surface, inset mocks back to --bg. Stage dots use
    the real --stage-* colors instead of the mockup's, so the guide teaches the color
-   language the user is about to see. Type stays Nunito (inherit) — the mock's Poppins
+   language the user is about to see. Type stays inherited (Plus Jakarta Sans) — the mock's Poppins
    would be the only other font in the product. */
 .fg {
   padding: 34px 40px 48px;
@@ -534,7 +534,7 @@ const L = computed(() => LABELS[props.lang] ?? LABELS.es)
   border: none; border-left: 3px solid transparent;
   cursor: pointer; font-family: inherit; transition: background .13s, border-color .13s;
 }
-.fg-rail-item:hover { background: rgba(255,255,255,.04); }
+.fg-rail-item:hover { background: var(--wash-1); }
 .fg-rail-item.on { background: var(--surface); border-left-color: var(--accent); }
 .fg-rail-num {
   width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
@@ -612,7 +612,7 @@ const L = computed(() => LABELS[props.lang] ?? LABELS.es)
 .fg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .fg-badge {
   font-size: .68rem; padding: 4px 10px; border-radius: 999px;
-  background: rgba(32,167,137,.18); color: var(--accent); white-space: nowrap;
+  background: var(--green-soft); color: var(--accent); white-space: nowrap;
 }
 
 .fg-mock--deps { display: flex; flex-direction: column; }

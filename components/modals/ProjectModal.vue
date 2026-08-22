@@ -319,26 +319,26 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 <style scoped>
 .pm-loc-selected {
   display: flex; align-items: center; gap: 7px; padding: 5px 10px;
-  background: rgba(6,204,180,.08); border: 1.5px solid var(--accent); border-radius: 7px;
+  background: var(--accent-soft); border: 1.5px solid var(--accent); border-radius: 7px;
   font-size: .76rem; font-weight: 600; color: var(--text);
 }
 .pm-loc-clear {
   background: none; border: none; cursor: pointer; color: var(--muted);
   font-size: .8rem; margin-left: auto; padding: 0 2px; line-height: 1;
 }
-.pm-loc-clear:hover { color: #e53e3e; }
+.pm-loc-clear:hover { color: var(--danger); }
 
 .pm-loc-suggestions {
   position: absolute; left: 0; right: 0; top: 100%; z-index: 200;
   background: var(--surface); border: 1.5px solid var(--accent); border-radius: 7px;
-  box-shadow: 0 4px 18px rgba(0,0,0,.12); overflow: hidden; margin-top: 2px;
+  box-shadow: 0 4px 18px var(--shadow-ink-1); overflow: hidden; margin-top: 2px;
 }
 .pm-loc-item {
   padding: 7px 12px; cursor: pointer; font-size: .76rem;
   border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 1px;
 }
 .pm-loc-item:last-child { border-bottom: none; }
-.pm-loc-item:hover { background: rgba(6,204,180,.08); }
+.pm-loc-item:hover { background: var(--accent-soft); }
 .pm-loc-item strong { color: var(--text); font-weight: 700; }
 .pm-loc-item span { color: var(--muted); font-size: .66rem; }
 
@@ -355,20 +355,20 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .status-btn {
   flex: 1; padding: 7px 10px; border-radius: 7px; border: 1.5px solid var(--border);
   font-size: .72rem; font-weight: 700; cursor: pointer; font-family: inherit;
-  background: none; color: #fff; transition: all .12s; letter-spacing: .2px;
+  background: none; color: var(--text); transition: all .12s; letter-spacing: .2px;
 }
 .status-btn:hover { opacity: .8; }
 
 /* Competing — amber */
 .status-btn.status-competing.active {
-  background: rgba(245,158,11,.15); border-color: #f59e0b; color: #fff;
+  background: var(--amber-soft); border-color: var(--amber-line); color: var(--text);
 }
 /* Won — emerald */
 .status-btn.status-awarded.active {
-  background: rgba(16,185,129,.15); border-color: #10b981; color: #fff;
+  background: var(--green-soft); border-color: var(--accent-line); color: var(--text);
 }
 /* Lost — rose */
 .status-btn.status-lost.active {
-  background: rgba(244,63,94,.12); border-color: #f43f5e; color: #fff;
+  background: var(--red-soft); border-color: var(--danger); color: var(--text);
 }
 </style>

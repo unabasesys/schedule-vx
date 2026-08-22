@@ -101,7 +101,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown, true))
 .iam-backdrop {
   position: fixed; inset: 0; z-index: 1300;   /* sobre el modal de Configuración */
   display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,.42); backdrop-filter: blur(2px);
+  background: var(--overlay); backdrop-filter: blur(2px);
   padding: 20px;
 }
 .iam-panel {
@@ -122,7 +122,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown, true))
   transition: border-color .15s, color .15s, background .15s;
 }
 .iam-chip:hover { border-color: var(--accent); }
-.iam-chip--on { border-color: var(--accent); color: var(--accent); background: rgba(32,167,137,.10); }
+.iam-chip--on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .iam-box {
   width: 16px; height: 16px; flex: 0 0 16px;
   display: flex; align-items: center; justify-content: center;

@@ -65,8 +65,8 @@
             left:       `calc(${bar.col * COL_W}% + 3px)`,
             width:      `calc(${bar.span * COL_W}% - 6px)`,
             top:        (BASE_TOP + bar.lane * LANE_H) + 'px',
-            background: bar.isKey ? '#111' : bar.color,
-            color:      bar.isKey ? '#fff' : 'rgba(0,0,0,.78)',
+            background: bar.isKey ? 'var(--overlay)' : bar.color,
+            color:      bar.isKey ? 'var(--text)' : 'var(--accent-ink)',
           }"
           :title="bar.isHoliday ? bar.name : barTooltip(bar)"
           :draggable="!readOnly && !bar.isHoliday && !bar.outOfMonth"
@@ -138,7 +138,7 @@
             :key="bar.evId"
             class="cal-overflow-item"
             :class="{ 'cal-overflow-done': bar.event?.completed }"
-            :style="{ borderLeftColor: bar.isKey ? '#111' : bar.color }"
+            :style="{ borderLeftColor: bar.isKey ? 'var(--border)' : bar.color }"
             @click="!readOnly && onOverflowEventClick(bar.event)"
           >
             <span v-if="bar.isKey" class="cal-overflow-key">★</span>
@@ -504,7 +504,7 @@ const weeks = computed(() => {
       if (evEnd < weekStart || evStart > weekEnd) continue
 
       const name  = props.lang === 'en' ? (ev.nameEN || ev.name) : ev.name
-      const color = ev._stageColor || ev._projColor || '#20a789'
+      const color = ev._stageColor || ev._projColor || 'var(--accent)'
 
       if (isBusinessEv) {
         // Business-day events: render only on actual business days,
@@ -554,7 +554,7 @@ const weeks = computed(() => {
         col:            ci,
         span:           1,
         name:           cell.holidayName,
-        color:          '#ebebeb',
+        color:          'var(--muted)',
         isKey:          false,
         lane:           -1,
         continuesLeft:  false,
@@ -694,7 +694,7 @@ function formatOverflowDate(dateStr) {
 
 .cal-week-days {
   display: grid; grid-template-columns: repeat(7, 1fr);
-  border-bottom: 1px solid rgba(255,255,255,.04);
+  border-bottom: 1px solid var(--wash-2);
 }
 
 .cal-day {
@@ -705,12 +705,12 @@ function formatOverflowDate(dateStr) {
   min-height: 32px;
 }
 .cal-day:last-child { border-right: none; }
-.cal-day:hover:not(.cal-day-other) { background: rgba(32,167,137,.05); }
+.cal-day:hover:not(.cal-day-other) { background: var(--accent-soft); }
 .cal-day-other { opacity: .3; cursor: default; }
-.cal-day-today { background: rgba(32,167,137,.07) !important; }
-.cal-day-weekend { background: rgba(0,0,0,.08); }
-.cal-day-holiday { background: rgba(245,158,11,.04); }
-.cal-day-focused { background: rgba(32,167,137,.13) !important; outline: 2px solid var(--accent); outline-offset: -2px; }
+.cal-day-today { background: var(--accent-soft) !important; }
+.cal-day-weekend { background: var(--overlay-soft); }
+.cal-day-holiday { background: var(--amber-soft); }
+.cal-day-focused { background: var(--green-soft) !important; outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .cal-day-num {
   font-size: .74rem; font-weight: 600; color: var(--text); line-height: 1;
@@ -718,7 +718,7 @@ function formatOverflowDate(dateStr) {
   width: 20px; height: 20px;
 }
 .cal-day-num.today {
-  background: var(--accent); color: #fff; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink); border-radius: 50%;
   font-weight: 800;
 }
 
@@ -750,15 +750,15 @@ function formatOverflowDate(dateStr) {
 }
 .bar-arrow-right { margin-left: auto; }
 .cal-ev-bar.bar-dragging  { opacity: .4; cursor: grabbing; }
-.cal-ev-bar.bar-dragover  { outline: 2px solid rgba(0,0,0,.5); outline-offset: -1px; filter: brightness(1.15); }
+.cal-ev-bar.bar-dragover  { outline: 2px solid var(--border); outline-offset: -1px; filter: brightness(1.15); }
 @keyframes bar-save-pulse {
   0%   { opacity: 1;   filter: brightness(1); }
   35%  { opacity: .55; filter: brightness(1.2); }
   100% { opacity: 1;   filter: brightness(1); }
 }
 .cal-ev-bar.bar-saving { animation: bar-save-pulse .65s ease-out; pointer-events: none; }
-.cal-day.cal-day-droptarget         { background: rgba(32,167,137,.13)  !important; outline: 2px solid var(--accent); outline-offset: -2px; }
-.cal-day.cal-day-droptarget-invalid { background: rgba(239,68,68,.08)   !important; outline: 2px solid #ef4444;      outline-offset: -2px; }
+.cal-day.cal-day-droptarget         { background: var(--green-soft)  !important; outline: 2px solid var(--accent); outline-offset: -2px; }
+.cal-day.cal-day-droptarget-invalid { background: var(--red-soft)   !important; outline: 2px solid var(--danger);      outline-offset: -2px; }
 
 .bar-label {
   font-size: .62rem; font-weight: 700; color: inherit;
@@ -769,7 +769,7 @@ function formatOverflowDate(dateStr) {
 }
 .bar-internal-icon {
   display: inline-flex; align-items: center; flex-shrink: 0;
-  margin-right: 3px; pointer-events: none; color: rgba(0,0,0,.6);
+  margin-right: 3px; pointer-events: none; color: var(--accent-ink);
 }
 
 .bar-dep-icon {
@@ -789,7 +789,7 @@ function formatOverflowDate(dateStr) {
 
 .bar-done-icon {
   display: inline-flex; align-items: center; flex-shrink: 0;
-  margin-right: 3px; pointer-events: none; color: rgba(0,0,0,.65);
+  margin-right: 3px; pointer-events: none; color: var(--accent-ink);
 }
 
 .bar-key-icon {
@@ -800,21 +800,21 @@ function formatOverflowDate(dateStr) {
 
 .bar-daily-dot {
   width: 5px; height: 5px; border-radius: 50%;
-  background: rgba(0,0,0,.35);
+  background: var(--overlay-soft);
   flex-shrink: 0; margin-left: 4px; pointer-events: none;
   align-self: center;
 }
 .cal-ev-bar.bar-key .bar-daily-dot {
-  background: rgba(255,255,255,.55);
+  background: var(--wash-3);
 }
 
 .cal-ev-bar.bar-holiday {
   cursor: pointer;
-  border-left: 2px solid #bbb;
+  border-left: 2px solid var(--border);
 }
 .cal-ev-bar.bar-holiday .bar-label {
   font-style: italic;
-  color: #555;
+  color: var(--muted);
   font-weight: 500;
 }
 
@@ -826,7 +826,7 @@ function formatOverflowDate(dateStr) {
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
-  background: var(--surface-2, rgba(255,255,255,.06));
+  background: var(--surface-2, var(--wash-1));
   border: 1px solid var(--border);
   line-height: 1.4; white-space: nowrap;
   box-sizing: border-box;
@@ -834,19 +834,19 @@ function formatOverflowDate(dateStr) {
 }
 .cal-more-badge:hover {
   color: var(--text);
-  background: rgba(32,167,137,.12);
+  background: var(--accent-soft);
   border-color: var(--accent);
 }
 
 /* ── Day overflow modal ── */
 .cal-overflow-backdrop {
   position: fixed; inset: 0; z-index: 400;
-  background: rgba(0,0,0,.28);
+  background: var(--overlay-soft);
   display: flex; align-items: center; justify-content: center;
 }
 .cal-overflow-modal {
   background: var(--surface); border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0,0,0,.22);
+  box-shadow: 0 12px 40px var(--shadow-ink-1);
   width: 320px; max-width: 92vw;
   max-height: 70vh; display: flex; flex-direction: column;
   overflow: hidden;
@@ -867,7 +867,7 @@ function formatOverflowDate(dateStr) {
   cursor: pointer; border-radius: 6px;
   transition: background .12s, color .12s;
 }
-.cal-overflow-close:hover { background: rgba(255,255,255,.08); color: var(--text); }
+.cal-overflow-close:hover { background: var(--wash-2); color: var(--text); }
 .cal-overflow-list {
   overflow-y: auto; padding: 8px 10px;
   display: flex; flex-direction: column; gap: 4px;
@@ -877,10 +877,10 @@ function formatOverflowDate(dateStr) {
   padding: 7px 10px; border-radius: 6px;
   border-left: 3px solid transparent;
   font-size: .76rem; font-weight: 600; color: var(--text);
-  cursor: pointer; background: var(--surface-2, rgba(255,255,255,.04));
+  cursor: pointer; background: var(--surface-2, var(--wash-1));
   transition: background .1s;
 }
-.cal-overflow-item:hover { background: rgba(32,167,137,.1); }
+.cal-overflow-item:hover { background: var(--accent-soft); }
 .cal-overflow-done { opacity: .55; text-decoration: line-through; }
 .cal-overflow-key  { font-size: .52rem; flex-shrink: 0; }
 </style>

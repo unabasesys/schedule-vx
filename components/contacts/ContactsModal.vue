@@ -205,7 +205,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .cm-add input:focus { outline: none; border-color: var(--accent); }
 .cm-add-btn {
   padding: 6px 12px; border: none; border-radius: 6px; background: var(--accent);
-  color: #fff; font-size: .74rem; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap;
+  color: var(--accent-ink); font-size: .74rem; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap;
 }
 .cm-add-btn:disabled { opacity: .5; cursor: default; }
 
@@ -254,5 +254,5 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 .cm-icon:hover { color: var(--text); border-color: var(--text); }
 .cm-ok:hover { color: var(--accent); border-color: var(--accent); }
-.cm-del:hover { color: #e53e3e; border-color: #e53e3e; }
+.cm-del:hover { color: var(--danger); border-color: var(--danger); }
 </style>

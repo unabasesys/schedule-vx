@@ -179,7 +179,6 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   background: var(--bg);
-  font-family: 'Nunito', sans-serif;
   padding: 24px;
 }
 
@@ -202,7 +201,7 @@ onMounted(() => {
   flex-direction: column;
   padding: 36px 32px;
   position: relative;
-  background-image: linear-gradient(160deg, #1e272e 0%, #253035 60%, #1a3040 100%);
+  background-image: radial-gradient(120% 90% at 50% -10%, var(--surface) 0%, var(--overlay) 55%, var(--overlay) 100%);
 }
 
 .panel-logo {
@@ -234,7 +233,7 @@ onMounted(() => {
 
 .panel-tagline {
   font-size: 14px;
-  color: rgba(255,255,255,.55);
+  color: var(--text-2);
   line-height: 1.6;
   margin: 0;
 }
@@ -249,7 +248,7 @@ onMounted(() => {
   width: 20px;
   height: 3px;
   border-radius: 2px;
-  background: rgba(255,255,255,.25);
+  background: var(--wash-3);
 }
 
 .dot.active {
@@ -272,7 +271,6 @@ onMounted(() => {
   cursor: pointer;
   font-size: 11px;
   font-weight: 700;
-  font-family: 'Nunito', sans-serif;
   letter-spacing: .5px;
   color: var(--muted);
   padding: 2px 4px;
@@ -355,7 +353,6 @@ onMounted(() => {
   background: var(--surface-2);
   outline: none;
   transition: border-color .15s;
-  font-family: 'Nunito', sans-serif;
   width: 100%;
   box-sizing: border-box;
 }
@@ -421,8 +418,8 @@ onMounted(() => {
 
 /* Error */
 .auth-error {
-  background: rgba(234, 78, 73, .12);
-  border: 1px solid rgba(234, 78, 73, .3);
+  background: var(--red-soft);
+  border: 1px solid var(--red-line);
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 13px;
@@ -433,14 +430,13 @@ onMounted(() => {
 .btn-primary {
   padding: 13px;
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-ink);
   border: none;
   border-radius: 12px;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   transition: background .15s, transform .1s;
-  font-family: 'Nunito', sans-serif;
   margin-top: 4px;
   letter-spacing: 0.2px;
 }

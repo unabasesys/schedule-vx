@@ -221,7 +221,7 @@ function formatDate(dateStr) {
 .holidays-panel {
   position: fixed; top: 0; right: 0; bottom: 0; width: 320px;
   background: var(--surface); border-left: 1px solid var(--border);
-  box-shadow: -4px 0 20px rgba(0,30,45,.1); z-index: 200;
+  box-shadow: -4px 0 20px var(--shadow-ink-1); z-index: 200;
   display: flex; flex-direction: column;
   transform: translateX(100%); transition: transform .25s;
 }
@@ -232,7 +232,7 @@ function formatDate(dateStr) {
   display: flex; align-items: center; gap: 10px; flex-shrink: 0;
 }
 .holidays-panel-title {
-  font-family: 'Nunito', sans-serif; font-size: .9rem; font-weight: 700; color: var(--text); flex: 1;
+  font-size: .9rem; font-weight: 700; color: var(--text); flex: 1;
 }
 .holidays-panel-close {
   background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1.1rem; padding: 2px 6px; border-radius: 5px;
@@ -250,7 +250,7 @@ function formatDate(dateStr) {
 .holidays-results {
   position: absolute; top: 100%; left: 16px; right: 16px; z-index: 10;
   background: var(--surface); border: 1.5px solid var(--border); border-radius: 7px;
-  box-shadow: 0 8px 20px rgba(0,30,45,.1); max-height: 180px; overflow-y: auto; margin-top: 2px;
+  box-shadow: 0 8px 20px var(--shadow-ink-1); max-height: 180px; overflow-y: auto; margin-top: 2px;
 }
 .holidays-results-item {
   padding: 7px 12px; font-size: .78rem; cursor: pointer; border-bottom: 1px solid var(--border);
@@ -288,7 +288,7 @@ function formatDate(dateStr) {
   width: 12px; height: 12px; border-radius: 50%;
   background: var(--surface); top: 2px; left: 2px;
   transition: transform .18s;
-  box-shadow: 0 1px 2px rgba(0,0,0,.2);
+  box-shadow: 0 1px 2px var(--shadow-ink-1);
 }
 .hol-toggle input:checked + .hol-toggle-slider { background: var(--accent); }
 .hol-toggle input:checked + .hol-toggle-slider::after { transform: translateX(14px); }
@@ -310,7 +310,7 @@ function formatDate(dateStr) {
 .holiday-country-name { flex: 1; font-size: .8rem; font-weight: 600; color: var(--text); }
 .holiday-country-count { font-size: .68rem; color: var(--muted); }
 .holiday-del-btn {
-  background: none; border: none; cursor: pointer; font-size: .75rem; color: #ccc; padding: 2px 4px; border-radius: 4px;
+  background: none; border: none; cursor: pointer; font-size: .75rem; color: var(--muted); padding: 2px 4px; border-radius: 4px;
 }
 .holiday-del-btn:hover { color: var(--danger); }
 
@@ -324,7 +324,7 @@ function formatDate(dateStr) {
 .holiday-item-date { color: var(--accent); font-weight: 600; flex-shrink: 0; min-width: 36px; }
 .holiday-item-name { color: var(--text); flex: 1; }
 @keyframes hol-highlight-fade {
-  0%   { background: rgba(239,68,68,.22); border-radius: 4px; }
+  0%   { background: var(--red-soft); border-radius: 4px; }
   100% { background: transparent; }
 }
 .holiday-item.holiday-item-highlight {
