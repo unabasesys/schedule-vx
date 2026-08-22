@@ -1263,7 +1263,7 @@ function save() {
   transition: background .12s, border-color .12s;
 }
 .dir-time-hit:hover {
-  background: var(--surface-3, var(--wash-1));
+  background: var(--surface-3);
   border-color: var(--border);
 }
 .dir-time-hit:focus-visible {
@@ -1287,7 +1287,7 @@ function save() {
   flex-direction: column;
   gap: 7px;
   padding: 8px;
-  background: var(--surface, var(--overlay));
+  background: var(--surface);
   border: 1.5px solid var(--border);
   border-radius: 9px;
   box-shadow: 0 10px 28px -10px var(--shadow-ink-3);

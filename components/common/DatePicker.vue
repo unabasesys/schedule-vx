@@ -322,51 +322,51 @@ onBeforeUnmount(() => {
 <style>
 .dp-cal {
   position: fixed; z-index: 1200; width: 268px; padding: 10px;
-  background: var(--surface, var(--surface)); border: 1px solid var(--border, var(--border));
+  background: var(--surface); border: 1px solid var(--border);
   border-radius: 12px; box-shadow: var(--shadow-m, 0 20px 40px -8px var(--shadow-ink-2));
   font-family: inherit;
 }
 .dp-cal .dp-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .dp-cal .dp-nav {
   width: 26px; height: 26px; flex: none; display: grid; place-items: center;
-  background: none; border: 1px solid var(--border, var(--border)); border-radius: 8px;
-  color: var(--text, var(--text)); font-size: 1rem; line-height: 1; cursor: pointer; font-family: inherit;
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-size: 1rem; line-height: 1; cursor: pointer; font-family: inherit;
   transition: border-color .14s, color .14s;
 }
-.dp-cal .dp-nav:hover { border-color: var(--accent, var(--accent-line)); color: var(--accent, var(--accent)); }
+.dp-cal .dp-nav:hover { border-color: var(--accent); color: var(--accent); }
 .dp-cal .dp-sel {
   flex: 1; min-width: 0; padding: 5px 6px; font-family: inherit; font-size: .8rem; font-weight: 600;
-  background: var(--surface-2, var(--surface-3)); color: var(--text, var(--text));
-  border: 1px solid var(--border, var(--border)); border-radius: 8px; cursor: pointer; outline: none;
+  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border); border-radius: 8px; cursor: pointer; outline: none;
 }
-.dp-cal .dp-sel:focus { border-color: var(--accent, var(--accent-line)); }
+.dp-cal .dp-sel:focus { border-color: var(--accent); }
 .dp-cal .dp-sel-year { flex: 0 0 76px; }
 
 .dp-cal .dp-dows, .dp-cal .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
 .dp-cal .dp-dows span {
   text-align: center; padding: 4px 0; font-size: .64rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .4px; color: var(--muted, var(--muted));
+  text-transform: uppercase; letter-spacing: .4px; color: var(--muted);
 }
 .dp-cal .dp-day {
   height: 32px; display: grid; place-items: center;
   background: none; border: 1px solid transparent; border-radius: 8px;
-  color: var(--text, var(--text)); font-family: inherit; font-size: .8rem; font-weight: 600;
+  color: var(--text); font-family: inherit; font-size: .8rem; font-weight: 600;
   cursor: pointer; transition: background .12s, color .12s, border-color .12s;
 }
 .dp-cal .dp-day:hover:not(:disabled) { background: var(--wash-2); }
-.dp-cal .dp-day:focus-visible { outline: none; border-color: var(--accent, var(--accent-line)); }
+.dp-cal .dp-day:focus-visible { outline: none; border-color: var(--accent); }
 /* Días del mes vecino: se ven, pero no compiten con el mes en pantalla. */
-.dp-cal .dp-day.other { color: var(--muted, var(--muted)); font-weight: 400; opacity: .7; }
-.dp-cal .dp-day.today { border-color: var(--accent, var(--accent-line)); color: var(--accent, var(--accent)); }
-.dp-cal .dp-day.sel { background: var(--accent, var(--accent)); border-color: var(--accent, var(--accent-line)); color: var(--accent-ink); }
-.dp-cal .dp-day:disabled { color: var(--muted, var(--muted)); opacity: .35; cursor: default; }
+.dp-cal .dp-day.other { color: var(--muted); font-weight: 400; opacity: .7; }
+.dp-cal .dp-day.today { border-color: var(--accent); color: var(--accent); }
+.dp-cal .dp-day.sel { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.dp-cal .dp-day:disabled { color: var(--muted); opacity: .35; cursor: default; }
 
 .dp-cal .dp-quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .dp-cal .dp-chip {
-  padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border, var(--border));
-  background: none; color: var(--muted, var(--muted)); font-family: inherit;
+  padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border);
+  background: none; color: var(--muted); font-family: inherit;
   font-size: .74rem; font-weight: 700; cursor: pointer; transition: all .12s;
 }
-.dp-cal .dp-chip:hover { color: var(--text, var(--text)); border-color: var(--muted, var(--border)); }
-.dp-cal .dp-chip.active { background: var(--green-soft); border-color: var(--accent, var(--accent-line)); color: var(--accent, var(--accent)); }
+.dp-cal .dp-chip:hover { color: var(--text); border-color: var(--muted); }
+.dp-cal .dp-chip.active { background: var(--green-soft); border-color: var(--accent); color: var(--accent); }
 </style>

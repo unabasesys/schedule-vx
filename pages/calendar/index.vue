@@ -516,16 +516,16 @@ function createFromTemplate(tmplId) {
 .save-state--saving { color: var(--muted); }
 .save-state--saving .save-state-dot { animation: savePulse 1s ease-in-out infinite; }
 .save-state--saved  { color: var(--accent); border-color: var(--accent-line); }
-.save-state--error  { color: var(--danger, var(--danger)); border-color: var(--red-line); background: var(--red-soft); }
+.save-state--error  { color: var(--danger); border-color: var(--red-line); background: var(--red-soft); }
 /* Conflict is amber, not red: nothing is broken, it's waiting on a decision —
    and it's the one state you can click, so it needs the affordance. */
 .save-state--conflict {
-  color: var(--warning, var(--amber)); border-color: var(--amber-line);
+  color: var(--warning); border-color: var(--amber-line);
   background: var(--amber-soft); cursor: pointer;
 }
-.save-state--conflict:hover { border-color: var(--warning, var(--amber-line)); background: var(--amber-soft); }
+.save-state--conflict:hover { border-color: var(--warning); background: var(--amber-soft); }
 .save-state--conflict {
-  color: var(--danger, var(--danger)); border-color: var(--red-line);
+  color: var(--danger); border-color: var(--red-line);
   background: var(--red-soft); cursor: pointer;
 }
 .save-state--conflict:hover { background: var(--red-soft); }
@@ -533,7 +533,7 @@ function createFromTemplate(tmplId) {
 /* Terminal, not in progress: no pulse. A blinking dot reads as "working on it",
    which is the exact impression this state exists to remove. */
 .save-state--unreachable {
-  color: var(--danger, var(--danger));
+  color: var(--danger);
   border-color: var(--red-line);
   background: var(--red-soft);
 }
@@ -546,7 +546,7 @@ function createFromTemplate(tmplId) {
   margin-left: 8px;
   display: inline-flex; align-items: center; gap: 8px;
   padding: 7px 16px 7px 11px; border: none; border-radius: 999px;
-  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-dark, var(--accent)) 100%);
+  background: linear-gradient(180deg, var(--accent) 0%, var(--accent-dark) 100%);
   color: var(--accent-ink); font-size: .8rem; font-weight: 700; font-family: inherit; cursor: pointer;
   box-shadow: 0 4px 16px var(--accent-glow);
   animation: heyUnaPulse 2.6s ease-out infinite;

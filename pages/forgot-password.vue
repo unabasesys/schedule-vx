@@ -194,11 +194,23 @@ const handleReset = async () => {
 /* ── Left panel ─────────────────────────────────────────────────────────── */
 .auth-panel-left {
   flex: 0 0 42%;
-  background: var(--navy);
+  /* Pieza de MARCA, no superficie: se queda oscura en los DOS modos. Por eso el
+     degradado va en hexadecimal literal y no en tokens — un token cambia con el
+     tema, y acá justamente no queremos que cambie. Y por eso el bloque redefine
+     su propia tinta: adentro el texto es claro aunque la app esté en claro.
+     Es el patrón a copiar si aparece otra pieza así (§3.2.1). */
+  --text:       #e9edeb;
+  --text-title: #f0f4f2;
+  --text-2:     #a5aeab;
+  --muted:      #77807d;
+  --accent:     #2fe08a;
+  background: #080a0a;
+  background-image: radial-gradient(120% 90% at 50% -10%, #12271e 0%, #0b100e 55%, #080a0a 100%);
+  color: var(--text);
   display: flex;
   flex-direction: column;
   padding: 36px 32px;
-  background-image: radial-gradient(120% 90% at 50% -10%, var(--surface) 0%, var(--overlay) 55%, var(--overlay) 100%);
+  position: relative;
 }
 
 .panel-logo {
@@ -223,7 +235,7 @@ const handleReset = async () => {
 .panel-product {
   font-size: 26px;
   font-weight: 800;
-  color: #fff;
+  color: var(--text-title);
   margin: 0 0 10px;
   letter-spacing: -0.3px;
 }

@@ -841,7 +841,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .logo-thumb {
   width: 56px; height: 56px; object-fit: contain;
   border: 1px solid var(--border); border-radius: 8px;
-  background: var(--bg-soft, var(--surface-2));
+  background: var(--bg-soft);
 }
 .logo-upload-btn {
   display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
@@ -854,8 +854,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   display: inline-flex; align-items: center; cursor: pointer;
   font-size: .72rem;
 }
-.btn-remove-logo { font-size: .72rem; color: var(--danger, var(--danger)); }
-.btn-remove-logo:hover { color: var(--danger, var(--danger)); }
+.btn-remove-logo { font-size: .72rem; color: var(--danger); }
+.btn-remove-logo:hover { color: var(--danger); }
 
 .org-error {
   background: var(--surface-2);

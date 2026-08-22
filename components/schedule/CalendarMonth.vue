@@ -826,7 +826,7 @@ function formatOverflowDate(dateStr) {
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
-  background: var(--surface-2, var(--wash-1));
+  background: var(--surface-2);
   border: 1px solid var(--border);
   line-height: 1.4; white-space: nowrap;
   box-sizing: border-box;
@@ -877,7 +877,7 @@ function formatOverflowDate(dateStr) {
   padding: 7px 10px; border-radius: 6px;
   border-left: 3px solid transparent;
   font-size: .76rem; font-weight: 600; color: var(--text);
-  cursor: pointer; background: var(--surface-2, var(--wash-1));
+  cursor: pointer; background: var(--surface-2);
   transition: background .1s;
 }
 .cal-overflow-item:hover { background: var(--accent-soft); }

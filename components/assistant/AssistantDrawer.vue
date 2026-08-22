@@ -412,7 +412,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 .una-drawer {
   width: 440px; max-width: 94vw; height: 100%;
-  background: var(--surface, var(--surface));
+  background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: -24px 0 60px var(--shadow-ink-2);
   display: flex; flex-direction: column; min-height: 0;
@@ -428,12 +428,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 }
 .una-avatar {
   width: 34px; height: 34px; flex: 0 0 34px; border-radius: 50%;
-  background: linear-gradient(145deg, var(--accent), var(--accent-dark, var(--accent)));
+  background: linear-gradient(145deg, var(--accent), var(--accent-dark));
   display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: .85rem; color: var(--accent-ink);
 }
 .una-id { flex: 1; min-width: 0; }
-.una-name { font-size: .95rem; font-weight: 700; color: var(--text-title, var(--text)); line-height: 1.15; }
+.una-name { font-size: .95rem; font-weight: 700; color: var(--text-title); line-height: 1.15; }
 .una-role { font-size: .7rem; color: var(--muted); }
 .una-board {
   max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -463,7 +463,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   border-bottom-right-radius: 4px; white-space: pre-wrap;
 }
 .una-msg :deep(strong) { color: var(--accent); font-weight: 700; }
-.una-warn { color: var(--warning, var(--amber)); background: var(--amber-soft); }
+.una-warn { color: var(--warning); background: var(--amber-soft); }
 .una-err { color: var(--danger); background: var(--red-soft); }
 .una-fade { animation: unaFade .28s ease both; }
 @keyframes unaFade { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
@@ -485,7 +485,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .una-ev-name {
   flex: 1; min-width: 0;
   border: 1.5px solid var(--border); border-radius: 7px; background: var(--surface);
-  color: var(--text-title, var(--text));
+  color: var(--text-title);
   font-size: .85rem; font-weight: 600; font-family: inherit; padding: 6px 9px; letter-spacing: -.01em;
 }
 .una-ev-name:focus { outline: none; border-color: var(--accent); }
@@ -495,7 +495,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   background: transparent; color: var(--muted); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
-.una-ev-x:hover { background: var(--red-soft); color: var(--danger, var(--danger)); }
+.una-ev-x:hover { background: var(--red-soft); color: var(--danger); }
 
 .una-ev-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: 10px; }
 .una-fld { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -534,7 +534,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   border: none; background: transparent; color: var(--muted); cursor: pointer;
   font-size: .8rem; line-height: 1; padding: 0 1px;
 }
-.una-end-clear:hover { color: var(--danger, var(--danger)); }
+.una-end-clear:hover { color: var(--danger); }
 
 /* Add-another-event — standalone, clearly separate from the event cards */
 .una-ev-add {
@@ -551,7 +551,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   background: var(--accent); color: var(--accent-ink); font-size: .84rem; font-weight: 700;
   font-family: inherit; cursor: pointer; transition: background .13s;
 }
-.una-cta-primary:hover:not(:disabled) { background: var(--accent-dark, var(--accent)); }
+.una-cta-primary:hover:not(:disabled) { background: var(--accent-dark); }
 .una-cta-primary:disabled { opacity: .45; cursor: not-allowed; }
 .una-cta-ghost {
   padding: 11px 18px; border: 1.5px solid var(--border); border-radius: 10px;
@@ -588,7 +588,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
   background: var(--accent); color: var(--accent-ink); cursor: pointer;
   display: flex; align-items: center; justify-content: center; transition: background .13s;
 }
-.una-send:hover:not(:disabled) { background: var(--accent-dark, var(--accent)); }
+.una-send:hover:not(:disabled) { background: var(--accent-dark); }
 .una-send:disabled { opacity: .4; cursor: not-allowed; }
 .una-foot { margin-top: 8px; font-size: .66rem; color: var(--muted); text-align: center; }
 

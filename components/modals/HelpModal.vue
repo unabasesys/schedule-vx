@@ -75,17 +75,29 @@ defineEmits(['close'])
 <style scoped>
 .about-modal-hdr {
   margin: -24px -24px 20px;
-  background: linear-gradient(135deg, var(--navy) 0%, var(--surface) 70%, var(--surface) 100%);
+  /* El encabezado se queda OSCURO también en modo claro: es una pieza de marca,
+     igual que el panel de la pantalla de acceso. Por eso redefine acá los tokens
+     de texto y de acento: dentro de este bloque la tinta es clara aunque la app
+     esté en claro. Mismo bloque que en el front de Relations. */
+  --text:          #eef2f0;
+  --text-title:    #f4f8f6;
+  --text-2:        #a9b4b0;
+  --muted:         #8c9a95;
+  --accent:        #2fe08a;
+  --accent-bright: #4beba0;
+  --accent-soft:   rgba(47,224,138,.12);
+  --accent-line:   #2a5a44;
+  background: linear-gradient(135deg, #080a0a 0%, #0d2a40 70%, #0a3a3a 100%);
   border-radius: 11px 11px 0 0; padding: 28px 28px 22px; position: relative; overflow: hidden;
 }
 .about-modal-hdr::after {
   content: ''; position: absolute; right: -30px; top: -30px; width: 160px; height: 160px;
-  border-radius: 50%; background: radial-gradient(circle,var(--green-soft) 0%,transparent 70%);
+  border-radius: 50%; background: radial-gradient(circle,var(--accent-soft) 0%,transparent 70%);
   pointer-events: none;
 }
 .about-modal-badge {
   display: inline-flex; align-items: center; gap: 5px;
-  background: var(--green-soft); border: 1px solid var(--accent-line);
+  background: var(--accent-soft); border: 1px solid var(--accent-line);
   border-radius: 12px; padding: 3px 10px; margin-bottom: 12px;
 }
 .about-modal-badge-dot {
@@ -98,7 +110,7 @@ defineEmits(['close'])
 }
 .about-modal-title {
   font-size: 1.4rem; font-weight: 800;
-  color: var(--text); line-height: 1.2; margin-bottom: 6px;
+  color: var(--text-title); line-height: 1.2; margin-bottom: 6px;
 }
 .about-modal-title span { color: var(--accent); }
 

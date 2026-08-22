@@ -268,7 +268,7 @@ async function saveAsTemplate(id) {
 
 <style scoped>
 .sidebar {
-  background: var(--sb-bg, var(--surface));
+  background: var(--sb-bg);
   display: flex;
   flex-direction: column;
   overflow: hidden;

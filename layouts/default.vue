@@ -80,7 +80,7 @@ html, body, #__nuxt {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--navy, var(--surface));
+  background: var(--navy);
   color: var(--text-2);
   border: none;
   border-radius: 0 8px 8px 0;
@@ -90,7 +90,7 @@ html, body, #__nuxt {
 }
 .sb-reopen-btn:hover {
   width: 34px;
-  background: var(--accent, var(--accent));
+  background: var(--accent);
   color: var(--accent-ink);
 }
 

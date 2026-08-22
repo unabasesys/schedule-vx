@@ -1171,7 +1171,7 @@ watch(stageColorPickerId, (val) => {
 }
 .stage-color-picker {
   position: absolute; top: calc(100% + 6px); left: 0; z-index: 100;
-  background: var(--surface-2, var(--surface)); border: 1px solid var(--border);
+  background: var(--surface-2); border: 1px solid var(--border);
   border-radius: 9px; padding: 10px; box-shadow: 0 6px 24px var(--shadow-ink-2);
   min-width: 168px;
 }
