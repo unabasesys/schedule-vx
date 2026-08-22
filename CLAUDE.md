@@ -52,6 +52,50 @@ La propuesta no es introducir una herramienta completamente nueva, sino una evol
 
 ---
 
+## 3.1 Sistema visual: Calendar comparte la capa de Relations (ago 2026)
+
+> Pedido de Jorge: *"quiero unificar el diseño de Relations, y su suite
+> Relations, Leads y Calendar... quiero que el usuario sienta que está en la
+> misma aplicación dentro de esos 3 módulos"*.
+> Detalle completo en `Relations/front/CLAUDE.md` §3.2.2.
+
+**Calendar era el diseño original y se había quedado atrás.** Relations nació de
+este repo y en julio 2026 se rediseñó (negro con difuminado verde, verde
+fluorescente, Plus Jakarta Sans, modo claro). Calendar siguió en Nunito sobre
+gris azulado `#323d47` con acento `#20a789` y 46 líneas de tokens. Las clases se
+llamaban igual en las dos (`.btn-primary`, `.modal`, `.field`, `.stage-badge`),
+así que el cambio fue mudar Calendar a la capa que ya existía, no inventar una.
+
+**Reglas que ahora rigen acá:**
+- **No pegar colores a mano en componentes.** Si falta un color, se agrega un
+  token — un color a mano solo puede estar bien en UNO de los dos modos. Se
+  barrieron 453.
+- **No escribir `font-family`.** La tipografía se hereda del body. Había 29
+  `font-family: 'Nunito'` a mano y esa fuente ya no se importa: esos títulos
+  salían con el tipo del sistema.
+- **Tinta sobre un relleno de color = `--accent-ink`**, nunca `#fff`.
+- **Tuteo** en todos los textos (decisión de Jorge).
+- Las **páginas de impresión** (`pages/print/`, `pages/print-daily/`) quedan
+  fuera: definen sus propios tokens locales y deben seguir en papel blanco.
+
+**Modo claro:** interruptor en el pie del sidebar y en Configuración →
+Apariencia. La elección vive en una **cookie de `.unabase.com`**
+(`utils/theme.js`), no en `localStorage`, para que siga al usuario hacia
+Relations y Leads — `localStorage` es por origen y las apps están en
+subdominios distintos.
+
+**Archivos IDÉNTICOS byte a byte con el repo de Relations** (duplicados a
+propósito; los repos son distintos y no hay import posible todavía — si tocas
+uno, copia el otro en el mismo cambio):
+`public/css/colors.css` · `public/css/styles.css` · `utils/theme.js` ·
+`composables/useDialog.js` · `components/modals/DialogModal.vue` ·
+`AppBlockedModal.vue` · `InviteAppsModal.vue` · `PendingInvitationsModal.vue`
+
+**`utils/apps.js` y `AppSwitcher` NO se comparten** y no pueden: lo que acá es
+la app local, allá es externa (§8.9).
+
+---
+
 ## 4. Arquitectura General
 
 > **Destino decidido (2026-07-27):** Calendar deja de ser un producto aparte y pasa a ser
