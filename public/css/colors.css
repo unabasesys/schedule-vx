@@ -1,46 +1,298 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+/* ============================================================
+   unabase — sistema visual unificado (rediseño jul 2026)
+   Negro con difuminado verde · verde fluorescente · superficies
+   planas y bordes sólidos.
+
+   Las TRES apps de la suite comparten esta capa: Relations, Leads
+   (que viven en el mismo front) y Calendar (que vive en el suyo,
+   repo aparte). Los nombres de las variables no cambian nunca,
+   solo sus valores, así que toda la suite se mueve junta y se
+   siente una sola aplicación.
+
+   ESTE ARCHIVO ESTÁ DUPLICADO A PROPÓSITO en los dos fronts y
+   debe quedar IDÉNTICO byte a byte. Los repos son distintos
+   (relations y schedule-vx), así que no hay import posible todavía.
+   Si tocás uno, copiá el otro en el mismo cambio — si se separan,
+   las apps se separan.
+
+   Origen: mock "Pipeline Leads" (Claude Design).
+   ============================================================ */
 
 :root {
-  --sidebar-w: 270px;
+  /* Le dice al navegador que la app es oscura: con esto los controles NATIVOS
+     (listas de <select>, calendario de <input type=date>, autocompletado,
+     scrollbars de Firefox) se dibujan en oscuro y dejan de verse pegoteados
+     sobre el diseño. Los <datalist> se reemplazaron por ComboBox propio. */
+  color-scheme: dark;
 
-  /* Brand */
-  --accent: #20a789;
-  --accent-dark: #19856d;
+  --sidebar-w: 268px;
 
-  /* Dark theme backgrounds */
-  --navy: #1e272e;
-  --bg: #323d47;
-  --surface: #384752;
-  --surface-2: #404e5c;
-  --header-bg: #1e272e;
+  /* ── Marca / acento: el verde fluorescente ── */
+  --accent:        #2fe08a;
+  --accent-bright: #4beba0;
+  --accent-dark:   #1d3b2d;   /* verde profundo: fondos de pastilla/insignia */
+  --accent-deep:   #1d3b2d;
+  --accent-soft:   rgba(47,224,138,.10);
+  --accent-line:   #2a5a44;
+  --accent-glow:   rgba(47,224,138,.45);
+  /* Halo de los botones primarios (el "fluorescente"). */
+  --accent-shadow: 0 6px 22px -8px rgba(47,224,138,.7);
+  --accent-ink:    #07120d;   /* texto sobre el verde */
+  --accent-panel:  #0f1a15;   /* fondo de estado activo (pastillas, nav) */
 
-  /* Text */
-  --text: #f3f4f6;
-  --text-title: #ffffff;
-  --muted: #adb5c2;
+  /* ── Fondos ── */
+  --navy:       #080a0a;   /* lo más profundo: sidebar, pantallas de acceso */
+  --bg:         #0a0c0c;
+  --bg-grad-a:  #10201a;
+  --bg-grad-b:  #0b0e0e;
+  /* Difuminado verde desde arriba: el fondo de las áreas principales. */
+  --bg-radial:  radial-gradient(120% 80% at 50% -10%, #10201a 0%, #0b0e0e 46%, #0a0c0c 100%);
+  --sunken:     #0d1010;   /* columnas del pipeline, pozos de listado */
+  --surface:    #141817;   /* tarjetas, paneles, modales */
+  --surface-2:  #0e1211;   /* campos de formulario y superficies hundidas */
+  --surface-3:  #191f1d;   /* hover / elevado */
+  --header-bg:  #0b0e0e;
 
-  /* Borders */
-  --border: #545f72;
+  /* ── Texto ── */
+  --text:       #e9edeb;
+  --text-title: #f0f4f2;
+  --text-2:     #a5aeab;
+  --muted:      #77807d;
+  --dim:        #4e5755;
+
+  /* ── Bordes: sólidos, como en el diseño ── */
+  --border:        #1c2221;
+  --border-soft:   #171c1b;
+  --border-strong: #2c3532;
 
   /* Sidebar */
-  --sb-bg: #1e272e;
-  --sb-border: rgba(255,255,255,.08);
+  --sidebar:    #080a0a;
+  --sb-bg:      #080a0a;
+  --sb-border:  #171b1a;
 
   --white: #fff;
-  --danger: #ea4e49;
-  --warning: #ffa120;
-  --success: #4ec275;
+  --danger:  #f06d6d;
+  --warning: #f0b429;
+  --success: #2fe08a;
 
-  /* Stage colors */
-  --stage-bid: #7CAEFF;
-  --stage-pre: #20a789;
-  --stage-sht: #f97316;
-  --stage-pst: #a855f7;
-  --stage-vpst: #a855f7;
-  --stage-spst: #ec4899;
+  /* Status (con variantes suaves para fondos). Alineados a la familia del
+     rediseño: ámbar #f0b429, azul cielo #7cb8ff, lila #b99cf5, rosa #ff8fb0. */
+  --green:  #2fe08a;  --green-soft:  rgba(47,224,138,.12);
+  --amber:  #f0b429;  --amber-soft:  rgba(240,180,41,.14);
+  --blue:   #7cb8ff;  --blue-soft:   rgba(124,184,255,.14);   /* Frío */
+  --red:    #f06d6d;  --red-soft:    rgba(240,109,109,.14);
+  --purple: #b99cf5;  --purple-soft: rgba(185,156,245,.14);
+  --new:    #7cb8ff;  --new-soft:    rgba(124,184,255,.14);   /* Nuevo */
+  --slate:  #8d9794;  --slate-soft:  rgba(141,151,148,.14);   /* Desatendido */
 
-  /* Shadows */
-  --shadow-xs: 0px 2px 4px 0px rgba(0,0,0,.24), 0px 1px 2px 0px rgba(0,0,0,.12);
-  --shadow-s: 0px 8px 16px -4px rgba(0,0,0,.24), 0px 2px 4px 0px rgba(0,0,0,.12);
-  --shadow-m: 0px 20px 40px -8px rgba(0,0,0,.32), 0px 2px 4px 0px rgba(0,0,0,.16);
+  /* Paneles sólidos de señal (fondo de pastillas y avisos, estilo del rediseño) */
+  --amber-panel: #3a2a09;  --amber-line: #5a4413;
+  --blue-panel:  #1a2430;  --blue-line:  #2b4258;
+  --red-panel:   #3d1f2c;  --red-line:   #5a2b3c;
+
+  /* Stage colors (heredados, otra feature) */
+  --stage-bid: #7cb8ff;
+  --stage-pre: #2fe08a;
+  --stage-sht: #f0b429;
+  --stage-pst: #b99cf5;
+  --stage-vpst: #b99cf5;
+  --stage-spst: #ff8fb0;
+
+  /* ── Velos y capas (ago 2026, para el modo claro) ──
+     Antes los componentes escribían rgba(255,255,255,.06) a mano para un hover
+     o rgba(0,0,0,.5) para el fondo de un modal. Un blanco translúcido sobre
+     fondo claro es invisible y un negro al 50% sobre claro es una mancha: por
+     eso ahora son tokens y cada modo pone el suyo. */
+  --wash-1:    rgba(255,255,255,.05);   /* hover apenas perceptible */
+  --wash-2:    rgba(255,255,255,.08);   /* superficie translúcida */
+  --wash-3:    rgba(255,255,255,.14);   /* elevada / presionada */
+  --wash-line: rgba(255,255,255,.25);   /* borde sobre superficie teñida */
+  --overlay:      rgba(0,0,0,.5);       /* fondo detrás de un modal */
+  --overlay-soft: rgba(0,0,0,.3);
+
+  /* Barras de scroll, velo de las acciones flotantes y relleno de barritas de
+     progreso: los tres eran valores a mano repartidos por los componentes. */
+  --scroll-thumb:       #242a29;
+  --scroll-thumb-hover: #33403c;
+  --surface-veil:  #0c100fee;   /* barra de acciones sobre la tarjeta (con blur) */
+  --track-fill:    #d0d6d3;     /* barrita "lleva días acá" cuando ya pesa */
+  --track-fill-dim:#6b7573;     /* la misma, cuando recién empieza */
+
+  /* Tinta de las sombras (ago 2026). La geometría de cada sombra se queda donde
+     está —hay sombras con dirección y sombras de dos capas que se diseñaron así—;
+     lo único que cambia entre modos es CON QUÉ se pinta. En oscuro es negro; en
+     claro, un gris verdoso muy tenue: un negro al 90% sobre fondo claro es una
+     mancha, no una sombra. Tres profundidades para no aplanar lo que había. */
+  --shadow-ink-1: rgba(0,0,0,.25);
+  --shadow-ink-2: rgba(0,0,0,.5);
+  --shadow-ink-3: rgba(0,0,0,.9);
+
+  /* ── Estado de la relación (Activo, En enfriamiento, Frío, En riesgo, Gema…) ──
+     Antes vivían como hex dentro de utils/relations.js y se les pegaba "22" al
+     final para armar el fondo de la pastilla. Ahí no había forma de que supieran
+     en qué modo está la app, así que ahora son tokens: el mismo nombre, el valor
+     que corresponde. El "-soft" es el fondo de la pastilla. */
+  --state-active:    #34d399;  --state-active-soft:    rgba(52,211,153,.13);
+  --state-cooling:   #f4b13e;  --state-cooling-soft:   rgba(244,177,62,.13);
+  --state-cold:      #7c83f0;  --state-cold-soft:      rgba(124,131,240,.13);
+  --state-risk:      #f06d6d;  --state-risk-soft:      rgba(240,109,109,.13);
+  --state-gem:       #b483f2;  --state-gem-soft:       rgba(180,131,242,.13);
+  --state-review:    #9aa7b6;  --state-review-soft:    rgba(154,167,182,.13);
+  --state-archived:  #9aa7b6;  --state-archived-soft:  rgba(154,167,182,.13);
+  --state-discarded: #8a93a3;  --state-discarded-soft: rgba(138,147,163,.13);
+
+  /* Radii — escala del rediseño: 11 controles · 13 tarjetas · 16 paneles */
+  --r-sm: 11px;
+  --r:    13px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* Easing */
+  --ease: cubic-bezier(.22,.61,.36,1);
+
+  /* Shadows: el rediseño es plano; la profundidad es sombra negra difusa. */
+  --shadow-card:  0 1px 2px rgba(0,0,0,.35);
+  --shadow-hover: 0 10px 28px -14px rgba(0,0,0,.9);
+  --shadow-pop:   0 24px 60px -20px rgba(0,0,0,.85);
+  --shadow-xs: var(--shadow-card);
+  --shadow-s:  var(--shadow-card);
+  --shadow-m:  var(--shadow-hover);
+  --shadow-l:  var(--shadow-pop);
+}
+
+/* ============================================================
+   MODO CLARO (ago 2026)
+   ------------------------------------------------------------
+   La app nació oscura. El modo claro NO es un tema aparte: son los
+   MISMOS nombres de variables con otros valores, igual que cuando
+   Relations y Leads se unificaron. Así todo se mueve junto y no hay
+   dos diseños que mantener.
+   Se activa con data-theme="light" en <html> (lo pone el plugin de
+   tema al arrancar, antes de pintar, leyendo la preferencia guardada).
+   Regla que sigue en pie: si falta un color, se agrega un token —
+   nunca un color a mano en el componente, porque un color a mano
+   solo puede estar bien en UNO de los dos modos.
+   ============================================================ */
+
+:root[data-theme="light"] {
+  /* Controles nativos en claro (listas de select, autocompletado, scrollbars). */
+  color-scheme: light;
+
+  /* ── Marca / acento ──
+     El verde fluorescente del modo oscuro (#2fe08a) sobre blanco no se lee:
+     en claro el acento baja a un verde profundo y el fluorescente queda solo
+     para los rellenos, donde la tinta encima es blanca. */
+  --accent:        #097049;
+  --accent-bright: #075e3c;
+  --accent-dark:   #d8f3e6;   /* fondo de pastilla/insignia (era verde profundo) */
+  --accent-deep:   #d3f0e2;   /* borde del estado activo */
+  --accent-soft:   rgba(9,112,73,.10);
+  --accent-line:   #a5ddc4;
+  --accent-glow:   rgba(9,112,73,.30);
+  --accent-shadow: 0 6px 20px -10px rgba(9,112,73,.55);
+  --accent-ink:    #ffffff;   /* texto sobre el verde */
+  --accent-panel:  #e7f7ef;   /* fondo de estado activo (pastillas, nav) */
+
+  /* ── Fondos ── */
+  --navy:       #ffffff;   /* sidebar y pantallas de acceso: la superficie limpia */
+  --bg:         #f4f7f6;
+  --bg-grad-a:  #e9f4ee;
+  --bg-grad-b:  #f2f6f4;
+  /* El mismo difuminado verde desde arriba, pero clarísimo. */
+  --bg-radial:  radial-gradient(120% 80% at 50% -10%, #e6f3ec 0%, #f1f6f4 46%, #f4f7f6 100%);
+  --sunken:     #edf1ef;   /* columnas del pipeline, pozos de listado */
+  --surface:    #ffffff;   /* tarjetas, paneles, modales */
+  --surface-2:  #f4f7f5;   /* campos de formulario */
+  --surface-3:  #e9efec;   /* hover / elevado */
+  --header-bg:  #ffffff;
+
+  /* ── Texto ── */
+  --text:       #16221d;
+  --text-title: #0a1410;
+  --text-2:     #4d5a55;
+  --muted:      #5c6863;
+  --dim:        #6b7772;
+
+  /* ── Bordes ── */
+  --border:        #dde4e0;
+  --border-soft:   #e8edea;
+  --border-strong: #c5cfca;
+
+  /* Sidebar */
+  --sidebar:    #ffffff;
+  --sb-bg:      #ffffff;
+  --sb-border:  #e4eae7;
+
+  --white: #fff;
+  --danger:  #b02b32;
+  --warning: #7d5305;
+  --success: #097049;
+
+  /* Señales: el color se oscurece para leerse sobre blanco; el "soft" sigue
+     siendo el mismo color al 12-14% y funciona igual en los dos modos. */
+  --green:  #097049;  --green-soft:  rgba(9,112,73,.12);
+  --amber:  #7d5305;  --amber-soft:  rgba(125,83,5,.13);
+  --blue:   #1f56b4;  --blue-soft:   rgba(31,86,180,.11);
+  --red:    #b02b32;  --red-soft:    rgba(176,43,50,.11);
+  --purple: #653cb8;  --purple-soft: rgba(101,60,184,.11);
+  --new:    #1f56b4;  --new-soft:    rgba(31,86,180,.11);
+  --slate:  #5b665f;  --slate-soft:  rgba(91,102,95,.11);
+
+  /* Paneles de señal: en oscuro eran sólidos y profundos; en claro son pálidos. */
+  --amber-panel: #fdf2d8;  --amber-line: #ecd6a2;
+  --blue-panel:  #e7effc;  --blue-line:  #c3d6f3;
+  --red-panel:   #fce8ea;  --red-line:   #f2c7cb;
+
+  /* Etapas */
+  --stage-bid: #1f56b4;
+  --stage-pre: #097049;
+  --stage-sht: #7d5305;
+  --stage-pst: #653cb8;
+  --stage-vpst: #653cb8;
+  --stage-spst: #c2437a;
+
+
+  /* Velos y capas (ver el bloque gemelo del modo oscuro). */
+  --wash-1:    rgba(13,26,21,.035);
+  --wash-2:    rgba(13,26,21,.06);
+  --wash-3:    rgba(13,26,21,.10);
+  --wash-line: rgba(13,26,21,.16);
+  --overlay:      rgba(18,30,26,.40);
+  --overlay-soft: rgba(18,30,26,.22);
+
+
+  /* Scroll, velo y barritas (ver el bloque gemelo del modo oscuro). */
+  --scroll-thumb:       #cbd4d0;
+  --scroll-thumb-hover: #b3bfba;
+  --surface-veil:  #ffffffee;
+  --track-fill:    #55635d;
+  --track-fill-dim:#c5cfca;
+
+
+  /* Tinta de las sombras (ver el bloque gemelo del modo oscuro). */
+  --shadow-ink-1: rgba(20,35,30,.07);
+  --shadow-ink-2: rgba(20,35,30,.13);
+  --shadow-ink-3: rgba(20,35,30,.20);
+
+
+  /* Estado de la relación: el mismo color, oscurecido para leerse sobre blanco. */
+  --state-active:    #096e48;  --state-active-soft:    rgba(9,110,72,.12);
+  --state-cooling:   #855a07;  --state-cooling-soft:   rgba(133,90,7,.13);
+  --state-cold:      #4148c4;  --state-cold-soft:      rgba(65,72,196,.11);
+  --state-risk:      #b53238;  --state-risk-soft:      rgba(181,50,56,.11);
+  --state-gem:       #6f3cc4;  --state-gem-soft:       rgba(111,60,196,.11);
+  --state-review:    #566472;  --state-review-soft:    rgba(86,100,114,.11);
+  --state-archived:  #566472;  --state-archived-soft:  rgba(86,100,114,.11);
+  --state-discarded: #55606e;  --state-discarded-soft: rgba(85,96,110,.11);
+
+  /* Sombras: en claro la profundidad es una sombra gris suave, no negra. */
+  --shadow-card:  0 1px 2px rgba(16,32,26,.07);
+  --shadow-hover: 0 10px 26px -16px rgba(16,32,26,.30);
+  --shadow-pop:   0 24px 56px -22px rgba(16,32,26,.30);
+  --shadow-xs: var(--shadow-card);
+  --shadow-s:  var(--shadow-card);
+  --shadow-m:  var(--shadow-hover);
+  --shadow-l:  var(--shadow-pop);
 }
