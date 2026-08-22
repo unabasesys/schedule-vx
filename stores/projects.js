@@ -1878,7 +1878,7 @@ export const useProjectsStore = defineStore('projects', {
       try {
         useNuxtApp().$toast(
           en ? "Couldn't load the holiday list, so dates that depend on business days were left as they were. Check your connection and edit again."
-             : 'No se pudo cargar la lista de feriados, así que las fechas que dependen de días hábiles quedaron como estaban. Revisá la conexión y volvé a editar.',
+             : 'No se pudo cargar la lista de feriados, así que las fechas que dependen de días hábiles quedaron como estaban. Revisa la conexión y vuelve a editar.',
           { type: 'error' },
         )
       } catch { /* toast unavailable */ }

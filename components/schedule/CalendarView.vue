@@ -962,7 +962,7 @@ async function onRescheduleEvent({ evId, newDate }) {
         title:   en ? 'Business day event on a holiday' : 'Evento de Días Hábiles en un feriado',
         body:    en
           ? `"${ev.name}" is a Business Day event.\n\nIf you want to keep it here you can either convert it to Calendar Day or deactivate this holiday.`
-          : `"${ev.name}" es un evento de Días Hábiles.\n\nSi querés dejarlo aquí podés convertirlo a Días Corridos o desactivar el feriado.`,
+          : `"${ev.name}" es un evento de Días Hábiles.\n\nSi quieres dejarlo aquí puedes convertirlo a Días Corridos o desactivar el feriado.`,
         choices: [
           { label: en ? 'Convert to Calendar Day'        : 'Convertir a Días Corridos',          value: 'calendar',    primary: true },
           { label: en ? `Deactivate "${holName}"` : `Desactivar "${holName}"`, value: 'deactivate' },
@@ -985,7 +985,7 @@ async function onRescheduleEvent({ evId, newDate }) {
         title:        en ? 'Business day event on a weekend'   : 'Evento de Días Hábiles en fin de semana',
         body:         en
           ? `"${ev.name}" is a Business Day event and cannot land on a weekend.\n\nDo you want to convert it to Calendar Day?`
-          : `"${ev.name}" es un evento de Días Hábiles y no puede caer en fin de semana.\n\nSi querés dejarlo acá, convertilo a Días Corridos.`,
+          : `"${ev.name}" es un evento de Días Hábiles y no puede caer en fin de semana.\n\nSi quieres dejarlo acá, conviértelo a Días Corridos.`,
         confirmLabel: en ? 'Convert to Calendar Day' : 'Convertir a Días Corridos',
         cancelLabel:  en ? 'Cancel'                  : 'Cancelar',
       })
@@ -1027,7 +1027,7 @@ async function onRescheduleEvent({ evId, newDate }) {
       title:        props.lang === 'en' ? 'Move event?'           : '¿Mover evento?',
       body:         props.lang === 'en'
         ? `This event has an active dependency: "${depLine}"\n\nMoving it manually will pause the dependency. You can resume it at any time from the event settings.`
-        : `Este evento tiene una dependencia activa: "${depLine}"\n\nMoverlo manualmente pausará la dependencia. Podés reanudarla cuando quieras desde la configuración del evento.`,
+        : `Este evento tiene una dependencia activa: "${depLine}"\n\nMoverlo manualmente pausará la dependencia. Puedes reanudarla cuando quieras desde la configuración del evento.`,
       confirmLabel: props.lang === 'en' ? 'Move anyway'          : 'Mover de todas formas',
       cancelLabel:  props.lang === 'en' ? 'Cancel'               : 'Cancelar',
     })
@@ -1087,7 +1087,7 @@ function copyEventById(evId) {
   $toast(
     props.lang === 'en'
       ? `Copied “${clipboard.value.label}”. Pick a day and press ${modKeyLabel.value}V.`
-      : `Copiado «${clipboard.value.label}». Elegí un día y apretá ${modKeyLabel.value}V.`,
+      : `Copiado «${clipboard.value.label}». Elige un día y aprieta ${modKeyLabel.value}V.`,
     { type: 'info' },
   )
   return true
@@ -1117,7 +1117,7 @@ function copyDay(dateStr) {
   $toast(
     props.lang === 'en'
       ? `Copied ${list.length} events. Pick a day and press ${modKeyLabel.value}V.`
-      : `Copiados ${list.length} eventos. Elegí un día y apretá ${modKeyLabel.value}V.`,
+      : `Copiados ${list.length} eventos. Elige un día y aprieta ${modKeyLabel.value}V.`,
     { type: 'info' },
   )
   return true
@@ -1342,7 +1342,7 @@ async function onHolidayClick({ date, name }) {
     title:        props.lang === 'en' ? 'Disable holiday?' : '¿Desactivar feriado?',
     body:         props.lang === 'en'
       ? `Do you want to hide "${name}" from this calendar?`
-      : `¿Querés ocultar "${name}" de este calendario?`,
+      : `¿Quieres ocultar "${name}" de este calendario?`,
     confirmLabel: props.lang === 'en' ? 'Disable' : 'Desactivar',
     cancelLabel:  props.lang === 'en' ? 'Cancel'  : 'Cancelar',
   })

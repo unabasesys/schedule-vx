@@ -42,5 +42,11 @@ export function usePersist() {
     else     localStorage.removeItem(GUIDE_KEY)
   }
 
-  return { getSidebarCollapsed, setSidebarCollapsed, getView, setView, getGuideHidden, setGuideHidden }
+  // El tema NO se guarda acá: vive en utils/theme.js, en una cookie de
+  // .unabase.com, para que la elección siga al usuario entre Calendar,
+  // Relations y Leads. Estas dos funciones son la puerta que usa el store.
+  function getTheme() { return leerTema() }
+  function setTheme(val) { guardarTema(val) }
+
+  return { getSidebarCollapsed, setSidebarCollapsed, getView, setView, getGuideHidden, setGuideHidden, getTheme, setTheme }
 }

@@ -28,7 +28,7 @@ export const useApi = () => {
   const handleResponse = async (res) => {
     if (res.status === 401) {
       authStore.logout()
-      throw new Error('Sesión expirada. Por favor iniciá sesión nuevamente.')
+      throw new Error('Sesión expirada. Por favor inicia sesión nuevamente.')
     }
     const data = await res.json().catch(() => ({}))
 

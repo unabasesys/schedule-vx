@@ -31,8 +31,8 @@
       <!-- Not logged in → ask to log in or register -->
       <div v-else-if="state === 'prompt'" class="invite-body">
         <div class="invite-icon team-icon">👋</div>
-        <h2 class="invite-title">Tenés una invitación</h2>
-        <p class="invite-msg">Para unirte al equipo, iniciá sesión o creá una cuenta nueva.</p>
+        <h2 class="invite-title">Tienes una invitación</h2>
+        <p class="invite-msg">Para unirte al equipo, inicia sesión o crea una cuenta nueva.</p>
         <div class="invite-actions">
           <NuxtLink :to="`/login?inviteToken=${token}`" class="btn-primary">Iniciar sesión</NuxtLink>
           <NuxtLink :to="`/register?inviteToken=${token}`" class="btn-ghost">Crear cuenta nueva</NuxtLink>

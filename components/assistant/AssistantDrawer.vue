@@ -19,7 +19,7 @@
       <!-- Conversation -->
       <div class="una-body" ref="bodyRef">
         <div v-if="!currentProject" class="una-msg una-msg--bot una-warn">
-          {{ isEN ? 'Open a calendar first so I can add events to it.' : 'Abrí un calendario primero para poder agregarle eventos.' }}
+          {{ isEN ? 'Open a calendar first so I can add events to it.' : 'Abre un calendario primero para poder agregarle eventos.' }}
         </div>
 
         <!-- Una intro (nothing sent yet) -->
@@ -194,7 +194,7 @@ const replyText = computed(() => {
   if (isEN.value) {
     return `Got it. I have <strong>${n} event${n === 1 ? '' : 's'}</strong> for the ${b} board. Review them before I add them to the calendar.`
   }
-  return `Copiado. Tengo <strong>${n} evento${n === 1 ? '' : 's'}</strong> para el board ${b}. Revisá antes de que los mande al calendario.`
+  return `Copiado. Tengo <strong>${n} evento${n === 1 ? '' : 's'}</strong> para el board ${b}. Revisa antes de que los mande al calendario.`
 })
 
 const createLabel = computed(() => isEN.value ? 'Add to calendar' : 'Agregar al calendario')
@@ -338,7 +338,7 @@ async function run() {
       }
     })
     if (!events.length) {
-      error.value = isEN.value ? 'I couldn’t find any events in that text. Try adding dates.' : 'No encontré eventos en ese texto. Probá agregando fechas.'
+      error.value = isEN.value ? 'I couldn’t find any events in that text. Try adding dates.' : 'No encontré eventos en ese texto. Prueba agregando fechas.'
     } else {
       parsed.value = events
     }

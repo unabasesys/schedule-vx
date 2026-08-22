@@ -42,7 +42,7 @@
         </div>
 
         <div v-if="query && !filteredOpts.length" class="dtp-no-match">
-          {{ isEN ? 'No matches. Try a different city or country.' : 'Sin resultados. Probá otra ciudad o país.' }}
+          {{ isEN ? 'No matches. Try a different city or country.' : 'Sin resultados. Prueba otra ciudad o país.' }}
         </div>
       </div>
     </div>

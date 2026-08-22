@@ -27,7 +27,7 @@
      sobre el diseño. Los <datalist> se reemplazaron por ComboBox propio. */
   color-scheme: dark;
 
-  --sidebar-w: 268px;
+  --sidebar-w: 270px;
 
   /* ── Marca / acento: el verde fluorescente ── */
   --accent:        #2fe08a;

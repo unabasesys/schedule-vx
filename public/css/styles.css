@@ -212,7 +212,10 @@ select option { background: var(--surface); color: var(--text); }
 .modal.wide { width: 600px; }
 .modal.narrow { width: 360px; }
 .modal h2 {
-  font-family: 'Nunito', sans-serif;
+  /* Hereda la tipografía del body (Plus Jakarta Sans). Acá había un
+     font-family: 'Nunito' del diseño anterior: como esa fuente ya no se
+     importa, el título de TODOS los modales de las dos apps caía al tipo
+     del sistema — la costura más repetida y la más difícil de ver. */
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-title);

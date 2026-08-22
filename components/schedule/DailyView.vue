@@ -61,7 +61,7 @@
       <div v-if="!localTzs.length" class="dv-tz-empty-msg">
         {{ readOnly
           ? (isEN ? 'No timezone configured.' : 'Sin zona horaria.')
-          : (isEN ? 'No timezone configured. Add one below.' : 'Sin zona horaria. Agregá una abajo.') }}
+          : (isEN ? 'No timezone configured. Add one below.' : 'Sin zona horaria. Agrega una abajo.') }}
       </div>
 
       <div v-for="(tz, idx) in localTzs" :key="idx" class="dv-tz-item">
@@ -377,7 +377,7 @@ function addBelow(item) {
 // y, si sueltas la fila en otro bloque de hora, el evento se muda a esa hora. Con esa
 // regla la fila queda exactamente donde la soltaste, que es lo único que se ve.
 //
-// El arrastre no reordena el DOM mientras lo hacés: mueve sólo una línea de 0px de alto
+// El arrastre no reordena el DOM mientras lo haces: mueve sólo una línea de 0px de alto
 // que marca dónde va a caer. Reordenar en vivo cambiaría los rectángulos que estamos
 // midiendo en cada pointermove y la fila temblaría bajo el cursor.
 const drag = ref(null)   // { date, id, from, dropIndex }

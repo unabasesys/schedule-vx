@@ -66,7 +66,7 @@ async function save() {
     emit('created')
   } else {
     error.value = result.error
-      || (lang.value === 'en' ? 'Could not create organization. Try again.' : 'No se pudo crear la organización. Intentá de nuevo.')
+      || (lang.value === 'en' ? 'Could not create organization. Try again.' : 'No se pudo crear la organización. Intenta de nuevo.')
   }
 }
 </script>

@@ -56,7 +56,7 @@ const globalStore = useGlobalStore()
 const lang = computed(() => globalStore.lang || 'es')
 
 const LABELS = {
-  eyebrow:   { es: 'Tenés una invitación', en: 'You have an invitation' },
+  eyebrow:   { es: 'Tienes una invitación', en: 'You have an invitation' },
   invitedBy: { es: 'Te invitó',            en: 'Invited by' },
   yes:       { es: 'Sí, unirme',           en: 'Join' },
   no:        { es: 'No, gracias',          en: 'Decline' },

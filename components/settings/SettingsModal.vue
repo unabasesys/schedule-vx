@@ -49,6 +49,23 @@
         </div>
       </div>
 
+      <!-- Apariencia — se aplica al instante (no espera a Guardar): es preferencia
+           de ESTE navegador, no un dato de la organización, y verlo cambiar mientras
+           se elige es la mitad de la decisión. Mismo bloque que en Relations. -->
+      <div class="settings-row" style="margin-top:8px;">
+        <span class="settings-label">{{ lang === 'en' ? 'Appearance' : 'Apariencia' }}</span>
+        <div class="date-fmt-toggle">
+          <button
+            :class="{ active: globalStore.theme === 'dark' }"
+            @click="globalStore.setTheme('dark')"
+          >{{ lang === 'en' ? 'Dark' : 'Oscuro' }}</button>
+          <button
+            :class="{ active: globalStore.theme === 'light' }"
+            @click="globalStore.setTheme('light')"
+          >{{ lang === 'en' ? 'Light' : 'Claro' }}</button>
+        </div>
+      </div>
+
       <!-- Date format -->
       <div class="settings-row" style="margin-top:8px;">
         <span class="settings-label">{{ L.dateFormatLabel }}</span>
@@ -85,7 +102,7 @@
           {{ lang === 'en' ? 'Default weather cities' : 'Ciudades de clima por defecto' }}
         </div>
         <div style="font-size:.68rem;color:var(--muted);margin-bottom:10px;">
-          {{ lang === 'en' ? 'Which cities would you like to show by default in the weather widgets for new calendars?' : '¿Qué ciudades querés mostrar por defecto en los widgets de clima de los calendarios nuevos?' }}
+          {{ lang === 'en' ? 'Which cities would you like to show by default in the weather widgets for new calendars?' : '¿Qué ciudades quieres mostrar por defecto en los widgets de clima de los calendarios nuevos?' }}
         </div>
 
         <!-- Selected chips -->
@@ -218,7 +235,7 @@
             <!--
               Asignación de apps por persona (§8.7). La organización contrata apps; acá se
               decide quién de la organización las usa. Se ven siempre —también para quien no
-              es propietario— porque saber qué tenés asignado es lo que convierte un 403 en
+              es propietario— porque saber qué tienes asignado es lo que convierte un 403 en
               algo entendible; solo el propietario las puede mover.
             -->
             <div v-if="assignableApps.length" class="user-apps">
@@ -552,7 +569,7 @@ function handleLogoUpload(event) {
   if (file.size > MAX_SIZE) {
     useDialog().alert({
       title: lang.value === 'en' ? 'Image too large'                              : 'Imagen demasiado grande',
-      body:  lang.value === 'en' ? 'Please use an image under 512 KB.'           : 'Por favor usá una imagen menor a 512 KB.',
+      body:  lang.value === 'en' ? 'Please use an image under 512 KB.'           : 'Por favor usa una imagen menor a 512 KB.',
     })
     event.target.value = ''
     return
@@ -625,7 +642,7 @@ async function removeUser(id) {
           title:        lang.value === 'en' ? 'Leave organization?' : '¿Salir de la organización?',
           body:         lang.value === 'en'
             ? 'Are you sure you want to leave this organization? You’ll lose access to its calendars.'
-            : '¿Estás seguro de que querés salir de esta organización? Perderás el acceso a sus calendarios.',
+            : '¿Estás seguro de que quieres salir de esta organización? Perderás el acceso a sus calendarios.',
           confirmLabel: lang.value === 'en' ? 'Leave' : 'Salir',
           cancelLabel:  lang.value === 'en' ? 'Cancel' : 'Cancelar',
         }
@@ -633,7 +650,7 @@ async function removeUser(id) {
           title:        lang.value === 'en' ? 'Remove user?' : '¿Eliminar usuario?',
           body:         lang.value === 'en'
             ? `Are you sure you want to remove ${name} from this organization?`
-            : `¿Estás seguro de que querés eliminar a ${name} de la organización?`,
+            : `¿Estás seguro de que quieres eliminar a ${name} de la organización?`,
           confirmLabel: lang.value === 'en' ? 'Remove' : 'Eliminar',
           cancelLabel:  lang.value === 'en' ? 'Cancel' : 'Cancelar',
         },
@@ -666,7 +683,7 @@ async function save() {
     }
     const result = await authStore.createOrg(form.name.trim())
     if (!result.ok) {
-      orgError.value = result.error || (lang.value === 'en' ? 'Could not create organization. Try again.' : 'No se pudo crear la organización. Intentá de nuevo.')
+      orgError.value = result.error || (lang.value === 'en' ? 'Could not create organization. Try again.' : 'No se pudo crear la organización. Intenta de nuevo.')
       saving.value = false
       return
     }

@@ -50,7 +50,7 @@ html, body, #__nuxt {
 
 .app-layout {
   display: grid;
-  grid-template-columns: 270px 1fr;
+  grid-template-columns: var(--sidebar-w) 1fr;
   height: 100vh;
   overflow: hidden;
   transition: grid-template-columns .22s ease;
