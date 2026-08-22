@@ -15,14 +15,14 @@
             @keydown.esc.stop="dismiss"
           />
         </div>
-        <!-- Multi-choice layout -->
+        <!-- Diálogo de opciones -->
         <div v-if="state.type === 'choice'" class="dlg-choices">
           <button
             v-for="c in state.choices"
             :key="c.value"
             :ref="el => setPrimaryRef(el, c)"
             class="dlg-choice-btn"
-            :class="{ 'dlg-choice-primary': c.primary }"
+            :class="{ 'dlg-choice-primary': c.primary, 'dlg-choice-danger': c.danger }"
             @click="_resolve(c.value)"
           >
             {{ c.label }}
@@ -31,7 +31,7 @@
             <button class="dlg-cancel" @click="dismiss">{{ state.cancelLabel }}</button>
           </div>
         </div>
-        <!-- Standard confirm / alert / prompt layout -->
+        <!-- Confirmar / avisar / preguntar -->
         <div v-else class="dlg-actions">
           <button v-if="state.type !== 'alert'" class="dlg-cancel" @click="dismiss">
             {{ state.cancelLabel }}
@@ -46,6 +46,12 @@
 </template>
 
 <script setup>
+// Diálogo COMPARTIDO por toda la suite: es la confirmación de las tres apps.
+//
+// ESTE ARCHIVO ESTÁ DUPLICADO A PROPÓSITO en los dos fronts y debe quedar
+// IDÉNTICO. Los repos son distintos (relations y schedule-vx), así que no hay
+// import posible todavía. Si tocas uno, copia el otro en el mismo cambio: es la
+// pieza que más se ve de las dos apps, y separarla se nota en cada confirmación.
 const { state, _resolve } = useDialog()
 
 const inputVal   = ref('')
@@ -54,13 +60,13 @@ const confirmRef = ref(null)
 const boxRef     = ref(null)
 const primaryChoiceRef = ref(null)
 
-// Focus target for choice dialogs: the primary option, so Enter picks the safe
-// branch instead of resolving to a value no choice declared.
+// En un diálogo de opciones el foco va a la recomendada, para que Enter elija el
+// camino seguro en vez de resolver un valor que ninguna opción declaró.
 function setPrimaryRef(el, c) {
   if (c.primary) primaryChoiceRef.value = el
 }
 
-// When a new dialog opens: reset input and focus the right element
+// Al abrirse uno nuevo: limpiar el campo y poner el foco donde corresponde.
 watch(state, (val) => {
   if (!val) return
   inputVal.value = val.defaultValue || ''
@@ -80,21 +86,21 @@ function onConfirm() {
 function dismiss() {
   if (!state.value) return
   if (state.value.dismissible === false) return
-  // 'choice' resolves to null on cancel (documented contract). It used to resolve
-  // `false` like a confirm dialog, which callers read as "not my choice value" and
-  // silently treated as one of the branches.
+  // Un 'choice' cancelado resuelve null: es el contrato que documenta useDialog.
+  // Resolvía `false` como un confirm, y quien lo llamaba lo leía como "no es
+  // ninguno de mis valores" y en silencio lo trataba como una de las ramas.
   if (state.value.type === 'choice') return _resolve(null)
   _resolve(state.value.type === 'prompt' ? null : false)
 }
 
-// Global keyboard handler — Esc dismisses, Enter confirms (except in textarea)
+// Teclado global — ESC cierra, Enter confirma (salvo en un textarea).
 function onKeydown(e) {
   if (!state.value) return
   if (e.key === 'Escape') { e.stopPropagation(); dismiss() }
   if (e.key === 'Enter') {
-    // In a choice dialog there is no single "confirm": let Enter activate the
-    // focused button (the primary one gets focus on open). Swallowing it here made
-    // Enter resolve `true`, which is nobody's choice value.
+    // En un diálogo de opciones no hay un único "confirmar": Enter tiene que
+    // activar el botón con foco (la recomendada lo recibe al abrir). Atajarlo acá
+    // hacía que Enter resolviera `true`, que no es el valor de nadie.
     if (state.value.type === 'choice') return
     if (state.value.type === 'prompt') return
     const tag = document.activeElement?.tagName
@@ -138,7 +144,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 
 .dlg-input {
   width: 100%; padding: 7px 10px; box-sizing: border-box;
-  background: var(--surface-2, var(--wash-1));
+  background: var(--surface-2);
   border: 1.5px solid var(--border); border-radius: 7px;
   color: var(--text); font-size: .82rem; font-family: inherit;
   outline: none;
@@ -159,33 +165,41 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 
 .dlg-confirm {
   padding: 7px 16px; border: none; border-radius: 7px;
-  background: var(--surface-2, var(--wash-2)); color: var(--text);
+  background: var(--surface-2); color: var(--text);
   font-size: .76rem; font-weight: 700;
   cursor: pointer; font-family: inherit; transition: background .13s;
 }
 .dlg-confirm:hover { background: var(--wash-3); }
 
+/* Tinta sobre un relleno de color = --accent-ink (§3.2.1): en oscuro el rojo
+   pide tinta oscura, y en claro el rojo se vuelve profundo y pide tinta blanca. */
 .dlg-confirm.dlg-danger {
-  background: var(--danger, var(--danger)); color: var(--accent-ink);
+  background: var(--danger); color: var(--accent-ink);
 }
-.dlg-confirm.dlg-danger:hover { background: var(--danger); }
-.dlg-confirm.dlg-danger:focus { outline: 2px solid var(--danger, var(--danger)); outline-offset: 2px; }
+.dlg-confirm.dlg-danger:hover { background: var(--red); filter: brightness(.92); }
+.dlg-confirm.dlg-danger:focus { outline: 2px solid var(--danger); outline-offset: 2px; }
 
 .dlg-choices {
   display: flex; flex-direction: column; gap: 8px;
   margin-top: 20px;
 }
 .dlg-choice-btn {
-  width: 100%; padding: 9px 16px; border-radius: 7px;
-  border: 1.5px solid var(--border);
-  background: var(--surface-2, var(--wash-1));
-  color: var(--text); font-size: .78rem; font-weight: 600;
+  width: 100%; padding: 11px 16px; border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text); font-size: .8rem; font-weight: 600;
   cursor: pointer; font-family: inherit; text-align: left;
-  transition: all .13s;
+  transition: background .14s var(--ease), border-color .14s var(--ease), color .14s var(--ease);
 }
-.dlg-choice-btn:hover { border-color: var(--muted); background: var(--wash-2); }
+.dlg-choice-btn:hover { border-color: var(--border-strong); background: var(--surface-3); }
 .dlg-choice-btn.dlg-choice-primary {
-  background: var(--accent, var(--accent)); color: var(--accent-ink); border-color: transparent;
+  background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 700;
+  box-shadow: var(--accent-shadow);
 }
-.dlg-choice-btn.dlg-choice-primary:hover { filter: brightness(1.1); }
+.dlg-choice-btn.dlg-choice-primary:hover { background: var(--accent-bright); }
+/* Opción destructiva: se ve como lo que es, sin robarle el ojo a la recomendada. */
+.dlg-choice-btn.dlg-choice-danger {
+  background: transparent; border-color: var(--red-line); color: var(--red);
+}
+.dlg-choice-btn.dlg-choice-danger:hover { background: var(--red-panel); border-color: var(--red); }
 </style>

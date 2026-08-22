@@ -60,16 +60,18 @@ const mailto = computed(() => {
 </script>
 
 <style scoped>
+/* Mismas variables que el resto de los modales del sistema visual (DialogModal): sin
+   colores propios, para que la pantalla del 403 no se vea como un injerto. */
 .abm-backdrop {
   position: fixed; inset: 0; z-index: 1200;
   display: flex; align-items: center; justify-content: center;
-  background: var(--overlay); backdrop-filter: blur(2px);
+  background: var(--overlay-soft); backdrop-filter: blur(2px);
   padding: 20px;
 }
 .abm-panel {
   width: 100%; max-width: 400px; text-align: center;
-  background: var(--card, var(--white)); border: 1px solid var(--border);
-  border-radius: 14px; padding: 26px 24px 20px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 26px 24px 20px;
   display: flex; flex-direction: column; align-items: center; gap: 10px;
 }
 .abm-lock { color: var(--muted); }
