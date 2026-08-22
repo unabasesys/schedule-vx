@@ -5,14 +5,13 @@
 // Relations/Leads viven en el otro subdominio; allá es al revés. Por eso estos dos
 // archivos no son gemelos (§8.9) y no hay test que los compare — lo que sí tiene que
 // coincidir son las LLAVES, que son las de `Organization.apps` en la base compartida.
+//
+// EL ORDEN DE ESTA LISTA ES DE LA SUITE, NO DE LA APP. Va siempre
+// Relations → Leads → Calendar, idéntico en los dos fronts. Antes cada front se
+// ponía a sí mismo primero y el ítem SALTABA de lugar al cambiar de app: se veía
+// como si el menú se desarmara, que es lo contrario de "una sola aplicación".
+// Si se agrega una app, va en el MISMO lugar en los dos archivos.
 export const APPS = [
-  {
-    key: 'calendar',
-    route: '/calendar',
-    label: 'Calendar',
-    // hoja de calendario
-    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>',
-  },
   {
     key: 'relations',
     // Sin `route`: no se sirve desde este front. La URL sale de
@@ -33,6 +32,13 @@ export const APPS = [
     label: 'Leads',
     // embudo (pipeline de oportunidades)
     icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18l-7 8v6l-4 2v-8L3 4z"/></svg>',
+  },
+  {
+    key: 'calendar',
+    route: '/calendar',
+    label: 'Calendar',
+    // hoja de calendario
+    icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/></svg>',
   },
 ]
 
