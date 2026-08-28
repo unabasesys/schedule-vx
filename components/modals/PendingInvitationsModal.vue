@@ -5,7 +5,7 @@
 
         <!-- Header -->
         <div class="inv-header">
-          <div class="inv-icon">📅</div>
+          <div class="inv-icon">{{ current.needsVerification ? '✉️' : '🤝' }}</div>
           <p class="inv-eyebrow">{{ LABELS.eyebrow[lang] }}</p>
         </div>
 
@@ -25,8 +25,23 @@
           ></span>
         </div>
 
+        <!-- Falta confirmar el correo -->
+        <template v-if="current.needsVerification">
+          <p class="inv-verify-why">{{ LABELS.verifyWhy[lang] }}</p>
+          <p v-if="enviado" class="inv-verify-sent">{{ LABELS.verifySent[lang] }}</p>
+          <div class="inv-actions">
+            <button class="inv-btn-accept" :disabled="busy" @click="confirmar">
+              <span v-if="busy">{{ LABELS.sending[lang] }}</span>
+              <span v-else>{{ enviado ? LABELS.resend[lang] : LABELS.verifyCta[lang] }}</span>
+            </button>
+            <button class="inv-btn-decline" :disabled="busy" @click="ahoraNo">
+              {{ LABELS.later[lang] }}
+            </button>
+          </div>
+        </template>
+
         <!-- Actions -->
-        <div class="inv-actions">
+        <div v-else class="inv-actions">
           <button
             class="inv-btn-accept"
             :disabled="busy"
@@ -61,6 +76,21 @@ const LABELS = {
   yes:       { es: 'Sí, unirme',           en: 'Join' },
   no:        { es: 'No, gracias',          en: 'Decline' },
   joining:   { es: 'Uniéndome...',         en: 'Joining...' },
+  // Confirmar el correo hace falta para entrar a la organización de OTRO. El texto
+  // dice POR QUÉ: sin el motivo, un paso extra entre "te invitaron" y "entra" se lee
+  // como un trámite inventado.
+  verifyWhy:  {
+    es: 'Antes de entrar necesitamos confirmar que este correo es tuyo. Te mandamos un enlace y listo.',
+    en: 'Before you join, we need to confirm this email is yours. We\u2019ll send you a link.',
+  },
+  verifyCta:  { es: 'Enviarme el enlace',  en: 'Send me the link' },
+  resend:     { es: 'Reenviar el enlace',  en: 'Resend the link' },
+  sending:    { es: 'Enviando...',         en: 'Sending...' },
+  later:      { es: 'Ahora no',            en: 'Not now' },
+  verifySent: {
+    es: 'Listo, revisa tu correo. Abre el enlace y vuelve acá.',
+    en: 'Done — check your inbox. Open the link and come back.',
+  },
 }
 
 const busy      = ref(false)
@@ -87,6 +117,32 @@ async function accept() {
   }
   busy.value      = false
   accepting.value = false
+}
+
+// Pide el enlace de confirmación. El servidor lo manda SIEMPRE a la dirección de la
+// cuenta: no hay campo donde escribir otra, porque entonces no probaría nada.
+const enviado = ref(false)
+async function confirmar() {
+  if (busy.value) return
+  busy.value = true
+  const r = await authStore.sendVerification()
+  busy.value = false
+  if (!r) return
+  // `alreadyVerified` = ya estaba probado (p.ej. abrió el enlace en otra pestaña).
+  // Se recarga la bandeja para que la invitación aparezca con su llave y el botón
+  // pase a ser "Sí, unirme" sin que la persona tenga que adivinar nada.
+  if (r.alreadyVerified) { await authStore.fetchPendingInvitations(); return }
+  enviado.value = true
+}
+
+// "Ahora no" mientras falta confirmar el correo NO rechaza la invitación: solo cierra
+// el cartel hasta la próxima carga. Rechazar de verdad exige la llave, que a esta
+// altura todavía no viajó — y aunque viajara, no correspondería: quien no probó el
+// correo tampoco debería poder tirar a la basura la invitación de otra persona.
+function ahoraNo() {
+  if (busy.value || !current.value) return
+  const id = current.value.orgId
+  authStore.pendingInvitations = authStore.pendingInvitations.filter(i => i.orgId !== id)
 }
 
 async function decline() {
@@ -169,6 +225,24 @@ watch(total, (newTotal) => {
   font-size: 13px;
   color: var(--muted);
   margin: 0;
+}
+
+/* Falta confirmar el correo */
+.inv-verify-why {
+  margin: 16px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2);
+}
+.inv-verify-sent {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  background: var(--accent-panel);
+  border: 1px solid var(--accent-deep);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--accent);
 }
 
 /* Progress dots */

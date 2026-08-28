@@ -228,7 +228,14 @@ export const useAuthStore = defineStore('auth', {
           body: JSON.stringify({ token: inviteToken }),
         })
         const data = await res.json()
-        if (!res.ok) throw new Error(data.error || 'Error al aceptar la invitación')
+        if (!res.ok) {
+          // El código viaja aparte del texto: `EMAIL_NOT_VERIFIED` no es un error que
+          // haya que mostrar y olvidar, es un paso que falta. Quien lo atrapa dibuja el
+          // botón "confirmar mi correo" en vez de un mensaje rojo sin salida.
+          const err = new Error(data.error || 'Error al aceptar la invitación')
+          err.code = data.code || ''
+          throw err
+        }
         this.joinedOrgName = data.joinedOrgName || null
         this._setSession(data)
         const settingsStore = useSettingsStore()
@@ -359,6 +366,48 @@ export const useAuthStore = defineStore('auth', {
     },
 
     // ── Pending invitations ────────────────────────────────────────────────
+    // ── Confirmar que el correo es tuyo (gemelo de Relations) ──────────────
+    //
+    // Hace falta para entrar a la organización de OTRO, no para registrarse ni para
+    // crear la propia. El enlace lo manda el servidor a la dirección de la cuenta,
+    // siempre — no se elige destinatario desde acá, porque entonces no probaría nada.
+    async sendVerification() {
+      if (!this.token) return null
+      this.error = null
+      try {
+        const res  = await fetch(`${API()}/auth/send-verification`, {
+          method: 'POST',
+          headers: this._headers(),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'No se pudo enviar el correo de confirmación')
+        return data
+      } catch (err) {
+        this.error = err.message
+        return null
+      }
+    },
+
+    // Consume el enlace del correo. NO necesita sesión: se abre desde el correo, y ahí
+    // puede no haber ninguna (otro navegador, el teléfono). El token es la prueba.
+    async verifyEmail(token) {
+      this.error = null
+      try {
+        const res  = await fetch(`${API()}/auth/verify-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || 'El enlace no es válido o ya expiró')
+        if (this.token) await this.fetchPendingInvitations()
+        return data
+      } catch (err) {
+        this.error = err.message
+        return null
+      }
+    },
+
     async fetchPendingInvitations() {
       if (!this.token) return
       try {
