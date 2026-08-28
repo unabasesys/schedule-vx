@@ -6,6 +6,20 @@
         <div v-if="state.body" class="dlg-body">{{ state.body }}</div>
         <div v-if="state.type === 'prompt'" class="dlg-input-wrap">
           <label v-if="state.label" class="dlg-label">{{ state.label }}</label>
+          <!-- Respuestas sugeridas. Elegir una la escribe en el campo, que sigue
+               siendo editable: la pregunta admite algo nuevo, pero lo habitual es
+               quedarse con uno de estos y tecleárselo a mano es como nacen los
+               duplicados. -->
+          <div v-if="state.options?.length" class="dlg-opts">
+            <button
+              v-for="o in state.options"
+              :key="o"
+              type="button"
+              class="dlg-opt"
+              :class="{ active: inputVal === o }"
+              @click="inputVal = o"
+            >{{ o }}</button>
+          </div>
           <input
             ref="inputRef"
             v-model="inputVal"
@@ -23,10 +37,17 @@
             :ref="el => setPrimaryRef(el, c)"
             class="dlg-choice-btn"
             :class="{ 'dlg-choice-primary': c.primary, 'dlg-choice-danger': c.danger }"
-            @click="_resolve(c.value)"
+            @click="resolveChoice(c.value)"
           >
             {{ c.label }}
           </button>
+          <!-- "Entendido, no volver a mostrar": para las explicaciones que enseñan algo
+               una vez. Va DEBAJO de las opciones y no arriba, para que se lea después
+               de la explicación y no antes. -->
+          <label v-if="state.checkbox" class="dlg-check">
+            <input v-model="checkVal" type="checkbox" />
+            <span>{{ state.checkbox }}</span>
+          </label>
           <div v-if="state.dismissible !== false" class="dlg-actions" style="margin-top:4px;">
             <button class="dlg-cancel" @click="dismiss">{{ state.cancelLabel }}</button>
           </div>
@@ -36,7 +57,13 @@
           <button v-if="state.type !== 'alert'" class="dlg-cancel" @click="dismiss">
             {{ state.cancelLabel }}
           </button>
-          <button ref="confirmRef" class="dlg-confirm" :class="{ 'dlg-danger': state.type === 'confirm' }" @click="onConfirm">
+          <button
+            ref="confirmRef"
+            class="dlg-confirm"
+            :class="{ 'dlg-danger': state.type === 'confirm' }"
+            :disabled="blocked"
+            @click="onConfirm"
+          >
             {{ state.confirmLabel }}
           </button>
         </div>
@@ -55,6 +82,7 @@
 const { state, _resolve } = useDialog()
 
 const inputVal   = ref('')
+const checkVal   = ref(false)
 const inputRef   = ref(null)
 const confirmRef = ref(null)
 const boxRef     = ref(null)
@@ -70,6 +98,7 @@ function setPrimaryRef(el, c) {
 watch(state, (val) => {
   if (!val) return
   inputVal.value = val.defaultValue || ''
+  checkVal.value = false
   if (val.type !== 'choice') primaryChoiceRef.value = null
   nextTick(() => {
     if (val.type === 'prompt')      inputRef.value?.focus()
@@ -78,9 +107,20 @@ watch(state, (val) => {
   })
 })
 
+// Una respuesta obligatoria en blanco no es una respuesta: el botón espera.
+const blocked = computed(() =>
+  state.value?.type === 'prompt' && state.value.required === true && !inputVal.value.trim(),
+)
+
 function onConfirm() {
-  if (!state.value) return
+  if (!state.value || blocked.value) return
   _resolve(state.value.type === 'prompt' ? inputVal.value : true)
+}
+
+// Con casilla, un `choice` devuelve las DOS respuestas. Sin ella, el valor pelado de
+// siempre: los que ya existían no tienen por qué cambiar de contrato.
+function resolveChoice(value) {
+  _resolve(state.value?.checkbox ? { value, checked: checkVal.value } : value)
 }
 
 function dismiss() {
@@ -89,7 +129,7 @@ function dismiss() {
   // Un 'choice' cancelado resuelve null: es el contrato que documenta useDialog.
   // Resolvía `false` como un confirm, y quien lo llamaba lo leía como "no es
   // ninguno de mis valores" y en silencio lo trataba como una de las ramas.
-  if (state.value.type === 'choice') return _resolve(null)
+  if (state.value.type === 'choice') return resolveChoice(null)
   _resolve(state.value.type === 'prompt' ? null : false)
 }
 
@@ -113,6 +153,22 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
 </script>
 
 <style>
+.dlg-check {
+  display: flex; align-items: center; gap: 8px; margin: 8px 2px 2px;
+  font-size: .76rem; color: var(--text-2); cursor: pointer;
+}
+.dlg-check input { accent-color: var(--accent); cursor: pointer; }
+
+.dlg-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+.dlg-opt {
+  padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border-strong);
+  background: var(--surface-2); color: var(--text-2); font-family: inherit;
+  font-size: .76rem; font-weight: 600; cursor: pointer; transition: all .12s;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dlg-opt:hover { border-color: var(--muted); color: var(--text); }
+.dlg-opt.active { background: var(--accent-panel); border-color: var(--accent-deep); color: var(--accent); }
+
 .dlg-backdrop {
   position: fixed; inset: 0; z-index: 650;
   background: var(--overlay-soft);
@@ -170,6 +226,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown, true))
   cursor: pointer; font-family: inherit; transition: background .13s;
 }
 .dlg-confirm:hover { background: var(--wash-3); }
+.dlg-confirm:disabled { opacity: .45; cursor: default; }
+.dlg-confirm:disabled:hover { background: var(--surface-2); }
 
 /* Tinta sobre un relleno de color = --accent-ink (§3.2.1): en oscuro el rojo
    pide tinta oscura, y en claro el rojo se vuelve profundo y pide tinta blanca. */

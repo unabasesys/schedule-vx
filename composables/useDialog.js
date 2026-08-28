@@ -16,9 +16,17 @@ export function useDialog() {
     })
   }
 
-  function prompt({ title, body = '', label = '', placeholder = '', defaultValue = '', confirmLabel = 'OK', cancelLabel = 'Cancelar' } = {}) {
+  // `options` (opcional): valores sugeridos que se ofrecen como botones sobre el
+  // campo — al elegir uno, el campo queda con ese texto y se puede seguir editando.
+  // Es para cuando la respuesta casi siempre es "uno de estos", pero no siempre:
+  // escribir a mano el nombre que ya está en la lista es la forma más fácil de
+  // teclearlo distinto y crear el duplicado que se venía a arreglar.
+  //
+  // `required: true` deja el botón apagado mientras el campo esté vacío, para las
+  // preguntas donde una respuesta en blanco no significa nada.
+  function prompt({ title, body = '', label = '', placeholder = '', defaultValue = '', options = [], required = false, confirmLabel = 'OK', cancelLabel = 'Cancelar' } = {}) {
     return new Promise(resolve => {
-      _state.value = { type: 'prompt', title, body, label, placeholder, defaultValue, confirmLabel, cancelLabel, resolve }
+      _state.value = { type: 'prompt', title, body, label, placeholder, defaultValue, options, required, confirmLabel, cancelLabel, resolve }
     })
   }
 
@@ -29,9 +37,13 @@ export function useDialog() {
   // for questions where every outcome matters and there is no safe default. Note that
   // a one-button notice does NOT need it: use alert(), where every exit leads to the
   // same place anyway.
-  function choice({ title, body = '', choices = [], cancelLabel = 'Cancelar', dismissible = true } = {}) {
+  // `checkbox` (opcional): rótulo de una casilla al pie ("Entendido, no volver a
+  // mostrar"). CAMBIA lo que resuelve: con casilla devuelve `{ value, checked }` en vez
+  // del valor pelado, porque quien la ofrece necesita las dos respuestas — qué eligió y
+  // si quiere volver a ver la explicación. Sin `checkbox`, el contrato es el de siempre.
+  function choice({ title, body = '', choices = [], cancelLabel = 'Cancelar', dismissible = true, checkbox = '' } = {}) {
     return new Promise(resolve => {
-      _state.value = { type: 'choice', title, body, choices, cancelLabel, dismissible, resolve }
+      _state.value = { type: 'choice', title, body, choices, cancelLabel, dismissible, checkbox, resolve }
     })
   }
 
