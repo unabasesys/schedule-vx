@@ -54,7 +54,7 @@
         </div>
         <!-- Confirmar / avisar / preguntar -->
         <div v-else class="dlg-actions">
-          <button v-if="state.type !== 'alert'" class="dlg-cancel" @click="dismiss">
+          <button v-if="state.type !== 'alert'" ref="cancelRef" class="dlg-cancel" @click="dismiss">
             {{ state.cancelLabel }}
           </button>
           <button
@@ -85,6 +85,7 @@ const inputVal   = ref('')
 const checkVal   = ref(false)
 const inputRef   = ref(null)
 const confirmRef = ref(null)
+const cancelRef  = ref(null)
 const boxRef     = ref(null)
 const primaryChoiceRef = ref(null)
 
@@ -103,7 +104,12 @@ watch(state, (val) => {
   nextTick(() => {
     if (val.type === 'prompt')      inputRef.value?.focus()
     else if (val.type === 'choice') primaryChoiceRef.value?.focus()
-    else                            confirmRef.value?.focus()
+    // Un `confirm` SIEMPRE es destructivo acá (se pinta rojo: `dlg-danger` cuelga del
+    // tipo). El foco va a Cancelar, no a Eliminar: la app enseña que "Enter guarda",
+    // y con el foco en el botón rojo esa misma tecla borraba una edición a medio
+    // escribir o una interacción del historial, que no se puede deshacer.
+    else if (val.type === 'confirm') cancelRef.value?.focus()
+    else                            confirmRef.value?.focus()   // alert: no destruye nada
   })
 })
 
@@ -143,6 +149,9 @@ function onKeydown(e) {
     // hacía que Enter resolviera `true`, que no es el valor de nadie.
     if (state.value.type === 'choice') return
     if (state.value.type === 'prompt') return
+    // Misma razón que en 'choice': con un confirm destructivo, Enter tiene que activar
+    // el botón que tiene el foco (Cancelar), no resolver que sí por su cuenta.
+    if (state.value.type === 'confirm') return
     const tag = document.activeElement?.tagName
     if (tag !== 'TEXTAREA') { e.preventDefault(); e.stopPropagation(); onConfirm() }
   }
