@@ -26,11 +26,20 @@ export const useApi = () => {
   })
 
   const handleResponse = async (res) => {
+    const data = res.status === 204 ? {} : await res.json().catch(() => ({}))
+
+    // Un 401 cierra la sesión, pero el motivo importa: a alguien cuya CUENTA se
+    // desactivó, decirle "tu sesión expiró" lo manda a intentar entrar una y otra vez
+    // sin entender por qué no puede. El cuerpo se lee ANTES del corte justamente para
+    // poder mirar el código (antes se cerraba la sesión sin abrir la respuesta).
     if (res.status === 401) {
       authStore.logout()
-      throw new Error('Sesión expirada. Por favor inicia sesión nuevamente.')
+      throw new Error(
+        data.code === 'ACCOUNT_DISABLED'
+          ? (data.error || 'Tu cuenta fue desactivada.')
+          : 'Sesión expirada. Por favor inicia sesión nuevamente.',
+      )
     }
-    const data = await res.json().catch(() => ({}))
 
     // La puerta por app (§8.7) responde 403 con un código: no la contrató la organización,
     // se venció el trial, o esta persona no la tiene asignada. Los tres necesitan una
