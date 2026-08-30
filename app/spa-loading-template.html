@@ -1,0 +1,67 @@
+<!--
+  LO QUE SE VE MIENTRAS CALENDAR ARRANCA.
+
+  Calendar y Relations son dos apps distintas en dos dominios distintos, así que
+  saltar de una a otra es una carga completa del navegador. Las dos son
+  `ssr: false`, o sea que hasta que Vue monta el usuario veía una PANTALLA EN
+  BLANCO: por eso el cambio de app se sentía como salir del producto y volver a
+  entrar, en vez de como cambiar de sección.
+
+  Esto no acelera nada — pinta de inmediato el mismo marco que va a quedar. El
+  ojo aterriza donde esperaba (la barra lateral, el logo en su esquina) y el
+  contenido llega después, que es exactamente lo que pasa al navegar dentro de
+  una sola app.
+
+  Los estilos van INLINE y con valores literales: este HTML se muestra antes de
+  que cargue cualquier hoja de estilo, así que no puede depender de las
+  variables de `colors.css`. Los dos valores son los mismos que `--sb-bg` en
+  cada tema, y el tema ya está resuelto en `<html data-theme>` por el script de
+  `nuxt.config.js` que corre antes que esto.
+-->
+<div class="ub-boot">
+  <aside class="ub-boot-sb">
+    <div class="ub-boot-logo"></div>
+    <div class="ub-boot-row ub-boot-user"></div>
+    <div class="ub-boot-row ub-boot-org"></div>
+    <div class="ub-boot-label"></div>
+    <div class="ub-boot-row"></div>
+    <div class="ub-boot-row"></div>
+    <div class="ub-boot-row"></div>
+  </aside>
+  <main class="ub-boot-main"></main>
+</div>
+
+<style>
+  .ub-boot { display: flex; height: 100vh; width: 100%; overflow: hidden; }
+  .ub-boot-sb {
+    width: 270px; flex: none; box-sizing: border-box; padding: 18px 14px;
+    background: #0b0e0d;                 /* = --sb-bg en modo oscuro */
+    border-right: 1px solid rgba(255, 255, 255, .06);
+  }
+  .ub-boot-main { flex: 1; background: #0a0c0b; }  /* = --bg en modo oscuro */
+
+  :root[data-theme="light"] .ub-boot-sb   { background: #ffffff; border-right-color: rgba(0, 0, 0, .07); }
+  :root[data-theme="light"] .ub-boot-main { background: #f4f7f6; }
+
+  /* Los bloques del esqueleto. Muy tenues a propósito: sugieren la forma, no
+     compiten con el contenido real que aparece un instante después. */
+  .ub-boot-logo, .ub-boot-row, .ub-boot-label {
+    background: currentColor; opacity: .07; border-radius: 6px;
+  }
+  .ub-boot-sb { color: #ffffff; }
+  :root[data-theme="light"] .ub-boot-sb { color: #0b0e0d; }
+
+  .ub-boot-logo  { height: 20px; width: 118px; margin-bottom: 20px; border-radius: 4px; }
+  .ub-boot-user  { height: 40px; margin-bottom: 8px; }
+  .ub-boot-org   { height: 36px; margin-bottom: 20px; }
+  .ub-boot-label { height: 8px; width: 34px; margin-bottom: 12px; }
+  .ub-boot-row   { height: 30px; margin-bottom: 8px; }
+
+  /* Un latido lento para que se lea como "cargando" y no como "se rompió".
+     Quien haya pedido menos movimiento no lo ve. */
+  .ub-boot-logo, .ub-boot-row, .ub-boot-label { animation: ub-boot-pulse 1.6s ease-in-out infinite; }
+  @keyframes ub-boot-pulse { 0%, 100% { opacity: .07; } 50% { opacity: .13; } }
+  @media (prefers-reduced-motion: reduce) {
+    .ub-boot-logo, .ub-boot-row, .ub-boot-label { animation: none; }
+  }
+</style>

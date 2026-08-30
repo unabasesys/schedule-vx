@@ -3,7 +3,12 @@
     <!-- Brand -->
     <div class="sb-brand">
       <div class="ub-logo">
-        <img src="/images/white-unabase.png" class="ub-logo-img" alt="unabase" />
+        <!-- La marca tiene DOS versiones y cuál se usa no da igual: el sidebar es
+             casi negro en modo oscuro y BLANCO en modo claro. Acá estaba fija en la
+             versión blanca, así que en modo claro el logo no se veía: la esquina
+             superior izquierda —lo primero que mira el ojo al llegar desde otra app
+             de la suite— quedaba vacía. Mismo criterio que Relations. -->
+        <img :src="logoSrc" class="ub-logo-img" alt="unabase" />
         <button
           class="sb-collapse-btn"
           :title="globalStore.lang === 'en' ? 'Collapse sidebar' : 'Colapsar menú'"
@@ -15,16 +20,38 @@
         </button>
       </div>
 
-      <!-- User row -->
-      <div v-if="authStore.isLoggedIn" class="sb-user-row">
-        <div class="sb-user-avatar">
-          <img v-if="userAvatar" :src="userAvatar" :alt="userName" />
-          <span v-else class="sb-user-initials">{{ userInitials }}</span>
-        </div>
-        <div class="sb-user-info">
-          <div class="sb-user-name">{{ userName }}</div>
-          <div class="sb-user-email">{{ authStore.user?.email }}</div>
-        </div>
+      <!-- Fila de usuario — es un MENÚ, igual que en Relations (SidebarHeader).
+           Antes acá era una fila muerta y "Cerrar sesión" vivía suelto al final del
+           pie: dos apps de la misma suite guardaban la misma acción en dos lugares
+           distintos, y al saltar de una a otra había que volver a buscarla. -->
+      <div v-if="authStore.isLoggedIn" ref="userMenuRef" class="sb-user-wrap">
+        <button
+          class="sb-user-row"
+          :class="{ open: userMenuOpen }"
+          :title="globalStore.lang === 'en' ? 'Account menu' : 'Menú de usuario'"
+          @click="userMenuOpen = !userMenuOpen"
+        >
+          <div class="sb-user-avatar">
+            <img v-if="userAvatar" :src="userAvatar" :alt="userName" />
+            <span v-else class="sb-user-initials">{{ userInitials }}</span>
+          </div>
+          <div class="sb-user-info">
+            <div class="sb-user-name">{{ userName }}</div>
+            <div class="sb-user-email">{{ authStore.user?.email }}</div>
+          </div>
+          <svg class="sb-user-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+
+        <Transition name="sb-usermenu">
+          <div v-if="userMenuOpen" class="sb-usermenu">
+            <button class="sb-usermenu-item danger" @click="userMenuOpen = false; logout()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              {{ globalStore.lang === 'en' ? 'Sign out' : 'Cerrar sesión' }}
+            </button>
+          </div>
+        </Transition>
       </div>
 
       <!-- Org row / switcher -->
@@ -143,15 +170,6 @@
       {{ globalStore.lang === 'en' ? 'Suggest an idea' : 'Sugerir una idea' }}
     </button>
 
-    <button class="sb-logout-btn" @click="logout">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-        <polyline points="16 17 21 12 16 7"/>
-        <line x1="21" y1="12" x2="9" y2="12"/>
-      </svg>
-      {{ globalStore.lang === 'en' ? 'Sign out' : 'Cerrar sesión' }}
-    </button>
-
     <!-- App version + last update — opens the what's-new history -->
     <button class="sb-version-btn" @click="globalStore.openWhatsNew()">
       {{ APP_VERSION_SHORT }} · {{ globalStore.lang === 'en' ? 'updated' : 'actualizado' }} {{ formatVersionDate(globalStore.lang) }}
@@ -164,6 +182,19 @@
 import { APP_VERSION_SHORT, formatVersionDate } from '~/utils/changelog'
 
 const globalStore   = useGlobalStore()
+// Igual que en Relations (SidebarHeader): la tinta del logo la decide el tema.
+const logoSrc = computed(() => globalStore.theme === 'light'
+  ? '/images/ink-unabase.png'
+  : '/images/white-unabase.png')
+
+// Menú de usuario (mismo comportamiento que Relations: se cierra al clicar fuera).
+const userMenuOpen = ref(false)
+const userMenuRef  = ref(null)
+function onDocClickUserMenu(e) {
+  if (userMenuRef.value && !userMenuRef.value.contains(e.target)) userMenuOpen.value = false
+}
+onMounted(() => document.addEventListener('mousedown', onDocClickUserMenu))
+onBeforeUnmount(() => document.removeEventListener('mousedown', onDocClickUserMenu))
 const projectsStore = useProjectsStore()
 const authStore     = useAuthStore()
 
@@ -384,6 +415,37 @@ async function saveAsTemplate(id) {
   color: var(--accent) !important;
   border-color: var(--accent-line) !important;
 }
+
+/* Fila de usuario y su menú: copiados TAL CUAL de SidebarHeader de Relations,
+   para que el bloque superior del sidebar se vea idéntico en las dos apps. */
+.sb-user-wrap { position: relative; }
+.sb-user-row { display: flex; align-items: center; gap: 8px; padding: 7px 8px; width: 100%; background: none; border: none; cursor: pointer; font-family: inherit; text-align: left; border-radius: var(--r-sm); transition: background .14s var(--ease); }
+.sb-user-row:hover, .sb-user-row.open { background: var(--wash-1); }
+.sb-user-caret { flex-shrink: 0; color: var(--dim); transition: transform .18s var(--ease), color .15s; }
+.sb-user-row:hover .sb-user-caret { color: var(--text-2); }
+.sb-user-row.open .sb-user-caret { transform: rotate(180deg); color: var(--text); }
+
+.sb-usermenu {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 60;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r);
+  padding: 5px; box-shadow: 0 12px 30px var(--shadow-ink-2);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.sb-usermenu-item {
+  display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px;
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  color: var(--text); font-size: .76rem; font-weight: 600; text-align: left; width: 100%;
+  transition: background .14s, color .14s;
+}
+.sb-usermenu-item svg { color: var(--muted); flex-shrink: 0; transition: color .14s; }
+.sb-usermenu-item:hover { background: var(--surface-3); color: var(--text); }
+.sb-usermenu-item:hover svg { color: var(--accent); }
+.sb-usermenu-item.danger:hover { background: var(--red-soft); color: var(--red); }
+.sb-usermenu-item.danger:hover svg { color: var(--red); }
+.sb-usermenu-sep { height: 1px; background: var(--border); margin: 4px 6px; }
+
+.sb-usermenu-enter-active, .sb-usermenu-leave-active { transition: opacity .15s, transform .15s; }
+.sb-usermenu-enter-from, .sb-usermenu-leave-to { opacity: 0; transform: translateY(-6px); }
 
 .sb-logout-btn {
   margin: 0 12px 10px;
