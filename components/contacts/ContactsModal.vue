@@ -17,6 +17,12 @@
         <input v-model.trim="form.title"  :placeholder="isEN ? 'Role' : 'Cargo'" @keydown.enter="add" />
         <input v-model.trim="form.email" placeholder="Email" @keydown.enter="add" />
         <input v-model.trim="form.phone" :placeholder="isEN ? 'Phone' : 'Teléfono'" @keydown.enter="add" />
+        <!-- Dónde guardarlo en Relations: Clientes o Crew (§9.1). Crew por defecto,
+             que es lo que uno agrega desde acá el 95% de las veces. -->
+        <select v-model="form.badge" class="cm-badge-sel" :title="isEN ? 'Save in' : 'Guardar en'">
+          <option value="crew">Crew</option>
+          <option value="clientes">{{ isEN ? 'Clients' : 'Clientes' }}</option>
+        </select>
         <button class="cm-add-btn" :disabled="!canAdd || saving" @click="add">
           {{ isEN ? '+ Add' : '+ Agregar' }}
         </button>
@@ -56,6 +62,7 @@
             <span>{{ isEN ? 'Role' : 'Cargo' }}</span>
             <span>Email</span>
             <span>{{ isEN ? 'Phone' : 'Teléfono' }}</span>
+            <span>{{ isEN ? 'In' : 'En' }}</span>
             <span></span>
           </div>
           <div v-for="c in filtered" :key="c.id" class="cm-row">
@@ -64,6 +71,7 @@
               <input v-model.trim="editForm.title" />
               <input v-model.trim="editForm.email" />
               <input v-model.trim="editForm.phone" />
+              <span class="cm-badges">{{ etiquetasDe(c) }}</span>
               <div class="cm-acts">
                 <button class="cm-icon cm-ok" @click="saveEdit(c.id)" :title="isEN ? 'Save' : 'Guardar'">✓</button>
                 <button class="cm-icon" @click="editingId = null" :title="isEN ? 'Cancel' : 'Cancelar'">✕</button>
@@ -73,7 +81,22 @@
               <span class="cm-name">{{ c.name || '—' }}</span>
               <span>{{ c.title || '—' }}</span>
               <span class="cm-mail">{{ c.email || '—' }}</span>
-              <span>{{ c.phone || '—' }}</span>
+              <!-- En qué listas de Relations aparece. Se puede tener las dos: a la
+                   misma persona le vendemos y le compramos. Un clic alterna, y
+                   quitar NO elimina el contacto ni lo saca de Calendar. -->
+              <span class="cm-badges">
+                <button
+                  v-for="b in BADGES"
+                  :key="b.key"
+                  class="cm-badge"
+                  :class="{ on: tiene(c, b.key) }"
+                  :disabled="badgeBusy === c.id"
+                  :title="tiene(c, b.key)
+                    ? (isEN ? 'Remove from this list — does NOT delete the contact' : 'Sacar de esta lista — NO elimina el contacto')
+                    : (isEN ? 'Add to this list' : 'Agregar a esta lista')"
+                  @click="alternar(c, b.key)"
+                >{{ isEN ? b.en : b.es }}</button>
+              </span>
               <div class="cm-acts">
                 <button class="cm-icon" @click="startEdit(c)" :title="isEN ? 'Edit' : 'Editar'">✎</button>
                 <button class="cm-icon cm-del" @click="remove(c)" :title="isEN ? 'Delete' : 'Eliminar'">✕</button>
@@ -95,7 +118,20 @@ const { $toast }  = useNuxtApp()
 
 const isEN = computed(() => globalStore.lang === 'en')
 
-const form     = reactive({ name: '', title: '', email: '', phone: '' })
+// ETIQUETAS de Relations (§9.1): en qué lista aparece esta persona.
+//
+// Este directorio es de Calendar, pero la tabla `contacts` es UNA sola y la
+// comparte con Relations. Marcar acá es lo que evita que cada persona tipeada en
+// una jornada caiga en la bandeja comercial de Relations a esperar que alguien la
+// clasifique de a una — son ~250 por organización (ARQUITECTURA-DECISION §9.2.1).
+const BADGES = [
+  { key: 'crew',     es: 'Crew',     en: 'Crew' },
+  { key: 'clientes', es: 'Clientes', en: 'Clients' },
+]
+
+// Crew por defecto: es lo que uno agrega desde el directorio de Calendar casi
+// siempre, y el valor por defecto tiene que ser el caso común, no el neutro.
+const form     = reactive({ name: '', title: '', email: '', phone: '', badge: 'crew' })
 const editForm = reactive({ name: '', title: '', email: '', phone: '' })
 const editingId = ref(null)
 const saving    = ref(false)
@@ -103,6 +139,27 @@ const query     = ref('')
 const searchRef = ref(null)
 
 const canAdd = computed(() => !!form.name?.trim())
+
+const badgeBusy = ref(null)
+
+const tiene = (c, key) => (c?.badges || []).some(b => b?.key === key)
+const etiquetasDe = (c) => (c?.badges || []).map(b => b?.key).filter(Boolean).join(', ') || '—'
+
+// Alterna una etiqueta. Nunca reemplaza: alguien puede estar en las dos listas.
+// `badgeBusy` evita el doble clic — el backend ya es idempotente, pero sin esto la
+// pastilla parpadea de ida y vuelta mientras vuelan dos requests cruzados.
+async function alternar(c, key) {
+  if (badgeBusy.value) return
+  badgeBusy.value = c.id
+  try {
+    if (tiene(c, key)) await store.removeBadge(c.id, key)
+    else               await store.addBadge(c.id, key)
+  } catch (e) {
+    $toast(isEN.value ? 'Could not update the list.' : 'No se pudo actualizar la lista.', { type: 'error' })
+  } finally {
+    badgeBusy.value = null
+  }
+}
 
 // Free-text search across every field. Email and phone are in there on purpose: a
 // contact that arrived from an import often has nothing but an email address.
@@ -127,8 +184,13 @@ async function add() {
   if (!canAdd.value || saving.value) return
   saving.value = true
   try {
-    await store.addContact({ name: form.name, title: form.title, email: form.email, phone: form.phone })
+    await store.addContact({
+      name: form.name, title: form.title, email: form.email, phone: form.phone,
+      badge: form.badge,
+    })
     form.name = form.title = form.email = form.phone = ''
+    // La etiqueta NO se resetea: quien está cargando crew carga varios seguidos, y
+    // volver a "Crew" cada vez lo obligaría a reelegir en cada fila.
     query.value = ''   // otherwise the contact just added can sit outside the filter
   } catch (e) {
     $toast(isEN.value ? 'Could not save contact.' : 'No se pudo guardar el contacto.', { type: 'error' })
@@ -195,7 +257,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .cm-sub { font-size: .72rem; color: var(--muted); margin: 2px 0 12px; }
 
 .cm-add {
-  display: grid; grid-template-columns: 1.3fr 1fr 1.3fr 1fr auto; gap: 6px;
+  display: grid; grid-template-columns: 1.3fr 1fr 1.3fr 1fr auto auto; gap: 6px;
   margin-bottom: 12px;
 }
 .cm-add input {
@@ -229,7 +291,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .cm-empty { text-align: center; color: var(--muted); font-size: .78rem; padding: 22px 0; }
 
 .cm-row {
-  display: grid; grid-template-columns: 1.3fr 1fr 1.3fr 1fr auto; gap: 6px;
+  display: grid; grid-template-columns: 1.3fr 1fr 1.3fr 1fr auto auto; gap: 6px;
   align-items: center; padding: 7px 2px; border-bottom: 1px solid var(--border);
   font-size: .78rem; color: var(--text);
 }
@@ -255,4 +317,21 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 .cm-icon:hover { color: var(--text); border-color: var(--text); }
 .cm-ok:hover { color: var(--accent); border-color: var(--accent); }
 .cm-del:hover { color: var(--danger); border-color: var(--danger); }
+
+/* Etiquetas: en qué listas de Relations aparece la persona. Encendida = panel de
+   acento con borde, el mismo lenguaje del resto de la app. */
+.cm-badge-sel {
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2);
+  color: var(--text); font-family: inherit; font-size: .74rem; padding: 0 6px; cursor: pointer;
+}
+.cm-badge-sel:focus { outline: none; border-color: var(--accent); }
+.cm-badges { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.cm-badge {
+  border: 1px solid var(--border); border-radius: 6px; background: none;
+  color: var(--muted); font-family: inherit; font-size: .66rem; font-weight: 600;
+  padding: 2px 7px; cursor: pointer; transition: background .16s, color .16s, border-color .16s;
+}
+.cm-badge:hover:not(:disabled) { color: var(--text); }
+.cm-badge.on { background: var(--accent-panel); color: var(--accent); border-color: var(--accent); }
+.cm-badge:disabled { opacity: .5; cursor: default; }
 </style>

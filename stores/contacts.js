@@ -91,6 +91,30 @@ export const useContactsStore = defineStore('contacts', {
       return created
     },
 
+    // ETIQUETAS (§9.1): en qué lista de Relations aparece esta persona — Clientes
+    // o Crew. Endpoint propio y no `updateContact`: el PUT genérico no acepta
+    // `badges`, para que nadie mande el arreglo completo y borre de paso el
+    // "cuándo y quién" de las otras etiquetas.
+    //
+    // AGREGA, nunca reemplaza: marcar a alguien como crew acá no le puede quitar
+    // la etiqueta de cliente que tenga en Relations. A la misma persona le
+    // vendemos y le compramos.
+    async addBadge(id, key) {
+      const updated = normalize(await useApi().post(`/contacts/${id}/badges`, { key }))
+      const idx = this.contacts.findIndex(c => c.id === id)
+      if (idx !== -1) this.contacts[idx] = updated
+      return updated
+    },
+
+    // Saca de esa lista de Relations. NO elimina el contacto ni lo saca de
+    // Calendar: sus participaciones en las jornadas siguen resolviendo igual.
+    async removeBadge(id, key) {
+      const updated = normalize(await useApi().delete(`/contacts/${id}/badges/${key}`))
+      const idx = this.contacts.findIndex(c => c.id === id)
+      if (idx !== -1) this.contacts[idx] = updated
+      return updated
+    },
+
     async updateContact(id, payload) {
       const gen = _gen
       const updated = normalize(await useApi().put(`/contacts/${id}`, payload))
