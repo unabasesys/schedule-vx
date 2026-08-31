@@ -105,10 +105,15 @@ watch(state, (val) => {
     if (val.type === 'prompt')      inputRef.value?.focus()
     else if (val.type === 'choice') primaryChoiceRef.value?.focus()
     // Un `confirm` SIEMPRE es destructivo acá (se pinta rojo: `dlg-danger` cuelga del
-    // tipo). El foco va a Cancelar, no a Eliminar: la app enseña que "Enter guarda",
-    // y con el foco en el botón rojo esa misma tecla borraba una edición a medio
-    // escribir o una interacción del historial, que no se puede deshacer.
-    else if (val.type === 'confirm') cancelRef.value?.focus()
+    // tipo). Por defecto el foco va a Cancelar, no a Eliminar: la app enseña que
+    // "Enter guarda", y con el foco en el botón rojo esa misma tecla borraba una
+    // edición a medio escribir o una interacción del historial, que no se puede
+    // deshacer. Con `enterConfirms` quien abre el diálogo pide lo contrario: el foco
+    // parte en confirmar y Enter lo activa (activación nativa del botón enfocado).
+    else if (val.type === 'confirm') {
+      if (val.enterConfirms) confirmRef.value?.focus()
+      else                   cancelRef.value?.focus()
+    }
     else                            confirmRef.value?.focus()   // alert: no destruye nada
   })
 })
@@ -150,7 +155,8 @@ function onKeydown(e) {
     if (state.value.type === 'choice') return
     if (state.value.type === 'prompt') return
     // Misma razón que en 'choice': con un confirm destructivo, Enter tiene que activar
-    // el botón que tiene el foco (Cancelar), no resolver que sí por su cuenta.
+    // el botón que tiene el foco — sea Cancelar o, con `enterConfirms`, el rojo —, no
+    // resolver que sí por su cuenta.
     if (state.value.type === 'confirm') return
     const tag = document.activeElement?.tagName
     if (tag !== 'TEXTAREA') { e.preventDefault(); e.stopPropagation(); onConfirm() }

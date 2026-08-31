@@ -4,9 +4,14 @@ import { shallowRef } from 'vue'
 const _state = shallowRef(null)
 
 export function useDialog() {
-  function confirm({ title, body = '', confirmLabel = 'Confirmar', cancelLabel = 'Cancelar' } = {}) {
+  // `enterConfirms: true` pone el foco en el botón de confirmar, así Enter lo
+  // activa. NO es el defecto: en un confirm destructivo el foco vive en Cancelar
+  // justamente para que la tecla de "guardar" no borre nada. Se enciende diálogo
+  // por diálogo, donde confirmar con el teclado vale más que ese seguro — y donde
+  // la advertencia ya se leyó completa.
+  function confirm({ title, body = '', confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', enterConfirms = false } = {}) {
     return new Promise(resolve => {
-      _state.value = { type: 'confirm', title, body, confirmLabel, cancelLabel, resolve }
+      _state.value = { type: 'confirm', title, body, confirmLabel, cancelLabel, enterConfirms, resolve }
     })
   }
 
