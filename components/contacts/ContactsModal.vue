@@ -81,6 +81,7 @@
               <span class="cm-name">{{ c.name || '—' }}</span>
               <span>{{ c.title || '—' }}</span>
               <span class="cm-mail">{{ c.email || '—' }}</span>
+              <span>{{ c.phone || '—' }}</span>
               <!-- En qué listas de Relations aparece. Se puede tener las dos: a la
                    misma persona le vendemos y le compramos. Un clic alterna, y
                    quitar NO elimina el contacto ni lo saca de Calendar. -->
@@ -149,7 +150,11 @@ const etiquetasDe = (c) => (c?.badges || []).map(b => b?.key).filter(Boolean).jo
 // `badgeBusy` evita el doble clic — el backend ya es idempotente, pero sin esto la
 // pastilla parpadea de ida y vuelta mientras vuelan dos requests cruzados.
 async function alternar(c, key) {
-  if (badgeBusy.value) return
+  // Por FILA, no global: el guard estaba en `badgeBusy.value` a secas mientras el
+  // `:disabled` era por fila, así que las pastillas de las demás filas se veían
+  // habilitadas, respondían al hover y al hacer clic no pasaba nada. Con red lenta
+  // eso se lee como "el botón no funciona".
+  if (badgeBusy.value === c.id) return
   badgeBusy.value = c.id
   try {
     if (tiene(c, key)) await store.removeBadge(c.id, key)

@@ -904,6 +904,14 @@ async function addAdhoc(text, role = '') {
     if (title && !(existing.title || '').trim()) {
       try { await contactsStore.updateContact(existing.id, { title }) } catch (e) { /* keep the link */ }
     }
+    // Y la etiqueta CREW también acá (§9.1). Esta rama sale ANTES del alta de más
+    // abajo, así que sin esto el caso más frecuente de todos se quedaba sin marcar:
+    // se tipea a alguien que ya está en la base porque Relations lo capturó de
+    // Gmail, y esa persona nunca llegaba a Crew. Es idempotente y sólo agrega, así
+    // que si ya era crew no pasa nada y si además es cliente conserva las dos.
+    if (!(existing.badges || []).some(b => b?.key === 'crew')) {
+      try { await contactsStore.addBadge(existing.id, 'crew') } catch (e) { /* el vínculo ya quedó */ }
+    }
     return
   }
 
