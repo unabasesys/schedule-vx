@@ -21,10 +21,20 @@ import fs from "node:fs";
 import path from "node:path";
 
 const raiz = path.resolve(import.meta.dirname, "..");
-const dirBundle = path.join(raiz, ".output/public/_nuxt");
 
-if (!fs.existsSync(dirBundle)) {
-  console.error(`✖ No encuentro el bundle en ${dirBundle}. ¿Corriste el build?`);
+// Dónde queda el bundle depende del preset de Nitro, y este repo se construye en DOS
+// plataformas mientras dure la migración: Railway usa `node-server` y escribe en
+// `.output/public`, Vercel usa su propio preset y escribe en `.vercel/output/static`.
+// Mirar solo el primero hacía fallar el build de Vercel — que hoy es producción.
+const CANDIDATOS = [".output/public/_nuxt", ".vercel/output/static/_nuxt"];
+const dirBundle = CANDIDATOS.map((d) => path.join(raiz, d)).find((d) => fs.existsSync(d));
+
+// Si no aparece en ninguno, se FALLA en vez de pasar de largo: significa que el build
+// dejó de escribir donde se espera, y una verificación que se salta a sí misma en
+// silencio es peor que no tenerla.
+if (!dirBundle) {
+  console.error("✖ No encuentro el bundle. ¿Corriste el build? Busqué en:");
+  for (const d of CANDIDATOS) console.error(`    ${path.join(raiz, d)}`);
   process.exit(1);
 }
 
