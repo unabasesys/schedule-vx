@@ -3,15 +3,19 @@
   "private": true,
   "scripts": {
     "dev": "nuxt dev",
-    "build": "nuxt build",
+    "build": "nuxt build && node scripts/verificar-bundle.mjs",
     "generate": "nuxt generate",
-    "preview": "nuxt preview"
+    "preview": "nuxt preview",
+    "verificar:bundle": "node scripts/verificar-bundle.mjs"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   },
   "dependencies": {
     "@pinia/nuxt": "^0.5.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.1",
-    "nuxt": "^3.8.1",
+    "nuxt": "^3.21.11",
     "pinia": "^2.1.7",
     "vue": "^3.3.8",
     "vue3-toastify": "^0.1.14"
