@@ -55,9 +55,27 @@ export function appLabel(key) {
   return APP_LABELS[key] || key
 }
 
+// LA SUITE (decisión de Jorge, 2-sep-2026). Relations es un producto y se cobra en un
+// solo valor, con sus módulos adentro: Clientes, Crew y Leads. Así que el entitlement de
+// un módulo es el del producto que lo contiene.
+//
+// Esto vive acá aunque Calendar no abra ninguna de las dos, porque el lanzador de apps de
+// este front pinta el candado de Relations y de Leads. Sin la regla, a un cliente que
+// tiene Relations —y que arrastra el `apps.leads.enabled: false` con el que las
+// organizaciones nacían— Calendar le mostraba Leads con candado de venta: le ofrecía
+// comprar algo que ya estaba pagando.
+//
+// Calendar NO entra: es independiente y se cobra aparte (§8.2). Y es la de casa acá.
+const MODULOS_DE_RELATIONS = ['leads']
+
+export function appQueMandaSobre(key) {
+  return MODULOS_DE_RELATIONS.includes(key) ? 'relations' : key
+}
+
 // ¿La organización tiene habilitada esta app?
 //
-// La misma regla que el backend, sin excepciones: habilitada solo si `enabled === true`.
+// La misma regla que el backend, sin excepciones: habilitada solo si `enabled === true`
+// en la app que manda.
 //
 // El front de Relations sí tiene una excepción —Relations abierta en una organización sin
 // el objeto `apps`, por las orgs anteriores al entitlement— y acá no hace falta ninguna:
@@ -65,7 +83,7 @@ export function appLabel(key) {
 // escribe el `createOrg` de este back o el panel de plataforma al venderla. Una llave
 // ausente significa "no contratada", igual que para el portero.
 export function isAppEnabled(org, key) {
-  return org?.apps?.[key]?.enabled === true
+  return org?.apps?.[appQueMandaSobre(key)]?.enabled === true
 }
 
 // Las apps que ESTA persona tiene asignadas en la organización (§8.7). El dueño pasa
