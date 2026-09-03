@@ -143,9 +143,13 @@ schedule-nuxt/
 │   ├── holidays.js            # Caché de feriados (Nager.Date API)
 │   └── weather.js             # Caché de clima (Open-Meteo API)
 ├── composables/
-│   ├── usePersist.js          # Wrapper de localStorage
+│   ├── useApi.js              # Llamadas a la API (JWT + cabecera Organization)
+│   ├── usePersist.js          # Respaldo en localStorage
 │   ├── useDependencyEngine.js # Motor de cálculo de fechas por dependencias
-│   └── usePdfExport.js        # Exportación a PDF con jsPDF
+│   ├── useDialog.js           # Diálogos compartidos con Relations
+│   ├── useAppBlock.js         # Candado cuando la org no tiene la app
+│   └── useSnapNotice.js       # Avisos al arrastrar eventos
+│                              # El PDF no tiene composable: lo hacen pages/print*
 ├── utils/
 │   ├── constants.js           # MASTER_TEMPLATE (101 eventos), grupos, ciudades, etapas
 │   ├── helpers.js             # uid, fmtDate, addDays, subtractDays, etc.

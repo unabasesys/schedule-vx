@@ -1,162 +1,132 @@
 # Flujo: Exportación a PDF y Versionado
 
+> **Reescrito el 2-sep-2026.** Lo que había acá describía un PDF de TABLA por etapas, en
+> horizontal, generado por `composables/usePdfExport.js` desde un botón de
+> `CalendarView.vue`. Nada de eso existe: ni ese diseño, ni ese botón, ni ese archivo.
+>
+> El PDF se rediseñó el 21-abr-2026 (`6ba249a`, el commit que trajo `pages/print/[id].vue`)
+> y el exportador viejo quedó sin llamador ese mismo día, pero el documento nunca se
+> actualizó. Costó una tarde de auditoría y una afirmación falsa sobre bugs que los
+> clientes supuestamente estaban recibiendo.
+>
+> **Regla que se saca de esto: cuando un flujo se reemplaza, el documento del flujo viejo
+> se reescribe o se borra en el MISMO commit.** Un documento desactualizado no es un
+> documento incompleto: es una mentira que alguien va a creer.
+
 ## Descripción
 
-Genera un documento PDF del calendario de producción. Existen dos tipos de PDF: **Draft** (de trabajo, no incrementa versión) y **Versión Oficial** (formal, incrementa versión). El sistema de versionado permite distinguir entre el estado de trabajo y el estado oficial del calendario.
+El PDF del calendario **no se dibuja**: se FOTOGRAFÍA. Una página web (`pages/print/`)
+maqueta el calendario en hojas A4 horizontales, `html2canvas` captura cada hoja a PNG y
+`jsPDF` pega esos PNG en el documento.
+
+Eso es deliberado y tiene una consecuencia que conviene tener presente: **lo que se ve en
+la vista previa es exactamente lo que sale en el PDF**, tipografías y todo, porque es la
+misma pantalla. El precio es que el texto del PDF no es seleccionable ni buscable, y que
+el archivo pesa alrededde 1 MB por 3 páginas.
 
 ---
 
-## Versionado del Calendario
+## Los tres documentos
 
-### Versión inicial
-Todo calendario comienza en **Versión 0**.
+Todos salen de `components/modals/ShareDropdown.vue`, el menú **Compartir**:
 
-### Estado "con cambios" (asterisco)
-Cuando hay cambios sin versionar, el número de versión lleva un asterisco:
-- Ejemplo: `Versión 1*`
+| Opción | A dónde va | Versiona |
+|---|---|---|
+| **Borrador** | `/print/<id>?draft=1&type=client\|internal` | **No.** Abre la vista previa sin tocar la versión. |
+| **Nueva Versión** | `/print/<id>?draft=0&type=client\|internal` | **Sí.** Si hay cambios, `bumpVersion()` antes de abrir. |
+| **Daily** | `/print-daily/<id>?from&to&type&lang` | No. Es el schedule operacional día a día. |
 
-**Qué activa el asterisco (cambios de contenido):**
-- Editar datos del proyecto (cliente, agencia, director, etc.)
-- Crear, editar o eliminar eventos
-- Cambiar fechas de eventos
-- Cualquier cambio que altere el contenido formal del calendario
+### "Para": Cliente o Interno
 
-**Qué NO activa el asterisco (cambios de visualización):**
-- Mostrar u ocultar feriados
-- Cambiar temperatura entre °C y °F
-- Cambiar inicio de semana
-- Cambiar zoom (1 mes vs 2 meses)
-- Cambiar el idioma del calendario (ES ↔ EN)
-- Cualquier ajuste que solo afecte cómo se ve, no qué contiene
+Un solo par de palabras para los tres documentos, porque es un solo concepto: **si se
+incluyen los eventos internos (los del candado)**. `client` los oculta, `internal` los
+incluye. No se reformula por sección — está escrito así en `LABELS` de `ShareDropdown.vue`.
 
 ---
 
-## Modos de Exportación
+## Versionado
 
-### Modo 1: Draft (Borrador de Trabajo)
+Todo calendario parte en **versión 0**. `hasChanges` es la banderita del asterisco.
 
-- Genera un PDF con **marca DRAFT** visible.
-- **No incrementa** la versión del calendario.
-- **No cambia** el estado del asterisco.
-- Solo disponible si hay cambios no versionados (si `hasChanges === true`).
-- Una vez creada una versión oficial sin cambios posteriores, la opción Draft no debe aparecer.
-- Sirve para compartir internamente o revisar sin comprometer una versión oficial.
+**La pone en `true`** cualquier edición de contenido, en `stores/projects.js`:
+`updateProject()`, `addEvent()`, `cycleStatus()` y las demás mutaciones de eventos.
 
-### Modo 2: Versión Oficial
+**La limpia UN SOLO lugar:** `bumpVersion()`, que sube `version` en 1, pone
+`hasChanges = false`, refresca `updatedAt`/`editedAt` y agenda la sincronización
+explícitamente (porque `save()` no la levanta con la bandera ya en false).
 
-- **Incrementa la versión** del calendario (ej: de `1*` a `2`).
-- Limpia el asterisco (`hasChanges = false`).
-- Genera el PDF sin marca DRAFT.
-- Una versión oficial puede descargarse múltiples veces mientras no cambien datos ni eventos.
-- Cada nueva versión oficial es un hito formal del calendario.
+Los cambios de VISUALIZACIÓN no tocan la bandera: feriados, °C/°F, inicio de semana, zoom,
+idioma. Solo cambian cómo se ve, no qué contiene.
 
----
-
-## Trigger
-
-- Usuario hace clic en el botón **"PDF"** en `CalendarView.vue`
-- Se abre un selector: Draft o Nueva Versión Oficial
-- Se llama `usePdfExport().exportPdf(proj, lang, mode)` según la opción elegida
+> **Cuidado con `hasChanges`:** es una bandera de PRODUCTO —"editado desde la última
+> versión"— y vive en Mongo. NO sirve como "tiene cambios sin guardar": se queda en `true`
+> toda la vida de un calendario en uso. Leerla como "sin guardar" ya desactivó en silencio
+> la sincronización de frescura una vez. Para eso está `hasUnsyncedWork()`.
 
 ---
 
-## Proceso de Generación
+## El detalle que no es obvio: por qué se abre una pestaña en blanco
 
-```
-exportPdf(proj, lang, mode)
-  │
-  ├── 1. Inicializa jsPDF en modo Landscape A4
-  │
-  ├── 2. Header
-  │      ├── Logo del estudio/organización (si existe, base64)
-  │      ├── Nombre del cliente / agencia / proyecto
-  │      ├── Director / Fotógrafo / EP
-  │      ├── Versión + fecha de exportación
-  │      └── Si mode === 'draft' → marca DRAFT visible
-  │
-  ├── 3. Tabla de eventos (agrupados por etapa)
-  │      ├── Orden de etapas: bid → pre → sht → vpst → spst
-  │      ├── Cabecera de etapa con color de etapa
-  │      ├── Por cada evento activo:
-  │      │     ├── Columna: Etapa
-  │      │     ├── Columna: Nombre del evento (en `lang`)
-  │      │     ├── Columna: Fecha formateada (según formato de org)
-  │      │     ├── Columna: Duración (días calendario/hábiles)
-  │      │     └── Si keyDate === true → fila con fondo negro y texto blanco (badge destacado)
-  │      └── Filas alternas con fondo gris suave
-  │
-  ├── 4. Feriados en PDF
-  │      └── El usuario puede optar por mostrar u ocultar feriados en el PDF
-  │
-  ├── 5. Footer (cada página)
-  │      ├── Número de página (izquierda)
-  │      ├── "CONFIDENTIAL – FOR PRODUCTION USE ONLY" (centrado)
-  │      └── Timestamp de exportación (derecha, fuente pequeña)
-  │
-  ├── 6. Si mode === 'official':
-  │      ├── proj.version += 1
-  │      ├── proj.hasChanges = false
-  │      └── save() → localStorage
-  │
-  └── 7. Descarga automática del PDF
-         Nombre: "[cliente]-[proyecto]-v[version].pdf"
+`openPrintTab()` hace tres cosas en un orden que importa:
+
+```js
+const w = window.open('about:blank', '_blank')      // 1. sincrónico, dentro del gesto
+await projectsStore.syncProjectNow(props.project.id) // 2. el servidor ya tiene el estado
+if (w) w.location = url                              // 3. recién ahí se apunta a /print
 ```
 
----
-
-## Colores de Etapa en PDF
-
-| Etapa | Color |
-|-------|-------|
-| Licitación (bid) | `#7CAEFF` |
-| Preproducción (pre) | `#06CCB4` |
-| Rodaje (sht) | `#f97316` |
-| Video Post (vpst) | `#a855f7` |
-| Still Post (spst) | `#ec4899` |
+1. La pestaña se abre **en blanco y de inmediato**, dentro del gesto del usuario, porque
+   Safari bloquea el popup si se abre después de un `await`.
+2. **Las páginas de impresión vuelven a pedir el proyecto a la API.** Si el guardado
+   diferido todavía viaja, el PDF se arma con datos viejos — típicamente una versión
+   atrasada. Por eso se fuerza el sync antes.
+3. Con el servidor al día, se apunta la pestaña.
 
 ---
 
-## Branding Organizacional en PDF
+## Qué lleva cada hoja
 
-El PDF debe poder reflejar el branding de la organización:
-- Logo de la organización en el header
-- Nombre de la organización
-- En versiones futuras: colores, pie de página personalizado, encabezado de marca
+Lo maqueta `pages/print/[id].vue` (y `print-daily/[id].vue` el diario):
 
-El logo se obtiene de `settingsStore.logo` (base64 guardado en localStorage).
+- **Encabezado**: logo de la organización, nombre, "PRODUCTION SCHEDULE", proyecto,
+  `DRAFT V8*` o la versión, y "LAST UPDATED".
+- **Barra de metadatos**: cliente, agencia, director, fotógrafo, productor ejecutivo,
+  productor de agencia — se omite el que esté vacío.
+- **La grilla del mes**, una hoja por mes, con las barras de evento por etapa, la ★ de las
+  fechas clave (sobrevive porque viaja como imagen), el día de hoy marcado, y los feriados.
+- **Pie**: "Calendar by unabase.com", "CONFIDENTIAL · FOR PRODUCTION USE ONLY", y `01 / 03`.
 
----
-
-## Consideraciones
-
-- Solo se exportan eventos con `active = true`.
-- El idioma del PDF sigue el idioma del calendario (`project.lang`); si el proyecto no lo define, cae a las preferencias del usuario. Lo mismo aplica al inicio de semana (`project.weekStart`).
-- El formato de fecha en el PDF usa el configurado por la organización.
-- No requiere conexión a internet; todo se genera en el cliente.
-- Los feriados pueden incluirse o excluirse visualmente del PDF según preferencia del usuario.
+El nombre del archivo lo arma `pages/print/[id].vue`:
+`Organización_Cliente_Agencia_Proyecto_Versión.pdf`.
 
 ---
 
-## Criterios de Aceptación
+## Cómo se verifica
 
-- Un calendario nuevo parte en versión 0.
-- Cambiar un evento activa el asterisco de versión.
-- Cambiar visualización **no** activa el asterisco.
-- El usuario puede descargar Draft solo si hubo cambios (`hasChanges === true`).
-- El usuario puede crear una nueva versión oficial desde el PDF.
-- La versión oficial incrementa el número de versión y limpia el asterisco.
-- El Draft genera PDF con marca DRAFT visible.
-- El Draft no incrementa la versión.
+**No se puede sin navegador.** `html2canvas` necesita un DOM real, así que ningún banco de
+pruebas headless cubre este camino — se intentó, y lo que se probó fue el exportador
+muerto.
+
+La forma que sí funciona:
+
+1. Abrir **Compartir → Borrador**. Es seguro: no avanza la versión.
+2. Revisar la vista previa y la consola.
+3. Apretar **Download PDF** y comparar contra un PDF anterior del mismo calendario.
+   `strings archivo.pdf | grep Producer` dice con qué versión de jsPDF se generó, y
+   `pdftoppm -r 90 -png` deja las páginas como imágenes para comparar.
+
+Así se verificó la subida de jsPDF 2.5.2 → 4.2.1 (2-sep-2026): mismo calendario, misma
+versión, dos PDF a dos días de distancia, idénticos salvo "LAST UPDATED" y el círculo del
+día de hoy.
 
 ---
 
-## Archivos Involucrados
+## Archivos
 
 | Archivo | Rol |
-|---------|-----|
-| `composables/usePdfExport.js` | Lógica completa de generación |
-| `components/schedule/CalendarView.vue` | Botón trigger + pasa datos |
-| `stores/projects.js` | Gestión de versión y hasChanges |
-| `stores/settings.js` | Logo y nombre del estudio |
-| `utils/helpers.js` → `fmtDate()` | Formato de fechas |
-| `utils/constants.js` → `STAGE_ORDER` | Orden de etapas |
+|---|---|
+| `components/modals/ShareDropdown.vue` | El menú Compartir: las tres opciones y el "Para" |
+| `pages/print/[id].vue` | La maqueta del calendario + html2canvas + jsPDF |
+| `pages/print-daily/[id].vue` | Lo mismo para el schedule diario |
+| `stores/projects.js` → `bumpVersion()` | El único lugar que limpia `hasChanges` |
+| `stores/settings.js` | Logo y nombre de la organización |

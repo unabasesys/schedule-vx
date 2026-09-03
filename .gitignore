@@ -12,5 +12,3 @@ unabase Calendar/
 # copia del propio repo: sin esta línea, un `git add -A` la mete adentro.
 .claude/
 
-# PDF de muestra generados por npm run pdf:muestra
-scripts/pdf-muestra/salida/

@@ -1,8 +1,20 @@
 # Arquitectura — Schedule Nuxt
 
+> **Corregido parcialmente el 2-sep-2026.** Este documento describía Supabase como backend
+> y `localStorage` como la persistencia — las dos cosas dejaron de ser verdad en mayo. Se
+> corrigieron **las partes verificadas contra el código**: el backend, el almacenamiento, la
+> lista de composables, las páginas y las stores. El resto (capas 1, 2, 5 y lo que sigue) NO
+> se volvió a verificar: leelo como una referencia útil, no como una garantía.
+
 ## Visión General
 
-Schedule Nuxt es una **SPA client-only** (SSR desactivado). Todo el estado vive en el cliente: `localStorage` para persistencia y Pinia para estado reactivo en memoria. El único backend externo usado de forma propia es Supabase, exclusivamente para la funcionalidad de sharing público.
+Calendar es una **SPA client-only** (SSR desactivado) contra un backend propio: la API de
+`scheduleBack` (Express + Mongo), que comparte la base de datos con Relations — de ahí que
+los contactos sean los mismos en las dos apps.
+
+Pinia es el estado reactivo en memoria y **la fuente de verdad es Mongo**, vía la API.
+`localStorage` quedó como **respaldo local** de cada calendario editado, para no perder
+trabajo si una escritura falla; no es la persistencia.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -13,27 +25,32 @@ Schedule Nuxt es una **SPA client-only** (SSR desactivado). Todo el estado vive 
 │  │                                                     │   │
 │  │  Pages          Components          Stores           │   │
 │  │  ──────         ──────────          ──────           │   │
-│  │  /schedule  →   CalendarView    ←→  projects.js      │   │
-│  │  /share     →   CalendarMonth   ←→  global.js        │   │
-│  │                 EventListView   ←→  settings.js      │   │
-│  │                 AppSidebar      ←→  holidays.js      │   │
+│  │  /calendar  →   CalendarView    ←→  projects.js      │   │
+│  │  /print     →   CalendarMonth   ←→  global.js        │   │
+│  │  /print-daily   DailyEventRow   ←→  settings.js      │   │
+│  │  /login …   →   AppSidebar      ←→  holidays.js      │   │
 │  │                 ...modals...    ←→  weather.js       │   │
-│  │                                                     │   │
+│  │                                 ←→  contacts.js      │   │
+│  │                                 ←→  auth.js          │   │
 │  │  Composables                                         │   │
 │  │  ────────────                                        │   │
+│  │  useApi               ←── Llamadas a la API          │   │
 │  │  useDependencyEngine  ←── Motor de fechas            │   │
-│  │  usePersist           ←── Wrapper localStorage       │   │
-│  │  useSupabase          ←── Cliente Supabase           │   │
-│  │  usePdfExport         ←── Generación PDF             │   │
+│  │  useDialog            ←── Diálogos compartidos       │   │
+│  │  usePersist           ←── Respaldo en localStorage   │   │
+│  │  useAppBlock          ←── Candado por app            │   │
+│  │  useSnapNotice        ←── Avisos de arrastre         │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                             │
-│  localStorage:  ub_projects, ub_templates, ub_studio, ...  │
+│  localStorage: respaldo por calendario + tema + sesión      │
 └────────────────────────────┬────────────────────────────────┘
                              │
               ┌──────────────┼──────────────┐
               │              │              │
-         Supabase      Nager.Date      Open-Meteo
-        (sharing)      (holidays)      (weather)
+      scheduleBack      Nager.Date      Open-Meteo
+    (API + Mongo,       (feriados)        (clima)
+   compartida con
+      Relations)
 ```
 
 ---
@@ -57,8 +74,10 @@ Estado global de la aplicación. Son la fuente de verdad en memoria.
 | Store | Responsabilidad |
 |-------|----------------|
 | `global.js` | Vista activa, filtros, estado de modales, lang |
-| `projects.js` | CRUD de proyectos, eventos y templates |
-| `settings.js` | Studio name, logo, usuarios |
+| `projects.js` | CRUD de calendarios, eventos, daily y templates; versionado; sincronización |
+| `settings.js` | Nombre y logo de la organización, usuarios |
+| `auth.js` | Sesión, organización activa, invitaciones |
+| `contacts.js` | Directorio de contactos (colección COMPARTIDA con Relations) |
 | `holidays.js` | Caché de feriados y llamadas a Nager.Date |
 | `weather.js` | Caché de clima y llamadas a Open-Meteo |
 
@@ -67,10 +86,15 @@ Lógica reutilizable desacoplada de la UI.
 
 | Composable | Responsabilidad |
 |------------|----------------|
+| `useApi` | Todas las llamadas a la API (JWT + cabecera Organization) |
 | `useDependencyEngine` | Sort topológico + cálculo de fechas |
-| `usePersist` | Lee/escribe localStorage |
-| `useSupabase` | Todas las operaciones con Supabase |
-| `usePdfExport` | Genera y descarga el PDF |
+| `useDialog` | Los diálogos compartidos con Relations (confirmar, alertar) |
+| `usePersist` | Respaldo en localStorage |
+| `useAppBlock` | El candado cuando la organización no tiene la app |
+| `useSnapNotice` | Los avisos al arrastrar eventos |
+
+El PDF **no tiene composable**: lo generan las páginas `print/` y `print-daily/`
+fotografiando la pantalla con html2canvas. Ver [flujos/exportar-pdf.md](flujos/exportar-pdf.md).
 
 ### 5. Utils (`utils/`)
 Funciones puras sin estado. Importadas automáticamente por Nuxt.

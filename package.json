@@ -6,8 +6,7 @@
     "build": "nuxt build && node scripts/verificar-bundle.mjs",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "verificar:bundle": "node scripts/verificar-bundle.mjs",
-    "pdf:muestra": "node --import ./scripts/pdf-muestra/registrar.mjs scripts/pdf-muestra/muestra.mjs"
+    "verificar:bundle": "node scripts/verificar-bundle.mjs"
   },
   "engines": {
     "node": ">=22.12.0"
