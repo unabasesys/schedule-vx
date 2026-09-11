@@ -52,8 +52,18 @@
             <button class="dlg-cancel" @click="dismiss">{{ state.cancelLabel }}</button>
           </div>
         </div>
-        <!-- Confirmar / avisar / preguntar -->
-        <div v-else class="dlg-actions">
+        <!-- La misma casilla, en un confirm. Va entre el texto y los botones: se
+             lee después de la explicación y antes de contestar. Solo la ofrece
+             quien la declara — una confirmación destructiva no debería poder
+             apagarse, y por eso no es el defecto de ningún tipo de diálogo. -->
+        <label v-if="state.checkbox && state.type === 'confirm'" class="dlg-check">
+          <input v-model="checkVal" type="checkbox" />
+          <span>{{ state.checkbox }}</span>
+        </label>
+        <!-- Confirmar / avisar / preguntar. La condición es explícita y no un
+             `v-else`: la casilla de arriba parte la cadena, y un `v-else` colgado
+             de un `v-if` que ya no es el vecino inmediato se rompe en silencio. -->
+        <div v-if="state.type !== 'choice'" class="dlg-actions">
           <button v-if="state.type !== 'alert'" ref="cancelRef" class="dlg-cancel" @click="dismiss">
             {{ state.cancelLabel }}
           </button>
@@ -125,7 +135,11 @@ const blocked = computed(() =>
 
 function onConfirm() {
   if (!state.value || blocked.value) return
-  _resolve(state.value.type === 'prompt' ? inputVal.value : true)
+  if (state.value.type === 'prompt') return _resolve(inputVal.value)
+  // Con casilla, un `confirm` devuelve las DOS respuestas, igual que un `choice`.
+  // Sin ella, el `true` pelado de siempre. Cancelar sigue resolviendo `false` sin
+  // mirar la casilla: marcarla y arrepentirse no puede apagar nada.
+  _resolve(state.value.checkbox ? { value: true, checked: checkVal.value } : true)
 }
 
 // Con casilla, un `choice` devuelve las DOS respuestas. Sin ella, el valor pelado de
