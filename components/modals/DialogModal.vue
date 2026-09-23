@@ -171,7 +171,14 @@ function onKeydown(e) {
     // Misma razón que en 'choice': con un confirm destructivo, Enter tiene que activar
     // el botón que tiene el foco — sea Cancelar o, con `enterConfirms`, el rojo —, no
     // resolver que sí por su cuenta.
-    if (state.value.type === 'confirm') return
+    // Salvo un caso: con `enterConfirms`, marcar la casilla se lleva el foco del botón
+    // rojo, y Enter sobre una casilla no hace nada. Ahí Enter sigue confirmando.
+    if (state.value.type === 'confirm') {
+      if (state.value.enterConfirms && document.activeElement?.type === 'checkbox') {
+        e.preventDefault(); e.stopPropagation(); onConfirm()
+      }
+      return
+    }
     const tag = document.activeElement?.tagName
     if (tag !== 'TEXTAREA') { e.preventDefault(); e.stopPropagation(); onConfirm() }
   }
