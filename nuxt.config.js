@@ -39,11 +39,11 @@ export default defineNuxtConfig({
       // la gente a producción.
       relationsUrl:   process.env.NUXT_PUBLIC_RELATIONS_URL || 'https://relations.unabase.com',
       // Candado de emergencia: bloquea TODA la app (incluso con sesión activa) y
-      // muestra /mantenimiento (middleware/maintenance.global.js). Nace ENCENDIDO
-      // a propósito — se apaga seteando MAINTENANCE_MODE=false en el hosting, nunca
-      // al revés, para que un deploy sin la variable configurada no deje la app
-      // abierta por accidente.
-      maintenanceMode: process.env.MAINTENANCE_MODE !== 'false',
+      // muestra /mantenimiento (middleware/maintenance.global.js). Estuvo ENCENDIDO
+      // por defecto mientras se migraba la base de datos a producción (completado);
+      // ahora default APAGADO — se prende seteando MAINTENANCE_MODE=true en el
+      // hosting si hace falta otra ventana de mantenimiento más adelante.
+      maintenanceMode: process.env.MAINTENANCE_MODE === 'true',
     }
   },
   // Sin @nuxtjs/i18n a propósito: el idioma de esta app lo maneja globalStore.lang y
