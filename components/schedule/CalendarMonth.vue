@@ -478,7 +478,7 @@ const weeks = computed(() => {
       isToday:     dateStr === today,
       isWeekend:   realDow === 0 || realDow === 6,
       isHoliday:   !!holiday,
-      holidayName: holiday?.localName || holiday?.name || '',
+      holidayName: holiday?.label || holiday?.localName || holiday?.name || '',
     })
   }
 
