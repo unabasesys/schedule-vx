@@ -606,18 +606,14 @@ watchEffect(() => {
 
 function holidaysForYear(year) {
   // Show holidays only for the currently selected project
-  const seen     = new Set()
-  const holidays = []
-  const disabled = new Set(props.project.disabledHolidays || [])
-  ;(props.project.holidays || []).forEach(({ countryCode }) => {
-    holidaysStore.getHolidaysForYear(countryCode, year).forEach(h => {
-      if (!disabled.has(h.date) && !seen.has(h.date)) {
-        seen.add(h.date)
-        holidays.push(h)
-      }
-    })
+  const byCountry = (props.project.holidays || []).map(({ countryCode }) => ({
+    countryCode,
+    holidays: holidaysStore.getHolidaysForYear(countryCode, year),
+  }))
+  return mergeHolidays(byCountry, {
+    en:       props.lang === 'en',
+    disabled: new Set(props.project.disabledHolidays || []),
   })
-  return holidays
 }
 
 // ── Helpers de fecha ──────────────────────────────────────────────
