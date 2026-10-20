@@ -252,7 +252,7 @@ const weekStartCfg     = ref('sun')
 const dateFormat       = ref('DD/MM/AA')
 const loading          = ref(true)
 const loadError        = ref(false)
-const resolvedHolidays = ref([]) // { date, name, localName, countryCode }[]
+const resolvedHolidays = ref([]) // { date, items: { name, localName, countryCode }[] }[] — one per date
 // The holiday list drives which dates count as business days, so when it can't be
 // loaded the bars in this PDF are wrong — and there is nothing on the page to say so.
 const holidaysFailed   = ref(false)
@@ -281,7 +281,9 @@ async function loadHolidays(proj) {
           const hols = await holidaysStore.fetchHolidaysForYear(cc, year)
           if (Array.isArray(hols)) {
             hols.forEach(h => {
-              if (!disabled.has(h.date) && !holMap.has(h.date)) holMap.set(h.date, h)
+              if (disabled.has(h.date)) return
+              if (!holMap.has(h.date)) holMap.set(h.date, { date: h.date, items: [] })
+              holMap.get(h.date).items.push(h)
             })
           } else {
             failed = true   // null = couldn't load, NOT "this country has no holidays"
@@ -582,7 +584,7 @@ const exportEvents = computed(() => {
 
   // Holidays — resolved dates from country codes (disabled ones already excluded)
   for (const h of resolvedHolidays.value) {
-    const label = isEN.value ? (h.localName || h.name) : (h.name || h.localName)
+    const label = holidayLabel(h.items, lang.value)
     result.push({ kind: 'point', type: 'holiday', date: h.date, label: label || 'Holiday', _id: 'hol-' + h.date })
   }
 

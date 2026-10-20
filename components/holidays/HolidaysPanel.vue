@@ -62,7 +62,7 @@
               <span class="hol-toggle-slider"></span>
             </label>
             <span class="holiday-item-date">{{ formatDate(h.date) }}</span>
-            <span class="holiday-item-name">{{ h.localName || h.name }}</span>
+            <span class="holiday-item-name">{{ holidayName(h, lang) }}</span>
           </div>
         </div>
 

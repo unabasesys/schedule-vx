@@ -605,16 +605,13 @@ watchEffect(() => {
 })
 
 function holidaysForYear(year) {
-  // Show holidays only for the currently selected project
-  const seen     = new Set()
+  // Show holidays only for the currently selected project. Every country's holiday
+  // is kept (not just the first one on a date) so the cell can name all of them.
   const holidays = []
   const disabled = new Set(props.project.disabledHolidays || [])
   ;(props.project.holidays || []).forEach(({ countryCode }) => {
     holidaysStore.getHolidaysForYear(countryCode, year).forEach(h => {
-      if (!disabled.has(h.date) && !seen.has(h.date)) {
-        seen.add(h.date)
-        holidays.push(h)
-      }
+      if (!disabled.has(h.date)) holidays.push(h)
     })
   })
   return holidays
