@@ -252,13 +252,7 @@ const weekStartCfg     = ref('sun')
 const dateFormat       = ref('DD/MM/AA')
 const loading          = ref(true)
 const loadError        = ref(false)
-// Raw holiday lists per country ({ countryCode, holidays }[]). Labels are built where
-// the language is known, so a calendar with two countries shows both.
-const holidaysByCountry = ref([])
-const resolvedHolidays = computed(() => mergeHolidays(holidaysByCountry.value, {
-  en:       isEN.value,
-  disabled: new Set(project.value?.disabledHolidays || []),
-}))
+const resolvedHolidays = ref([]) // { date, items: { name, localName, countryCode }[] }[] — one per date
 // The holiday list drives which dates count as business days, so when it can't be
 // loaded the bars in this PDF are wrong — and there is nothing on the page to say so.
 const holidaysFailed   = ref(false)
@@ -276,16 +270,24 @@ async function loadHolidays(proj) {
     (proj.events || []).filter(e => e.date).map(e => Number(e.date.slice(0, 4)))
   )
   if (!years.size) years.add(new Date().getFullYear())
-  const byCountry = countryCodes.map(countryCode => ({ countryCode, holidays: [] }))
-  let failed      = false
+  const disabled = new Set(proj.disabledHolidays || [])
+  const holMap   = new Map()
+  let failed     = false
 
   try {
     await Promise.all(
-      byCountry.flatMap(entry =>
+      countryCodes.flatMap(cc =>
         [...years].map(async (year) => {
-          const hols = await holidaysStore.fetchHolidaysForYear(entry.countryCode, year)
-          if (Array.isArray(hols)) entry.holidays.push(...hols)
-          else failed = true   // null = couldn't load, NOT "this country has no holidays"
+          const hols = await holidaysStore.fetchHolidaysForYear(cc, year)
+          if (Array.isArray(hols)) {
+            hols.forEach(h => {
+              if (disabled.has(h.date)) return
+              if (!holMap.has(h.date)) holMap.set(h.date, { date: h.date, items: [] })
+              holMap.get(h.date).items.push(h)
+            })
+          } else {
+            failed = true   // null = couldn't load, NOT "this country has no holidays"
+          }
         })
       )
     )
@@ -294,7 +296,7 @@ async function loadHolidays(proj) {
     failed = true
   }
 
-  holidaysByCountry.value = byCountry
+  resolvedHolidays.value = [...holMap.values()]
   holidaysFailed.value   = failed
 }
 
@@ -538,7 +540,7 @@ const exportEvents = computed(() => {
   const result = []
 
   // Build set of active holiday dates for business-day calculations
-  // resolvedHolidays already has disabled ones filtered out
+  // resolvedHolidays already has disabled ones filtered out (done in onMounted)
   const holidayDates = new Set(resolvedHolidays.value.map(h => h.date))
 
   // Stage keys that are OFF or deactivated — same rule the calendar view applies.
@@ -582,7 +584,8 @@ const exportEvents = computed(() => {
 
   // Holidays — resolved dates from country codes (disabled ones already excluded)
   for (const h of resolvedHolidays.value) {
-    result.push({ kind: 'point', type: 'holiday', date: h.date, label: h.label, _id: 'hol-' + h.date })
+    const label = holidayLabel(h.items, lang.value)
+    result.push({ kind: 'point', type: 'holiday', date: h.date, label: label || 'Holiday', _id: 'hol-' + h.date })
   }
 
   return result

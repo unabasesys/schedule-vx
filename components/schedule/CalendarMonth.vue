@@ -152,6 +152,7 @@
 
 <script setup>
 import { isoToday, describeDependency } from '~/utils/helpers'
+import { holidayLabel } from '~/utils/holidayLabel'
 
 const props = defineProps({
   year:        { type: Number, required: true },
@@ -470,15 +471,15 @@ const weeks = computed(() => {
     }
     const dateStr = ds(y, m, d)
     const realDow = new Date(y, m, d).getDay()
-    const holiday = props.holidays.find(h => h.date === dateStr)
+    const dayHolidays = props.holidays.filter(h => h.date === dateStr)
     allCells.push({
       dateStr,
       day:         d,
       inMonth:     m === month,
       isToday:     dateStr === today,
       isWeekend:   realDow === 0 || realDow === 6,
-      isHoliday:   !!holiday,
-      holidayName: holiday?.label || holiday?.localName || holiday?.name || '',
+      isHoliday:   dayHolidays.length > 0,
+      holidayName: holidayLabel(dayHolidays, props.lang),
     })
   }
 
@@ -554,7 +555,7 @@ const weeks = computed(() => {
         col:            ci,
         span:           1,
         name:           cell.holidayName,
-        color:          'var(--muted)',
+        color:          'var(--surface-3)',
         isKey:          false,
         lane:           -1,
         continuesLeft:  false,
@@ -814,7 +815,7 @@ function formatOverflowDate(dateStr) {
 }
 .cal-ev-bar.bar-holiday .bar-label {
   font-style: italic;
-  color: var(--muted);
+  color: var(--text-2);
   font-weight: 500;
 }
 

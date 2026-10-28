@@ -605,15 +605,16 @@ watchEffect(() => {
 })
 
 function holidaysForYear(year) {
-  // Show holidays only for the currently selected project
-  const byCountry = (props.project.holidays || []).map(({ countryCode }) => ({
-    countryCode,
-    holidays: holidaysStore.getHolidaysForYear(countryCode, year),
-  }))
-  return mergeHolidays(byCountry, {
-    en:       props.lang === 'en',
-    disabled: new Set(props.project.disabledHolidays || []),
+  // Show holidays only for the currently selected project. Every country's holiday
+  // is kept (not just the first one on a date) so the cell can name all of them.
+  const holidays = []
+  const disabled = new Set(props.project.disabledHolidays || [])
+  ;(props.project.holidays || []).forEach(({ countryCode }) => {
+    holidaysStore.getHolidaysForYear(countryCode, year).forEach(h => {
+      if (!disabled.has(h.date)) holidays.push(h)
+    })
   })
+  return holidays
 }
 
 // ── Helpers de fecha ──────────────────────────────────────────────

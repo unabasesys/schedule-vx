@@ -110,41 +110,6 @@ export function isoToday() {
   return ymd(new Date())
 }
 
-/**
- * Merges the holidays of every country loaded in a calendar into one list per date,
- * each with a `label` ready to print. `byCountry` is [{ countryCode, holidays }].
- *
- * The name follows the calendar's language: `localName` in Spanish (Mexico's holidays
- * come back from Nager.Date as "Día de la Revolución"), `name` in English. With more
- * than one country each name carries its code — otherwise nobody can tell a Mexican
- * holiday from a US one. Two countries on the same date are joined, never dropped:
- * keeping only the first one hid the second country's holiday.
- */
-export function mergeHolidays(byCountry, { en = false, disabled = new Set() } = {}) {
-  const tag    = byCountry.filter(c => c.holidays?.length).length > 1
-  const byDate = new Map()   // date → { holiday, names: Map(name → [codes]), codes: Set }
-  for (const { countryCode, holidays } of byCountry) {
-    for (const h of holidays || []) {
-      if (disabled.has(h.date)) continue
-      if (!byDate.has(h.date)) byDate.set(h.date, { holiday: h, names: new Map(), codes: new Set() })
-      const entry = byDate.get(h.date)
-      // One name per country and date: Nager lists regional variants on the same day
-      // (US: Columbus Day + Indigenous Peoples' Day) and both don't fit in a cell.
-      if (entry.codes.has(countryCode)) continue
-      entry.codes.add(countryCode)
-      const name = (en ? (h.name || h.localName) : (h.localName || h.name)) || (en ? 'Holiday' : 'Feriado')
-      if (!entry.names.has(name)) entry.names.set(name, [])
-      entry.names.get(name).push(countryCode)
-    }
-  }
-  return [...byDate.values()]
-    .map(({ holiday, names }) => ({
-      ...holiday,
-      label: [...names].map(([name, codes]) => tag ? `${name} (${codes.join(', ')})` : name).join(' · '),
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date))
-}
-
 const MONTHS_SHORT_ES = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
 const MONTHS_SHORT_EN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 

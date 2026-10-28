@@ -43,10 +43,10 @@ La app integra feriados nacionales de más de 50 países y datos climáticos por
 - No se persiste en localStorage; se recarga en cada sesión si es necesario
 
 ### Visualización
-- La lista que ven la pantalla (`CalendarView.vue` → `CalendarMonth.vue`) y el PDF (`pages/print/[id].vue`) sale de una sola función, `mergeHolidays()` en `utils/helpers.js`, para que las dos no puedan contar cosas distintas
-- **Nombre según el idioma del calendario:** en español, el nombre local (`localName`: "Día de la Revolución"); en inglés, `name` ("Revolution Day"). El PDF tenía esto al revés y los feriados de México salían en inglés, indistinguibles de los de EE.UU.
-- **Varios países:** con más de un país cargado, cada nombre lleva su código — "Día de la Revolución (MX)". Si dos países tienen feriado el mismo día se muestran los dos en la misma etiqueta ("New Year's Day (US) · Año Nuevo (MX)"), o uno solo con los dos códigos si se llaman igual. Antes se mostraba solo el del primer país
-- Un país con dos feriados el mismo día (EE.UU.: Columbus Day + Indigenous Peoples' Day) muestra solo el primero
+- La pantalla (`CalendarMonth.vue`), el panel de feriados (`HolidaysPanel.vue`) y el PDF (`pages/print/[id].vue`) arman el nombre con las mismas funciones, `holidayName()` y `holidayLabel()` en `utils/holidayLabel.js`, para que no puedan contar cosas distintas
+- **Nombre según el idioma del calendario:** en inglés, `name`. En español, el nombre local (`localName`: "Día de la Revolución") si el país habla español; si no (EE.UU., Canadá, Reino Unido), una traducción propia del nombre inglés ("Thanksgiving Day" → "Día de Acción de Gracias"), o el nombre inglés si no hay traducción. El PDF tenía esto al revés y los feriados de México salían en inglés, indistinguibles de los de EE.UU.
+- **País entre paréntesis:** cada feriado lleva su código — "Día de la Revolución (MX)"
+- **Varios países el mismo día:** se muestran todos en la misma etiqueta ("Día de Colón (US) · Día de la Raza (CL)"), o uno solo con los dos códigos si se llaman igual ("Navidad (MX, US)"). Antes se mostraba solo el del primer país
 - Los días feriados muestran un punto gris y tooltip con el nombre del feriado
 - El usuario puede mostrar u ocultar feriados en vista calendario
 - El usuario puede mostrar u ocultar feriados en el PDF exportado
