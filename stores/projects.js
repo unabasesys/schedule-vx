@@ -179,6 +179,26 @@ let   _holidayWarnAt          = 0           // throttles the "holidays unavailab
 
 const isMongoId = (id) => /^[0-9a-f]{24}$/i.test(id || '')
 
+// ── Which calendars THIS tab edited and the server hasn't confirmed ───────────
+//
+// projId → edit counter. Present = edited here since the last write the server
+// accepted for it; gone = the server has everything this tab did to it.
+//
+// save() used to resend every calendar with `hasChanges`, and that flag is not "unsaved"
+// (see hasUnsyncedWork below): only "Nueva Versión" clears it, so in practice it is true
+// on every calendar in use. One edit anywhere rewrote ALL of them, and the server bumps
+// `rev` on each write even when nothing changed. A teammate editing one of those other
+// calendars then got a 409 "X guardó este calendario" for a save X never made, their
+// screen adopted the server copy, the event they had just added was gone, and so was its
+// local backup. Now save() sends only what was really edited here.
+//
+// A counter and not a flag so a write can tell whether the calendar was edited AGAIN
+// while it was on the wire: it only clears the mark if the count is the one it sent.
+const _edited = new Map()
+const _markEdited = (projId) => {
+  if (projId) _edited.set(projId, (_edited.get(projId) || 0) + 1)
+}
+
 // ── Local backup of unsaved work ──────────────────────────────────────────────
 //
 // Until now this store kept everything in memory and nowhere else. That was fine
@@ -291,6 +311,7 @@ const _queueWrite = (projId, fn) => {
 // `_retries` belongs here too: after 6 failed attempts _onWriteFailed stops re-arming,
 // so there are unsaved edits with no pending timer to point at them.
 const hasUnsyncedWork = (projId) =>
+  _edited.has(projId) ||
   _inFlight.has(projId) ||
   _syncTimers.has(projId) ||
   _dailySyncTimers.has(projId) ||
@@ -467,6 +488,9 @@ export const useProjectsStore = defineStore('projects', {
           p => !isMongoId(p.id) && (_creating.has(p.id) || _createTimers.has(p.id))
         )
         this.projects = [...pendingCreates, ...normProjects]
+        // The "edited here" marks pointed at the copies just replaced. Whatever of that
+        // work survives comes back through the backups below, which mark it again.
+        for (const id of [..._edited.keys()]) if (isMongoId(id)) _edited.delete(id)
 
         // Built-in IPS template is always bundled locally (never stored per-org in the API)
         const ipsTemplate = this.templates.find(t => t.source === 'unabase')
@@ -675,6 +699,10 @@ export const useProjectsStore = defineStore('projects', {
 
     // Debounced PUT for a single project to the API
     _scheduleSyncProject(projId) {
+      // Arming a PUT means there is work here the server doesn't have yet. Marked before
+      // the id check: a calendar still being created keeps the mark under its local id,
+      // and _apiCreateProject carries it over to the server id.
+      _markEdited(projId)
       if (!isMongoId(projId)) return
       const proj = this.projects.find(p => p.id === projId)
       if (proj?.conflicted) return   // autosave paused until the user reloads
@@ -701,15 +729,28 @@ export const useProjectsStore = defineStore('projects', {
     // print tab opened against the previous revision — the exact PDF-one-version-behind
     // symptom this function exists to prevent. Also drains a pending daily PATCH so
     // the queue below is genuinely empty when we return.
+    //
+    // And when this tab has nothing pending for the calendar, it writes nothing: the
+    // server already has its state, and a PUT anyway would only bump `rev` and hand
+    // whoever else has it open a conflict for a save nobody made (opening the draft PDF
+    // did exactly that). A write already on the wire may be carrying everything, so that
+    // one is awaited first and only what is still unconfirmed after it gets a PUT.
     async syncProjectNow(projId) {
       if (!isMongoId(projId)) return
+      let armed = false
       if (_syncTimers.has(projId)) {
         clearTimeout(_syncTimers.get(projId))
         _syncTimers.delete(projId)
+        armed = true
       }
       if (_dailySyncTimers.has(projId)) {
         clearTimeout(_dailySyncTimers.get(projId))
         _dailySyncTimers.delete(projId)
+        armed = true
+      }
+      if (!armed) {
+        await _inFlight.get(projId)
+        if (!_edited.has(projId)) return
       }
       await this._putProject(projId)
     },
@@ -731,6 +772,8 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj || proj.conflicted) return
 
       this.saveState = 'saving'
+      // Which edit this payload carries. Taken together with the payload, before the await.
+      const sentEdit = _edited.get(projId)
       try {
         const { hidden: _hidden, conflicted: _conflicted, ...payload } = proj
         payload.baseRev = proj.rev ?? 0
@@ -740,6 +783,9 @@ export const useProjectsStore = defineStore('projects', {
           live.rev = updated.rev
           if ((updated.updatedAt || '') > (live.updatedAt || '')) live.updatedAt = updated.updatedAt
         }
+        // Edited again while this was on the wire: that edit armed its own PUT and keeps
+        // the mark until IT lands.
+        if (_edited.get(projId) === sentEdit) _edited.delete(projId)
         // We are now the last writer — say so immediately instead of leaving the header
         // crediting the previous one until the next 20s probe.
         this._noteLastUpdate(updated)
@@ -1019,6 +1065,9 @@ export const useProjectsStore = defineStore('projects', {
         doc.hidden     = this.projects[idx]?.hidden ?? false   // per-user, not part of the shared doc
         doc.conflicted = false
         this.projects[idx] = doc
+        // The local edits were replaced by the server copy, so there is nothing of ours
+        // left to send. Leaving the mark would make the next save() rewrite this calendar.
+        _edited.delete(projId)
         this._noteLastUpdate(doc)
         _retries.delete(projId)
         if (!quiet) this._onWriteOk(projId)   // we're back in sync with the server
@@ -1109,10 +1158,12 @@ export const useProjectsStore = defineStore('projects', {
 
         // Remember baseRev + how many writes we fired per project, so a surviving
         // page can tell "my flush landed" from "someone else saved".
+        // `edit` = which edit the flush carried (see `_edited`), so a page that survives
+        // can clear the mark only if nothing was edited after it.
         const note = (projId, baseRev) => {
           const prev = _pendingFlush.get(projId)
-          if (prev) prev.writes += 1
-          else _pendingFlush.set(projId, { baseRev, writes: 1 })
+          if (prev) { prev.writes += 1; prev.edit = _edited.get(projId) }
+          else _pendingFlush.set(projId, { baseRev, writes: 1, edit: _edited.get(projId) })
         }
 
         const flushedPut = new Set()
@@ -1179,7 +1230,7 @@ export const useProjectsStore = defineStore('projects', {
     //                                 let the guard surface a real conflict.
     async _reconcileFlushed() {
       if (!_pendingFlush.size) return
-      for (const [projId, { baseRev, writes }] of [..._pendingFlush]) {
+      for (const [projId, { baseRev, writes, edit }] of [..._pendingFlush]) {
         _pendingFlush.delete(projId)
         const proj = this.projects.find(p => p.id === projId)
         if (!proj || proj.conflicted || !isMongoId(projId)) continue
@@ -1188,7 +1239,11 @@ export const useProjectsStore = defineStore('projects', {
           const serverRev = fresh?.rev ?? 0
           const live = this.projects.find(p => p.id === projId)
           if (!live || live.conflicted) continue
-          if (serverRev === baseRev + writes) live.rev = serverRev
+          if (serverRev === baseRev + writes) {
+            live.rev = serverRev
+            // It landed: the server has that edit, so save() must not send it again.
+            if (_edited.get(projId) === edit) _edited.delete(projId)
+          }
           else if (serverRev === baseRev) this._scheduleSyncProject(projId)
         } catch { /* offline — leave state as is; the guard still protects us */ }
       }
@@ -1296,18 +1351,30 @@ export const useProjectsStore = defineStore('projects', {
         this.templates.unshift(tmpl)
         // No save() either: this adds a TEMPLATE, and save() only syncs projects — the
         // built-in one is bundled locally and never stored per-org. All the call did was
-        // re-arm a PUT for every calendar with `hasChanges` (see selectProject).
+        // re-arm a PUT for every calendar with `hasChanges` (see selectProject; since
+        // 1-nov-2026 save() only resends calendars edited in this tab, see `_edited`).
       }
     },
 
-    save() {
-      // Schedule API sync for any project with unsaved changes
+    // `projId` = the calendar this edit touched. It is marked as edited and gets a PUT.
+    // Any OTHER calendar gets one only if it was edited here and is stuck with nothing
+    // pending (its retries ran out): that is the "the next edit tries again" promise of
+    // _onWriteFailed. A calendar nobody touched in this tab is never rewritten from here.
+    //
+    // Without an id (settings, templates, deleting a calendar) nothing new is marked.
+    save(projId = null) {
+      if (projId) _markEdited(projId)
       try {
         const authStore = useAuthStore()
         if (authStore?.isLoggedIn) {
           this.projects
-            .filter(p => p.hasChanges && isMongoId(p.id) && !p.conflicted)
-            .forEach(p => this._scheduleSyncProject(p.id))
+            .filter(p => _edited.has(p.id) && isMongoId(p.id) && !p.conflicted)
+            .forEach(p => {
+              // Already on its way (timer armed or write in flight): re-arming would only
+              // send the same thing twice.
+              if (p.id !== projId && (_syncTimers.has(p.id) || _inFlight.has(p.id))) return
+              this._scheduleSyncProject(p.id)
+            })
           // A calendar whose create never landed has no server id, so the sync above
           // skips it forever. Re-attempt the create instead of losing the calendar.
           this.projects
@@ -1331,12 +1398,13 @@ export const useProjectsStore = defineStore('projects', {
           globalStore.calMonth = earliest.getMonth()
         }
       }
-      // Deliberately no save(): selecting a calendar is not an edit. save() re-arms a
-      // PUT for every project whose `hasChanges` is set — which, since that flag is
+      // Deliberately no save(): selecting a calendar is not an edit. save() used to re-arm
+      // a PUT for every project whose `hasChanges` is set — which, since that flag is
       // only cleared by bumpVersion, means practically all of them. So a click in the
       // sidebar rewrote whole documents and bumped their rev with nothing edited,
       // which then made every teammate's tab stale and handed them a conflict out of
-      // thin air. Real edits schedule their own sync; this doesn't need to.
+      // thin air. Real edits schedule their own sync; this doesn't need to. (Every
+      // other edit had the same problem until 1-nov-2026; see `_edited`.)
     },
 
     createProject(data) {
@@ -1432,6 +1500,7 @@ export const useProjectsStore = defineStore('projects', {
       if (_createTimers.has(localId)) { clearTimeout(_createTimers.get(localId)); _createTimers.delete(localId) }
       _creating.add(localId)
       this.saveState = 'saving'
+      const sentEdit = _edited.get(localId)   // same idea as in _doPutProject
       try {
         const created = normalizeDoc(await useApi().post('/projects', { ...proj }))
         const live = this.projects.find(p => p.id === localId)
@@ -1452,8 +1521,13 @@ export const useProjectsStore = defineStore('projects', {
           // Follow the selection instead of jumping to whatever sits at the top of
           // the list: the user may have switched calendars while the POST ran.
           if (this.selectedId === localId) this.selectedId = created.id
-          // Edits made during the POST aren't on the server yet.
-          if (live.hasChanges) this._scheduleSyncProject(live.id)
+          // Edits made during the POST aren't on the server yet. The mark was kept under
+          // the local id; it moves to the server id with the PUT that sends them.
+          // `hasChanges` stays as a second net: on a calendar this new it can only mean
+          // it was edited, and one extra PUT is cheaper than a lost edit.
+          const editedDuringPost = _edited.get(localId) !== sentEdit
+          _edited.delete(localId)
+          if (editedDuringPost || live.hasChanges) this._scheduleSyncProject(live.id)
         }
         _createRetries.delete(localId)
         this._onWriteOk(localId)
@@ -1484,7 +1558,7 @@ export const useProjectsStore = defineStore('projects', {
       Object.assign(proj, data)
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(id)
     },
 
     // Visual-only preference — does NOT activate the version asterisk
@@ -1492,24 +1566,21 @@ export const useProjectsStore = defineStore('projects', {
       const proj = this.projects.find(p => p.id === id)
       if (!proj) return
       proj.lang = lang
-      this.save()
-      this._scheduleSyncProject(id)
+      this.save(id)
     },
 
     setProjectWeekStart(id, weekStart) {
       const proj = this.projects.find(p => p.id === id)
       if (!proj) return
       proj.weekStart = weekStart
-      this.save()
-      this._scheduleSyncProject(id)
+      this.save(id)
     },
 
     setProjectTempUnit(id, tempUnit) {
       const proj = this.projects.find(p => p.id === id)
       if (!proj) return
       proj.tempUnit = tempUnit
-      this.save()
-      this._scheduleSyncProject(id)
+      this.save(id)
     },
 
     deleteProject(id) {
@@ -1517,6 +1588,7 @@ export const useProjectsStore = defineStore('projects', {
       // the user just deleted.
       if (_createTimers.has(id)) { clearTimeout(_createTimers.get(id)); _createTimers.delete(id) }
       _createRetries.delete(id)
+      _edited.delete(id)   // nothing left to send for a calendar that no longer exists
       this.projects = this.projects.filter(p => p.id !== id)
       if (this.selectedId === id) {
         const remaining = this.projects
@@ -1577,7 +1649,7 @@ export const useProjectsStore = defineStore('projects', {
       proj.status = cycle[proj.status] || 'competing'
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(id)
     },
 
     copyProject(id, opts = {}) {
@@ -1636,7 +1708,7 @@ export const useProjectsStore = defineStore('projects', {
       proj.events.push(ev)
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
     },
 
     updateEvent(projId, evId, body) {
@@ -1647,7 +1719,7 @@ export const useProjectsStore = defineStore('projects', {
       Object.assign(ev, body)
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
     },
 
     deleteEvent(projId, evId) {
@@ -1656,7 +1728,7 @@ export const useProjectsStore = defineStore('projects', {
       proj.events = proj.events.filter(e => e.id !== evId)
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
     },
 
     moveEventInList(projId, evId, targetEvId, position, targetStageKey) {
@@ -1697,7 +1769,7 @@ export const useProjectsStore = defineStore('projects', {
       proj.groups.push(newGroup)
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
       return newGroup
     },
 
@@ -1709,7 +1781,7 @@ export const useProjectsStore = defineStore('projects', {
       proj.stages.push(newStage)
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
       return newStage
     },
 
@@ -1721,7 +1793,7 @@ export const useProjectsStore = defineStore('projects', {
       stage.name = newName.trim()
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
     },
 
     deleteStage(projId, stageId) {
@@ -1733,7 +1805,7 @@ export const useProjectsStore = defineStore('projects', {
       proj.stages = proj.stages.filter(s => s.id !== stageId)
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
     },
 
     // Swap with the *visible* neighbor: the list hides inactive stages, so
@@ -1753,7 +1825,7 @@ export const useProjectsStore = defineStore('projects', {
       ;[visible[idx].order, visible[nIdx].order] = [visible[nIdx].order, visible[idx].order]
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
     },
 
     moveStageUp(projId, stageId)   { this._moveStage(projId, stageId, 'up') },
@@ -1768,7 +1840,7 @@ export const useProjectsStore = defineStore('projects', {
       stage.color = color || null
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
     },
 
     // Clears every stage's custom color so all events fall back to the project
@@ -1782,7 +1854,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!changed) return
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
     },
 
     toggleStageVisible(projId, stageId) {
@@ -1816,7 +1888,7 @@ export const useProjectsStore = defineStore('projects', {
       })
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
     },
 
     reorderEvents(projId, evId1, evId2) {
@@ -1830,7 +1902,7 @@ export const useProjectsStore = defineStore('projects', {
       ev2.order  = tmp
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
     },
 
     // Recalculates dependent dates, then saves.
@@ -1859,7 +1931,7 @@ export const useProjectsStore = defineStore('projects', {
       if (!missing.length) { this._recalcNow(projId); return }
 
       // Persist the edit that triggered this right away — only the derived dates wait.
-      this.save()
+      this.save(projId)
       Promise.all(missing.map(([code, year]) => holidaysStore.fetchHolidaysForYear(code, year)))
         .then(results => {
           if (results.some(r => r === null)) { this._warnHolidaysUnavailable(); return }
@@ -1904,7 +1976,7 @@ export const useProjectsStore = defineStore('projects', {
       })
 
       recalcProject(proj, activeHolidayDates.size ? activeHolidayDates : null)
-      this.save()
+      this.save(projId)
     },
 
     updateDisabledHolidays(projId, disabledDates) {
@@ -2046,9 +2118,7 @@ export const useProjectsStore = defineStore('projects', {
       proj.version = (proj.version ?? 0) + 1
       proj.hasChanges = false
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
-      // Explicitly sync since hasChanges is now false (save() won't pick it up)
-      this._scheduleSyncProject(projId)
+      this.save(projId)
     },
 
     // ── Daily Schedule ────────────────────────────────────────────────────────
@@ -2060,7 +2130,7 @@ export const useProjectsStore = defineStore('projects', {
       proj.dailySchedule.push(item)
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
       this._scheduleSyncDaily(projId)
     },
 
@@ -2072,7 +2142,7 @@ export const useProjectsStore = defineStore('projects', {
       Object.assign(item, body)
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
       this._scheduleSyncDaily(projId)
     },
 
@@ -2101,7 +2171,7 @@ export const useProjectsStore = defineStore('projects', {
       })
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
       this._scheduleSyncDaily(projId)
     },
 
@@ -2111,7 +2181,7 @@ export const useProjectsStore = defineStore('projects', {
       proj.dailySchedule = (proj.dailySchedule || []).filter(i => i.id !== itemId)
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
-      this.save()
+      this.save(projId)
       this._scheduleSyncDaily(projId)
     },
 
