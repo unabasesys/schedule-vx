@@ -462,6 +462,11 @@ export const useAuthStore = defineStore('auth', {
     // ── Logout ─────────────────────────────────────────────────────────────
     logout() {
       useSettingsStore().$reset()
+      // Lo de la cuenta que se va no se queda en la pestaña: los calendarios (y sus
+      // reintentos de guardado, que si no salían después con el pase de quien entrara)
+      // y el directorio de contactos, que si no se le mostraba a la cuenta siguiente.
+      useProjectsStore().endSession()
+      useContactsStore().reset()
       this.token         = null
       this.user          = null
       this.organization  = null

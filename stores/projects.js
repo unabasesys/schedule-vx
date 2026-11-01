@@ -176,6 +176,9 @@ let   _freshListenersOn       = false
 let   _savedFade              = null        // timer that hides the "saved" pill
 let   _unloadListenerRegistered = false
 let   _holidayWarnAt          = 0           // throttles the "holidays unavailable" notice
+// Bumped by endSession() (logout). Every request that started before it checks this when
+// it comes back and drops its answer: it belongs to an account that is no longer here.
+let   _session                = 0
 
 const isMongoId = (id) => /^[0-9a-f]{24}$/i.test(id || '')
 
@@ -446,12 +449,14 @@ export const useProjectsStore = defineStore('projects', {
       const authStore = useAuthStore()
       if (!authStore?.isLoggedIn) return
       this.cloudLoading = true
+      const session = _session
       try {
         const api = useApi()
         const [apiProjects, apiTemplates] = await Promise.all([
           api.get('/projects'),
           api.get('/schedule-templates'),
         ])
+        if (session !== _session) return   // logged out while this was loading
 
         const normProjects  = apiProjects.map(normalizeDoc)
         const normTemplates = apiTemplates.map(normalizeDoc)
@@ -774,10 +779,12 @@ export const useProjectsStore = defineStore('projects', {
       this.saveState = 'saving'
       // Which edit this payload carries. Taken together with the payload, before the await.
       const sentEdit = _edited.get(projId)
+      const session  = _session
       try {
         const { hidden: _hidden, conflicted: _conflicted, ...payload } = proj
         payload.baseRev = proj.rev ?? 0
         const updated = normalizeDoc(await useApi().put(`/projects/${projId}`, payload, _orgHeader(proj)))
+        if (session !== _session) return
         const live = this.projects.find(p => p.id === projId)
         if (live) {
           live.rev = updated.rev
@@ -791,6 +798,9 @@ export const useProjectsStore = defineStore('projects', {
         this._noteLastUpdate(updated)
         this._onWriteOk(projId)
       } catch (e) {
+        // Logged out meanwhile (a 401 does that itself): no dialog, and above all no retry
+        // timer that would fire with whoever signs in next.
+        if (session !== _session) return
         if (e.status === 409) {
           await this._handleConflict(projId, e.data?.project)
         } else {
@@ -951,6 +961,30 @@ export const useProjectsStore = defineStore('projects', {
       }).finally(() => _unreachableDialogs.delete(projId))
     },
 
+    // The session ended (logout, or a 401 that logged it out). Nothing of that account may
+    // keep running in the tab: a retry timer firing after someone else signs in here sent
+    // the previous account's calendar with the NEW account's token, and the list of
+    // calendars stayed in memory until the next load. Whatever was unsaved stays in the
+    // localStorage backups, which the next load offers back (only if the server copy did
+    // not move in between). Writes already on the wire finish on the server, and their
+    // answers are dropped (see `_session`).
+    endSession() {
+      _session++
+      for (const t of _syncTimers.values())      clearTimeout(t)
+      for (const t of _dailySyncTimers.values()) clearTimeout(t)
+      for (const t of _createTimers.values())    clearTimeout(t)
+      _syncTimers.clear()
+      _dailySyncTimers.clear()
+      _createTimers.clear()
+      _retries.clear()
+      _createRetries.clear()
+      _unreachable.clear()
+      _pendingFlush.clear()
+      _lastFreshCheck.clear()
+      _edited.clear()
+      this.$reset()
+    },
+
     // The account's active organization changed under a page that is already running:
     // a switch from the org menu, an accepted invitation, or — the one that actually
     // bit — /auth/renew adopting whichever org is current for the account on the
@@ -981,6 +1015,9 @@ export const useProjectsStore = defineStore('projects', {
       this.projects  = []
       this.templates = []
       this.saveState = 'idle'
+      // The contacts directory is per organization too, and nothing used to empty it: the
+      // new organization's calendars showed the previous one's people.
+      useContactsStore().reset({ reload: true })
       await this.loadFromApi()
 
       if (stranded.length) {
@@ -1284,12 +1321,14 @@ export const useProjectsStore = defineStore('projects', {
       if (!proj || proj.conflicted) return
 
       this.saveState = 'saving'
+      const session = _session
       try {
         const updated = await useApi().patch(`/projects/${projId}/daily`, {
           dailySchedule: proj.dailySchedule,
           dailyConfig:   proj.dailyConfig,
           baseRev:       proj.rev ?? 0,
         }, _orgHeader(proj))
+        if (session !== _session) return
         const live = this.projects.find(p => p.id === projId)
         if (live && updated?.rev != null) live.rev = updated.rev
         // Same as _putProject: a daily edit bumps rev, so we are the last writer now.
@@ -1297,6 +1336,7 @@ export const useProjectsStore = defineStore('projects', {
         if (updated) this._noteLastUpdate({ ...updated, id: projId })
         this._onWriteOk(projId)
       } catch (e) {
+        if (session !== _session) return   // same as _doPutProject
         if (e.status === 409) {
           await this._handleConflict(projId, e.data?.project)
         } else {
@@ -1501,8 +1541,13 @@ export const useProjectsStore = defineStore('projects', {
       _creating.add(localId)
       this.saveState = 'saving'
       const sentEdit = _edited.get(localId)   // same idea as in _doPutProject
+      const session  = _session
       try {
         const created = normalizeDoc(await useApi().post('/projects', { ...proj }))
+        // Logged out meanwhile: the list is empty because the session ended, not because
+        // the user deleted this calendar, so the "deleted while in flight" branch below
+        // must not run (it would delete the new calendar on the server).
+        if (session !== _session) return
         const live = this.projects.find(p => p.id === localId)
         if (!live) {
           // Deleted while the POST was in flight — undo it on the server, otherwise
@@ -1532,6 +1577,7 @@ export const useProjectsStore = defineStore('projects', {
         _createRetries.delete(localId)
         this._onWriteOk(localId)
       } catch (e) {
+        if (session !== _session) return
         this._onCreateFailed(localId, e)
       } finally {
         _creating.delete(localId)
@@ -1639,7 +1685,9 @@ export const useProjectsStore = defineStore('projects', {
         // In that case the freshness probe or the 409 brings the server copy in.
         _queueWrite(id, async () => {
           const before = this.projects.find(p => p.id === id)?.rev ?? 0
+          const session = _session
           const res = await useApi().patch(`/projects/${id}/archive`, { archived }, _orgHeader(proj))
+          if (session !== _session) return
           const live = this.projects.find(p => p.id === id)
           if (live && Number.isInteger(res?.rev) && res.rev === before + 1) live.rev = res.rev
           if (res?.revAt) this._noteLastUpdate({ id, revAt: res.revAt, revBy: res.revBy })

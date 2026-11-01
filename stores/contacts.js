@@ -6,6 +6,14 @@ const normalize = (c) => ({ ...c, id: c._id?.toString?.() || c._id || c.id })
 
 let _inflight = null   // the in-flight loadContacts promise, shared by concurrent callers
 
+// Which organization/session the list belongs to. The directory is per ORGANIZATION, and
+// until 1-nov-2026 nothing emptied it: after switching org (or logging out and in with
+// another account in the same tab) `loaded` stayed true, loadContacts() returned early,
+// and the panel and the participants picker kept showing the PREVIOUS organization's
+// people. reset() bumps this, and anything that started before it (a load, a create)
+// drops its result instead of writing it into the new organization's list.
+let _gen = 0
+
 export const useContactsStore = defineStore('contacts', {
   state: () => ({
     contacts: [],
@@ -37,26 +45,43 @@ export const useContactsStore = defineStore('contacts', {
       if (_inflight) return _inflight
 
       this.loading = true
+      const gen = _gen
       _inflight = (async () => {
         try {
           const data = await useApi().get('/contacts')
+          if (gen !== _gen) return   // answered for an organization this tab already left
           this.contacts = (data || []).map(normalize)
           this.loaded = true
         } catch (e) {
           console.warn('loadContacts failed:', e.message)
         } finally {
-          this.loading = false
-          _inflight = null
+          if (gen === _gen) {
+            this.loading = false
+            _inflight = null
+          }
         }
       })()
       return _inflight
+    },
+
+    // Organization changed or session ended: the list belonged to the previous one. With
+    // `reload`, the new organization's directory is fetched right away, so a panel that
+    // stays open across the switch doesn't sit empty.
+    reset({ reload = false } = {}) {
+      const wasLoaded = this.loaded
+      _gen++
+      _inflight = null
+      this.$reset()
+      if (reload && wasLoaded) this.loadContacts()
     },
 
     // The API is idempotent on email: posting a contact whose email already exists
     // returns the existing one instead of a second row. So this replaces rather than
     // blindly pushes, or that contact would appear twice in the directory.
     async addContact(payload) {
+      const gen = _gen
       const created = normalize(await useApi().post('/contacts', payload))
+      if (gen !== _gen) return created   // the list now belongs to another organization
       const idx = this.contacts.findIndex(c => c.id === created.id)
       if (idx !== -1) this.contacts[idx] = created
       else            this.contacts.push(created)
@@ -64,7 +89,9 @@ export const useContactsStore = defineStore('contacts', {
     },
 
     async updateContact(id, payload) {
+      const gen = _gen
       const updated = normalize(await useApi().put(`/contacts/${id}`, payload))
+      if (gen !== _gen) return updated
       const idx = this.contacts.findIndex(c => c.id === id)
       if (idx !== -1) this.contacts[idx] = updated
       return updated
