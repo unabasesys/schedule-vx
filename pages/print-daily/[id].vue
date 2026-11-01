@@ -203,6 +203,9 @@ const from      = computed(() => route.query.from   || '')
 const to        = computed(() => route.query.to     || '')
 const type      = computed(() => route.query.type   || 'client')
 const langQ     = computed(() => route.query.lang   || 'es')
+// The calendar's own organization (see pages/print/[id].vue): the session here comes from
+// localStorage and can be another one. Only a Mongo id gets through: it goes into a header.
+const docOrg    = computed(() => (/^[0-9a-f]{24}$/i.test(String(route.query.org || '')) ? String(route.query.org) : ''))
 
 const project    = ref(null)
 const orgName    = ref('Mi Productora')
@@ -226,13 +229,15 @@ onMounted(async () => {
 
   try {
     const [proj] = await Promise.all([
-      useApi().get(`/projects/${projectId.value}`),
-      settingsStore.fetchOrg().catch(e => console.warn('print-daily: fetchOrg failed', e)),
-      // Roles printed next to each participant live in the org directory, not on the event.
-      contactsStore.loadContacts().catch(e => console.warn('print-daily: loadContacts failed', e)),
+      useApi().get(`/projects/${projectId.value}`, docOrg.value ? { Organization: docOrg.value } : {}),
+      settingsStore.fetchOrg(docOrg.value || null).catch(e => console.warn('print-daily: fetchOrg failed', e)),
+      // Roles printed next to each participant live in the org directory, not on the event,
+      // so it has to be the CALENDAR's organization's directory.
+      contactsStore.loadContacts(false, docOrg.value || null).catch(e => console.warn('print-daily: loadContacts failed', e)),
     ])
     project.value = proj
-    orgName.value = settingsStore.studioName || authStore.organization?.name || 'Mi Productora'
+    const sameOrg = !docOrg.value || docOrg.value === String(authStore.organization?._id || '')
+    orgName.value = settingsStore.studioName || (sameOrg ? authStore.organization?.name : '') || 'Mi Productora'
     orgLogo.value = settingsStore.logo || ''
     if (proj?.cities?.[0]) {
       const firstDate = (proj.dailySchedule || []).map(i => i.date).filter(Boolean).sort()[0]

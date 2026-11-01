@@ -38,7 +38,10 @@ export const useContactsStore = defineStore('contacts', {
     // participants picker awaits it before creating a contact from a typed name: a
     // caller that got an early `return` while the first load was still in flight would
     // check an empty directory and create a duplicate of someone already in it.
-    async loadContacts(force = false) {
+    //
+    // `orgId`: read the directory of THAT organization instead of the session's. The daily
+    // print page passes the calendar's own, which can differ from the session's.
+    async loadContacts(force = false, orgId = null) {
       const authStore = useAuthStore()
       if (!authStore?.isLoggedIn) return
       if (this.loaded && !force) return
@@ -48,7 +51,7 @@ export const useContactsStore = defineStore('contacts', {
       const gen = _gen
       _inflight = (async () => {
         try {
-          const data = await useApi().get('/contacts')
+          const data = await useApi().get('/contacts', orgId ? { Organization: String(orgId) } : {})
           if (gen !== _gen) return   // answered for an organization this tab already left
           this.contacts = (data || []).map(normalize)
           this.loaded = true

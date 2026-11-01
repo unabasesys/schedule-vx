@@ -65,20 +65,25 @@ export const useSettingsStore = defineStore('settings', {
 
     // ── API sync ───────────────────────────────────────────────────────────
 
-    async fetchOrg() {
+    // `orgId`: the organization of a DOCUMENT (the print pages), which need not be the
+    // session's. It is read to show its name and logo, but NOT written as the session's
+    // organization: that would quietly switch the main tab to it on its next load.
+    async fetchOrg(orgId = null) {
       const authStore = useAuthStore()
-      if (!authStore.isLoggedIn || !authStore.organization?._id) return null
+      const sessionOrgId = authStore.organization?._id ? String(authStore.organization._id) : null
+      const id = orgId ? String(orgId) : sessionOrgId
+      if (!authStore.isLoggedIn || !id) return null
       try {
-        const res = await fetch(`${API()}/organizations/${authStore.organization._id}`, {
+        const res = await fetch(`${API()}/organizations/${id}`, {
           headers: {
             Authorization: `Bearer ${authStore.token}`,
-            Organization: authStore.organization._id,
+            Organization: id,
           },
         })
         if (!res.ok) return null
         const org = await res.json()
         this._applyOrgToStore(org)
-        authStore.setOrganization(org)
+        if (id === sessionOrgId) authStore.setOrganization(org)
         return org
       } catch { return null }
     },

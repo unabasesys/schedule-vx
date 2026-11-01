@@ -189,7 +189,14 @@ function toggleOpen() {
 // flight makes the PDF render stale data — e.g. one version behind).
 // The tab opens blank synchronously (inside the user gesture, so Safari
 // doesn't block the popup) and gets pointed to the URL after the sync.
+//
+// The calendar's OWN organization rides in the link (`org=`). The print tab reads the
+// session from localStorage, and that can be another organization (switched in another
+// tab, or in another unabase app): it then asked for this calendar with the wrong one
+// and got "not found", or printed another organization's name and logo on the PDF.
 async function openPrintTab(url) {
+  const org = props.project.organization ? String(props.project.organization) : ''
+  if (org) url += (url.includes('?') ? '&' : '?') + 'org=' + encodeURIComponent(org)
   const w = window.open('about:blank', '_blank')
   await projectsStore.syncProjectNow(props.project.id)
   if (w) w.location = url

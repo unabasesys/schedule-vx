@@ -240,6 +240,12 @@ const STAGE_TYPE = {
 const route     = useRoute()
 const projectId = computed(() => route.params.id)
 const isDraft   = computed(() => route.query.draft === '1')
+// The calendar's own organization, sent by the tab that opened this one (ShareDropdown).
+// The session here comes from localStorage and can belong to another organization, so the
+// calendar is asked for with ITS organization, like every other request about it in the
+// app. Only a Mongo id gets through: it goes into a header. Without it (an old link), the
+// session's, as before.
+const docOrg    = computed(() => (/^[0-9a-f]{24}$/i.test(String(route.query.org || '')) ? String(route.query.org) : ''))
 // Internal vs client export: when ?type=internal, locked/internal events are
 // included in the PDF; otherwise (client, the default) they're hidden.
 const includeInternal = computed(() => route.query.type === 'internal')
@@ -326,16 +332,19 @@ onMounted(async () => {
 
   try {
     const [proj] = await Promise.all([
-      useApi().get(`/projects/${projectId.value}`),
-      settingsStore.fetchOrg().catch(e => console.warn('print: fetchOrg failed', e)),
+      useApi().get(`/projects/${projectId.value}`, docOrg.value ? { Organization: docOrg.value } : {}),
+      settingsStore.fetchOrg(docOrg.value || null).catch(e => console.warn('print: fetchOrg failed', e)),
     ])
     project.value = proj
     // Inheritance chain, same as in-app: calendar → org default → user prefs
     if (settingsStore.orgWeekStart) weekStartCfg.value = settingsStore.orgWeekStart
     if (proj.lang)      lang.value         = proj.lang
     if (proj.weekStart) weekStartCfg.value = proj.weekStart
-    orgName.value = settingsStore.studioName || authStore.organization?.name || 'Mi Productora'
-    orgLogo.value = settingsStore.logo || authStore.organization?.imgUrl || ''
+    // The session's organization is only a fallback when it IS the calendar's: otherwise a
+    // calendar without a logo would print the logo of another organization.
+    const sameOrg = !docOrg.value || docOrg.value === String(authStore.organization?._id || '')
+    orgName.value = settingsStore.studioName || (sameOrg ? authStore.organization?.name : '') || 'Mi Productora'
+    orgLogo.value = settingsStore.logo || (sameOrg ? authStore.organization?.imgUrl : '') || ''
 
     await loadHolidays(proj)
   } catch (e) {
