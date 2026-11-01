@@ -69,7 +69,16 @@
 <script setup>
 const globalStore = useGlobalStore()
 const lang = computed(() => globalStore.lang)
-defineEmits(['close'])
+const emit = defineEmits(['close'])
+
+// ESC cierra, igual que la X y el clic afuera (convención de todas las apps de unabase).
+// En `window` y en fase de burbuja, como los demás modales: un diálogo abierto encima
+// escucha en captura y se lleva la tecla primero.
+function onKeydown(e) {
+  if (e.key === 'Escape') emit('close')
+}
+onMounted(()   => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 </script>
 
 <style scoped>

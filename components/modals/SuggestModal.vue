@@ -120,6 +120,14 @@ const dragging   = ref(false)
 
 onMounted(() => nextTick(() => ta.value?.focus()))
 
+// ESC cierra, igual que Cancelar y el clic afuera, y con la misma condición: mientras se
+// envía no, para que la tecla no deje la sugerencia a medio mandar sin aviso (ver HelpModal).
+function onKeydown(e) {
+  if (e.key === 'Escape' && !sending.value) globalStore.closeSuggest()
+}
+onMounted(()   => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+
 // Agrega archivos de imagen, reduciéndolos en el navegador. Los motivos de rechazo se
 // dicen en palabras: "no se pudo" a secas obliga a adivinar.
 async function addFiles(files) {

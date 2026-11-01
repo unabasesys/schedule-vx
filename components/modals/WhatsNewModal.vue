@@ -40,6 +40,13 @@ import { CHANGELOG } from '~/utils/changelog'
 const globalStore = useGlobalStore()
 const lang = computed(() => globalStore.lang)
 
+// ESC cierra, igual que el botón y el clic afuera (ver HelpModal).
+function onKeydown(e) {
+  if (e.key === 'Escape') globalStore.closeWhatsNew()
+}
+onMounted(()   => window.addEventListener('keydown', onKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onKeydown))
+
 function formatDate(iso) {
   const [y, m, d] = iso.split('-').map(Number)
   const months = lang.value === 'en'
