@@ -1630,8 +1630,20 @@ export const useProjectsStore = defineStore('projects', {
       if (authStore?.isLoggedIn && isMongoId(id)) {
         // Send the state we just switched to — the endpoint used to always archive,
         // so "restore" archived the calendar again on the server.
-        useApi().patch(`/projects/${id}/archive`, { archived: proj.status === 'archived' }, _orgHeader(proj))
-          .catch(e => console.warn('archive API failed:', e.message))
+        const archived = proj.status === 'archived'
+        // Archiving advances `rev` on the server (since 1-nov-2026), so it is a write like
+        // any other: it goes through the same per-calendar queue, or a PUT already on the
+        // wire would come back 409 against our own archive. Its new `rev` is adopted only
+        // when it is exactly ours + 1: anything else means someone else also wrote, and
+        // adopting it would let our next save overwrite their changes without a conflict.
+        // In that case the freshness probe or the 409 brings the server copy in.
+        _queueWrite(id, async () => {
+          const before = this.projects.find(p => p.id === id)?.rev ?? 0
+          const res = await useApi().patch(`/projects/${id}/archive`, { archived }, _orgHeader(proj))
+          const live = this.projects.find(p => p.id === id)
+          if (live && Number.isInteger(res?.rev) && res.rev === before + 1) live.rev = res.rev
+          if (res?.revAt) this._noteLastUpdate({ id, revAt: res.revAt, revBy: res.revBy })
+        }).catch(e => console.warn('archive API failed:', e.message))
       }
     },
 
