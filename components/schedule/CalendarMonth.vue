@@ -437,9 +437,12 @@ const weeks = computed(() => {
     return dow !== 0 && dow !== 6 && !holidayDates.has(dateStr)
   }
 
+  // Same count as the PDF (buildBusinessSegments in pages/print/[id].vue): the start
+  // only counts if it IS a business day. Counting it always made an event that starts
+  // on a holiday or a weekend one day shorter here than in the PDF.
   function calcBusinessEnd(startDate, duration) {
     if (duration <= 1) return startDate
-    let count = 1, current = startDate
+    let count = isBusinessDay(startDate) ? 1 : 0, current = startDate
     while (count < duration) {
       current = addDays(current, 1)
       if (isBusinessDay(current)) count++
@@ -497,7 +500,12 @@ const weeks = computed(() => {
       if (!ev.date || !ev.active) continue
       const dur         = ev.duration || ev.days || 1
       const evStart     = ev.date
-      const isBusinessEv = ev.durDayType === 'business'
+      // A ONE-day event is drawn on its date even if that date is not a business day,
+      // as the PDF does. Otherwise a 1-day business event sitting on a holiday (one
+      // added after the event was created — e.g. a second country on the calendar)
+      // had no business day to draw on and vanished from the screen while still
+      // printing in the PDF.
+      const isBusinessEv = ev.durDayType === 'business' && dur > 1
       const evEnd       = isBusinessEv
         ? calcBusinessEnd(evStart, dur)
         : addDays(ev.date, dur - 1)
