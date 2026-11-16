@@ -165,7 +165,9 @@ const emit = defineEmits(['close', 'saved'])
 const lang = computed(() => globalStore.lang)
 
 const isEdit = computed(() => !!props.editingId)
-const templates = computed(() => projectsStore.templates)
+// Solo los activos: desde nov-2026 el back devuelve también los desactivados (para la
+// pestaña "Inactivos" de Templates), y uno desactivado no se ofrece para crear.
+const templates = computed(() => projectsStore.templates.filter(t => t.active !== false))
 
 const editingProject = computed(() =>
   props.editingId ? projectsStore.projects.find(p => p.id === props.editingId) : null

@@ -136,6 +136,8 @@ function eventsFromTemplate(tmpl) {
     return {
       id: newId, templateId: te.templateId, fromTemplateId: te.id,
       name: te.name, nameEN: te.nameEN || te.name,
+      // Sin copiarlo, fixEvent pisaba en la primera carga los nombres que el template traía editados.
+      nameCustomized: !!te.nameCustomized,
       stage: te.stage, active: te.active !== false,
       date: '', dateMode: 'manual',
       duration: te.duration, durDayType: te.durDayType || 'calendar',
@@ -144,6 +146,8 @@ function eventsFromTemplate(tmpl) {
         eventId:  te.dep?.eventId  || '',
         relation: te.dep?.relation || 'after',
         days:     te.dep?.days     ?? 1,
+        dayType:  te.dep?.dayType  || 'calendar',
+        anchor:   te.dep?.anchor   || 'start',
         broken:   false,
       },
       notes: '', order: te.order ?? i,
@@ -1635,6 +1639,7 @@ export const useProjectsStore = defineStore('projects', {
       if (_createTimers.has(id)) { clearTimeout(_createTimers.get(id)); _createTimers.delete(id) }
       _createRetries.delete(id)
       _edited.delete(id)   // nothing left to send for a calendar that no longer exists
+      const proj = this.projects.find(p => p.id === id)   // its organization, for the DELETE below
       this.projects = this.projects.filter(p => p.id !== id)
       if (this.selectedId === id) {
         const remaining = this.projects
@@ -1646,7 +1651,10 @@ export const useProjectsStore = defineStore('projects', {
 
       const authStore = useAuthStore()
       if (authStore?.isLoggedIn && isMongoId(id)) {
-        useApi().delete(`/projects/${id}`).catch(e => console.warn('delete project API failed:', e.message))
+        // Con la organización DEL calendario, como el PUT y el archivar: con la de la
+        // sesión (cambiada en otra pestaña) el back respondía 404 y el calendario
+        // reaparecía al recargar.
+        useApi().delete(`/projects/${id}`, _orgHeader(proj)).catch(e => console.warn('delete project API failed:', e.message))
       }
     },
 
