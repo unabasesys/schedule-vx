@@ -432,23 +432,12 @@ const weeks = computed(() => {
   // ── Business-day helpers ───────────────────────────────────────
   const holidayDates = new Set(props.holidays.map(h => h.date))
 
-  function isBusinessDay(dateStr) {
-    const dow = new Date(dateStr + 'T12:00:00').getDay()
-    return dow !== 0 && dow !== 6 && !holidayDates.has(dateStr)
-  }
+  // Feriados con que se calcula CADA evento: los de su calendario (_holidaySet, ver
+  // projHolidaySets en CalendarView), que cubren el año siguiente — un evento de fin de
+  // diciembre no termina distinto en la grilla de diciembre que en la de enero. Los de
+  // `holidays` (los del mes, del calendario seleccionado) quedan para pintar celdas.
+  const holidaysOf = (ev) => ev?._holidaySet || holidayDates
 
-  // Same count as the PDF (buildBusinessSegments in pages/print/[id].vue): the start
-  // only counts if it IS a business day. Counting it always made an event that starts
-  // on a holiday or a weekend one day shorter here than in the PDF.
-  function calcBusinessEnd(startDate, duration) {
-    if (duration <= 1) return startDate
-    let count = isBusinessDay(startDate) ? 1 : 0, current = startDate
-    while (count < duration) {
-      current = addDays(current, 1)
-      if (isBusinessDay(current)) count++
-    }
-    return current
-  }
 
   const firstDay = new Date(year, month, 1)
   const lastDay  = new Date(year, month + 1, 0)
@@ -498,7 +487,9 @@ const weeks = computed(() => {
     const bars = []
     for (const ev of props.events) {
       if (!ev.date || !ev.active) continue
-      const dur         = ev.duration || ev.days || 1
+      // Solo `duration`, como el PDF y las dependencias (`days` es un campo viejo).
+      const dur         = ev.duration || 1
+      const hol         = holidaysOf(ev)
       const evStart     = ev.date
       // A ONE-day event is drawn on its date even if that date is not a business day,
       // as the PDF does. Otherwise a 1-day business event sitting on a holiday (one
@@ -506,13 +497,13 @@ const weeks = computed(() => {
       // had no business day to draw on and vanished from the screen while still
       // printing in the PDF.
       const isBusinessEv = ev.durDayType === 'business' && dur > 1
-      const evEnd       = isBusinessEv
-        ? calcBusinessEnd(evStart, dur)
-        : addDays(ev.date, dur - 1)
+      const evEnd       = eventEndDate(evStart, dur, isBusinessEv ? 'business' : 'calendar', hol)
 
       if (evEnd < weekStart || evStart > weekEnd) continue
 
-      const name  = props.lang === 'en' ? (ev.nameEN || ev.name) : ev.name
+      // Mismo respaldo que el PDF para un evento sin nombre.
+      const name  = (props.lang === 'en' ? (ev.nameEN || ev.name) : ev.name)
+        || (props.lang === 'en' ? '(No title)' : '(Sin título)')
       const color = ev._stageColor || ev._projColor || 'var(--accent)'
 
       if (isBusinessEv) {
@@ -522,7 +513,7 @@ const weeks = computed(() => {
         for (let ci = 0; ci < cells.length; ci++) {
           const date    = cells[ci].dateStr
           const inRange = date >= evStart && date <= evEnd
-          const isBD    = inRange && isBusinessDay(date)
+          const isBD    = inRange && isBusinessDay(date, hol)
           if (isBD) {
             if (segStartCol < 0) segStartCol = ci
             segEndCol = ci

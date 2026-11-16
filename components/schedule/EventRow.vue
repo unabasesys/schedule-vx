@@ -508,24 +508,11 @@ const displayName = computed(() =>
   props.lang === 'en' ? (props.event.nameEN || props.event.name) : props.event.name
 )
 
-// Compute end date from start + duration, respecting durDayType (weekdays only for business)
+// Fin del evento con LA regla compartida (eventEndDate), feriados incluidos. Antes esta
+// columna saltaba solo sábados y domingos y mostraba un fin distinto al de la barra.
 const endDate = computed(() => {
-  const start = props.event.date
-  const dur   = props.event.duration || 1
-  if (!start) return ''
-  if (dur <= 1) return start
-  const d = new Date(start + 'T12:00:00')
-  if ((props.event.durDayType || 'calendar') === 'business') {
-    let remaining = dur - 1
-    while (remaining > 0) {
-      d.setDate(d.getDate() + 1)
-      const dow = d.getDay()
-      if (dow !== 0 && dow !== 6) remaining--
-    }
-  } else {
-    d.setDate(d.getDate() + dur - 1)
-  }
-  return ymd(d)
+  if (!props.event.date) return ''
+  return eventEndDate(props.event.date, props.event.duration, props.event.durDayType || 'calendar', activeHolidayDates.value)
 })
 
 function formatDate(dateStr) {

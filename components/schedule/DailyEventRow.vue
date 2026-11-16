@@ -1068,10 +1068,10 @@ const relatedDateConflict = computed(() => {
   if (!props.item?.relatedCalendarEventId || !props.item?.date) return false
   const ev = (props.project?.events || []).find(e => e.id === props.item.relatedCalendarEventId)
   if (!ev?.date) return false
-  const dur = Number(ev.duration) || 1
-  const evEnd = ev.date && dur > 1
-    ? new Date(new Date(ev.date).getTime() + (dur - 1) * 86400000).toISOString().slice(0, 10)
-    : ev.date
+  // Fin con LA regla compartida: antes eran días corridos (y en UTC), así que un evento
+  // en días hábiles que salta el fin de semana marcaba "fuera de rango" su propio lunes.
+  const hol   = useHolidaysStore().activeDatesFor(props.project, holidayYearsFor([ev]))
+  const evEnd = eventEndDate(ev.date, ev.duration, ev.durDayType || 'calendar', hol)
   return props.item.date < ev.date || props.item.date > evEnd
 })
 

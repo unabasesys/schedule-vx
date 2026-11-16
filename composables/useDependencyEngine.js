@@ -1,15 +1,15 @@
-import { addDays, subtractDays } from '~/utils/helpers'
+import { addDays, subtractDays, eventEndDate } from '~/utils/helpers'
 
 export function useDependencyEngine() {
   /**
    * Compute the end date of an event based on its start, duration, and dayType.
    * Duration of 1 means a single day → end = start.
    */
+  // La misma regla que dibuja el calendario (eventEndDate). Antes contaba siempre el día
+  // de inicio, así que con el inicio en feriado el "fin" de acá era un día antes que la
+  // barra, y un dependiente "1 día después del fin" caía encima de ella.
   function getEndDate(ev, activeHolidayDates = null) {
-    if (!ev.date) return ev.date
-    const n = Math.max(1, ev.duration || 1) - 1
-    if (n === 0) return ev.date
-    return addDays(ev.date, n, ev.durDayType || 'calendar', activeHolidayDates)
+    return eventEndDate(ev.date, ev.duration, ev.durDayType || 'calendar', activeHolidayDates)
   }
 
   /**
