@@ -39,6 +39,70 @@ export function subtractDays(dateStr, n, dayType = 'calendar', holidayDates = nu
 }
 
 /**
+ * Fin de un evento: LA regla, la misma en calendario, PDF, Eventos, el modal, las
+ * dependencias y el Daily. Hasta nov-2026 cada vista tenía la suya (unas sin feriados,
+ * otras contando siempre el día de inicio) y el mismo evento terminaba en fechas
+ * distintas según dónde se mirara.
+ *
+ * - Un día → termina en su fecha, sea hábil o no.
+ * - Días corridos → inicio + (n − 1).
+ * - Días hábiles → n días hábiles; el inicio cuenta SOLO si es hábil (un evento que
+ *   empieza en feriado o fin de semana no "gasta" ese día). Igual que el PDF.
+ *
+ * @param {string} start  YYYY-MM-DD
+ * @param {number} duration
+ * @param {'calendar'|'business'} dayType
+ * @param {Set<string>|null} holidayDates  feriados activos del calendario del evento
+ */
+export function eventEndDate(start, duration, dayType = 'calendar', holidayDates = null) {
+  if (!start) return start
+  const n = Math.max(1, Number(duration) || 1)
+  if (n === 1) return start
+  if (dayType !== 'business') return addDays(start, n - 1)
+  let count = isBusinessDay(start, holidayDates) ? 1 : 0
+  let current = start
+  while (count < n) {
+    current = addDays(current, 1)
+    if (isBusinessDay(current, holidayDates)) count++
+  }
+  return current
+}
+
+/**
+ * Inversa de eventEndDate para el modal: cuántos días tiene el rango [from, to].
+ * En hábiles cuenta solo los hábiles (mínimo 1).
+ */
+export function durationFromRange(from, to, dayType = 'calendar', holidayDates = null) {
+  if (!from || !to || to < from) return 1
+  if (dayType !== 'business') {
+    const diffMs = new Date(to + 'T12:00:00') - new Date(from + 'T12:00:00')
+    return Math.round(diffMs / 86400000) + 1
+  }
+  let count = 0, current = from
+  while (current <= to) {
+    if (isBusinessDay(current, holidayDates)) count++
+    current = addDays(current, 1)
+  }
+  return Math.max(1, count)
+}
+
+/**
+ * Años de feriados que hacen falta para calcular los eventos: el de cada inicio y el
+ * SIGUIENTE, porque un evento de fin de año termina en enero y el 1-ene es feriado.
+ * Cargar solo los años de inicio dejaba fuera ese 1-ene.
+ */
+export function holidayYearsFor(events, extraYears = []) {
+  const years = new Set(extraYears)
+  for (const e of events || []) {
+    if (!e?.date) continue
+    const y = Number(e.date.slice(0, 4))
+    years.add(y); years.add(y + 1)
+  }
+  if (!years.size) years.add(new Date().getFullYear())
+  return [...years]
+}
+
+/**
  * Return true if a date string falls on a valid business day.
  * @param {string} dateStr
  * @param {Set<string>|null} holidayDates - active holiday dates to treat as non-working

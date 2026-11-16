@@ -273,7 +273,9 @@ async function loadHolidays(proj) {
   if (!countryCodes.length) { holidaysFailed.value = false; return }
 
   const years = new Set(
-    (proj.events || []).filter(e => e.date).map(e => Number(e.date.slice(0, 4)))
+    // Inicio y año siguiente (holidayYearsFor): con solo los de inicio, un evento que
+    // cruza a enero no veía el 1-ene y la página de enero salía sin Año Nuevo.
+    holidayYearsFor(proj.events)
   )
   if (!years.size) years.add(new Date().getFullYear())
   const disabled = new Set(proj.disabledHolidays || [])

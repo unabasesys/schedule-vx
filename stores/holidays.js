@@ -76,6 +76,23 @@ export const useHolidaysStore = defineStore('holidays', {
       return Array.isArray(this.countryHolidays[`${countryCode}_${year}`])
     },
 
+    // Fechas de feriado ACTIVAS de un calendario (sus países, menos los desactivados) en
+    // esos años. Cada calendario con las suyas: en la vista combinada, un evento se
+    // calcula con los feriados de SU calendario, no con los del seleccionado.
+    activeDatesFor(proj, years) {
+      const disabled = new Set(proj?.disabledHolidays || [])
+      const dates = new Set()
+      for (const { countryCode } of proj?.holidays || []) {
+        if (!countryCode) continue
+        for (const y of years) {
+          for (const h of this.getHolidaysForYear(countryCode, y)) {
+            if (!disabled.has(h.date)) dates.add(h.date)
+          }
+        }
+      }
+      return dates
+    },
+
     getHolidaysForYear(countryCode, year) {
       return this.countryHolidays[`${countryCode}_${year}`] || []
     },

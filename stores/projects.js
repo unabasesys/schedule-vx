@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { uid, fmtWhen } from '~/utils/helpers'
+import { uid, fmtWhen, holidayYearsFor } from '~/utils/helpers'
 import { MASTER_TEMPLATE, DEFAULT_STAGES, DEFAULT_GROUPS, DEFAULT_CITIES, STAGE_ORDER } from '~/utils/constants'
 import { usePersist } from '~/composables/usePersist'
 import { useDependencyEngine } from '~/composables/useDependencyEngine'
@@ -1988,9 +1988,9 @@ export const useProjectsStore = defineStore('projects', {
 
       const holidaysStore = useHolidaysStore()
       const codes = (proj.holidays || []).map(h => h.countryCode).filter(Boolean)
-      const years = [...new Set(
-        (proj.events || []).filter(e => e.date).map(e => Number(e.date.slice(0, 4)))
-      )]
+      // Inicio y año siguiente: con solo los de inicio, una dependencia de un evento de
+      // fin de año se calculaba sin el 1-ene y se corría sola en la edición siguiente.
+      const years = holidayYearsFor(proj.events)
       const missing = []
       codes.forEach(code => years.forEach(year => {
         if (!holidaysStore.isLoaded(code, year)) missing.push([code, year])
@@ -2030,18 +2030,7 @@ export const useProjectsStore = defineStore('projects', {
       const { recalcProject } = useDependencyEngine()
 
       const holidaysStore  = useHolidaysStore()
-      const disabled       = new Set(proj.disabledHolidays || [])
-      const years          = new Set(
-        (proj.events || []).filter(e => e.date).map(e => Number(e.date.slice(0, 4)))
-      )
-      const activeHolidayDates = new Set()
-      ;(proj.holidays || []).forEach(({ countryCode }) => {
-        years.forEach(year => {
-          holidaysStore.getHolidaysForYear(countryCode, year).forEach(h => {
-            if (!disabled.has(h.date)) activeHolidayDates.add(h.date)
-          })
-        })
-      })
+      const activeHolidayDates = holidaysStore.activeDatesFor(proj, holidayYearsFor(proj.events))
 
       recalcProject(proj, activeHolidayDates.size ? activeHolidayDates : null)
       this.save(projId)

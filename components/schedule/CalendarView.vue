@@ -402,15 +402,33 @@ const evModalDepSentence = computed(() => {
 const MONTHS_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
+// Feriados activos de CADA calendario visible (projId → Set), en los años de sus eventos
+// y el siguiente. Cada evento se calcula con los de su calendario: antes la vista
+// combinada usaba los del seleccionado para todos. Solo depende de los eventos (no de
+// los meses visibles), así que no entra en ciclo con eventDateRange.
+const projHolidaySets = computed(() => {
+  const map = new Map()
+  for (const proj of allProjects.value) {
+    map.set(proj.id, holidaysStore.activeDatesFor(proj, holidayYearsFor(proj.events)))
+  }
+  return map
+})
+
 // Shared min/max date range across all active events in ALL visible projects.
 // Returns null when there are no visible events (collapses to current month).
 const eventDateRange = computed(() => {
   let minDate = null
   let maxDate = null
   allProjects.value.forEach(proj => {
-    ;(proj.events || []).filter(e => e.active && e.date).forEach(ev => {
+    // Mismo criterio que coloredEvents: un evento de una etapa oculta no estira el
+    // rango (si no, aparecían meses vacíos que el PDF no imprime).
+    const hiddenStageKeys = new Set(
+      (proj.stages || []).filter(s => s.visible === false || s.active === false).map(s => s.key)
+    )
+    const hol = projHolidaySets.value.get(proj.id)
+    ;(proj.events || []).filter(e => e.active && e.date && !hiddenStageKeys.has(e.stage)).forEach(ev => {
       const start = ev.date
-      const end   = calcTo(ev.date, ev.duration || 1, ev.durDayType || 'calendar')
+      const end   = eventEndDate(ev.date, ev.duration, ev.durDayType || 'calendar', hol)
       if (!minDate || start < minDate) minDate = start
       if (!maxDate || end   > maxDate) maxDate = end
     })
@@ -545,6 +563,7 @@ const coloredEvents = computed(() => {
       })
       .forEach(e => merged.push({
         ...e,
+        _holidaySet: projHolidaySets.value.get(proj.id),
         _projId:     proj.id,
         _projColor:  proj.color || 'var(--accent)',
         _stageColor: stageColorMap[e.stage] || null,
@@ -595,9 +614,12 @@ watch(() => props.project.id, scrollToInitialMonth)
 
 // Pre-fetch holidays for all visible projects across all rendered years
 watchEffect(() => {
-  const years = [...new Set(visibleMonths.value.map(m => m.year))]
+  const shown = visibleMonths.value.map(m => m.year)
   allProjects.value.forEach(proj => {
-    const codes = (proj.holidays || []).map(h => h.countryCode)
+    // Los años mostrados (para pintar las celdas) y los que necesitan sus eventos para
+    // calcular el fin (inicio y año siguiente).
+    const years = holidayYearsFor(proj.events, shown)
+    const codes = (proj.holidays || []).map(h => h.countryCode).filter(Boolean)
     codes.forEach(code => {
       years.forEach(y => holidaysStore.fetchHolidaysForYear(code, y))
     })
@@ -625,43 +647,27 @@ function shiftDate(dateStr, n) {
   return ymd(d)
 }
 
+// "Hasta" y duración del modal, con LA regla compartida y los feriados del calendario
+// del evento abierto. Antes saltaban solo fines de semana: con un feriado en medio, el
+// modal decía "hasta el 18" y la barra llegaba al 21.
+function modalHolidays() {
+  return projHolidaySets.value.get(evModalProjId.value || props.project.id) || activeHolidayDatesForProject.value
+}
+
 function calcTo(from, days, dayType) {
   if (!from) return ''
-  const n = Math.max(1, days || 1) - 1
-  if (n === 0) return from
-  if (dayType === 'calendar') return shiftDate(from, n)
-  // Business days — skip weekends
-  let count = 0, current = from
-  while (count < n) {
-    current = shiftDate(current, 1)
-    const dow = new Date(current + 'T12:00:00').getDay()
-    if (dow !== 0 && dow !== 6) count++
-  }
-  return current
+  return eventEndDate(from, days, dayType, modalHolidays())
 }
 
 function calcDaysFromRange(from, to, dayType) {
-  if (!from || !to || to < from) return 1
-  if (dayType === 'calendar') {
-    const diffMs = new Date(to + 'T12:00:00') - new Date(from + 'T12:00:00')
-    return Math.round(diffMs / 86400000) + 1
-  }
-  // Business days — count working days inclusive
-  let count = 1, current = from
-  while (current < to) {
-    current = shiftDate(current, 1)
-    const dow = new Date(current + 'T12:00:00').getDay()
-    if (dow !== 0 && dow !== 6) count++
-  }
-  return Math.max(1, count)
+  return durationFromRange(from, to, dayType, modalHolidays())
 }
 
 // ── Active holidays for the selected project (used in business-day validation) ──
 // Covers all years currently rendered; used only for event creation/editing on props.project.
 const activeHolidayDatesForProject = computed(() => {
   const disabled = new Set(props.project.disabledHolidays || [])
-  const years = new Set(visibleMonths.value.map(m => m.year))
-  if (!years.size) years.add(new Date().getFullYear())
+  const years = new Set(holidayYearsFor(props.project.events, visibleMonths.value.map(m => m.year)))
   const dates = new Set()
   ;(props.project.holidays || []).forEach(({ countryCode }) => {
     years.forEach(year => {
