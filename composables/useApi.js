@@ -96,10 +96,10 @@ export const useApi = () => {
         body: JSON.stringify(body),
       }).then(handleResponse),
 
-    delete: (path) =>
+    delete: (path, extra = {}) =>
       fetch(`${BASE}${path}`, {
         method: 'DELETE',
-        headers: headers(),
+        headers: headers(extra),
       }).then(handleResponse),
 
     // For multipart/form-data (file uploads) — do NOT set Content-Type
