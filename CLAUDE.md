@@ -221,6 +221,63 @@ Representación operativa y versionable del proyecto. Contiene: eventos, feriado
 
 ---
 
+## 6.1 Contactos: etiquetas Clientes / Crew (ago 2026)
+
+La colección `contacts` es **una sola, compartida con Relations** (fusión del
+2026-07-27/28). Desde ago-2026 el contacto lleva `badges[]` — las "etiquetas" que
+deciden en qué lista de Relations aparece esa persona: **Clientes** (le vendemos) o
+**Crew** (le compramos). Se pueden tener las dos a la vez.
+
+```js
+badges: [{ key: 'clientes' | 'crew', addedAt, addedBy }]
+```
+
+**Por qué le importa a Calendar.** Cada nombre tipeado en los participantes de una
+jornada crea un contacto, y sin etiqueta ese contacto cae en la bandeja "Por
+revisar" de Relations como candidato **comercial** a evaluar. Son ~250 personas por
+organización: la bandeja deja de servir para las dos cosas
+(`ARQUITECTURA-DECISION.md` §9.2.1). Marcar la etiqueta acá es lo que lo evita.
+
+**Reglas, y no son arbitrarias:**
+
+- **`crew` → `lifecycleState: 'person'`, directo.** Sin consecuencia comercial: las
+  métricas de Relations (score, contacto del día, newsletter, salud de empresas)
+  exigen la etiqueta `clientes` desde el 31-ago-2026.
+- **Marcar `crew` a alguien que YA existe también lo clasifica** — `addBadge`
+  promueve a `person`. Sin esto la persona quedaba en las dos partes (en Crew y
+  todavía en Por revisar), y como las ~250 ya existen en la tabla, el toggle era su
+  único camino: si no sacaba de la bandeja, la función no resolvía nada.
+- **Los dos caminos de deduplicación aplican la etiqueta.** Si el email ya existe
+  (activo o borrado lógico), no se duplica la ficha pero sí se le agrega la
+  etiqueta elegida. Antes se perdía en silencio, que es el caso más frecuente:
+  tipeas a alguien que Relations ya capturó de Gmail.
+- **`clientes` → `lifecycleState: 'review'`, pero ya etiquetado.** Incorporar a
+  alguien a Clientes tiene una ceremonia en Relations —el motivo de alta,
+  obligatorio— y Calendar no tiene dónde pedirlo. Llega pre-clasificado: allá queda
+  un clic de confirmación en vez de una decisión desde cero.
+- **Sin etiqueta → `review`**, el comportamiento de siempre.
+- **El alta al vuelo desde `DailyEventRow` nace `crew` sin preguntar.** Un
+  participante de una jornada ES crew; un selector ahí interrumpiría justo el flujo
+  que esa alta silenciosa existe para no interrumpir.
+- **Se agrega, nunca se reemplaza.** Marcar crew acá no puede quitar la etiqueta de
+  cliente que puso Relations.
+- El `update` usa **lista blanca** (`pick` + `ALLOWED`), como Relations. Una lista
+  negra no filtraba `{"badges.0.key": "..."}`: mongoose castea los paths con punto
+  contra el arreglo declarado y el `$set` pasaba igual, así que se podía inyectar
+  una etiqueta sin pasar por su endpoint y falsificar la auditoría de §8.5. De paso
+  cierra `source`, que estaba abierto al falseo de origen.
+
+**La trampa que hace que esto exista.** Mongoose **descarta en silencio** un `$set`
+a un path que su esquema no declara. Mientras `badges` no estuviera declarado en
+`apiServices/contacts/model.js` de ESTE repo, marcar a alguien como crew no
+guardaba nada — sin error. Declarar el campo no es preparación de la función: **es**
+la función. Mismo caso que `source` y `lifecycleState`, que Calendar declara y
+escribe sin usarlos: es el precio de compartir la tabla.
+
+Vocabulario en `back/config/badges.js` (**gemelo** del de Relations — si allá
+cambia, acá también). Verificación: `node tests/contacts-badges.verify.mjs`.
+Detalle completo: `Relations/back/docs/crew-medallas.md`.
+
 ## 7. Terminología del Producto
 
 | Término | Significado |

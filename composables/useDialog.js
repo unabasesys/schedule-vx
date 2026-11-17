@@ -9,9 +9,16 @@ export function useDialog() {
   // justamente para que la tecla de "guardar" no borre nada. Se enciende diálogo
   // por diálogo, donde confirmar con el teclado vale más que ese seguro — y donde
   // la advertencia ya se leyó completa.
-  function confirm({ title, body = '', confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', enterConfirms = false } = {}) {
+  //
+  // `checkbox` (opcional): rótulo de una casilla entre el texto y los botones
+  // ("No volver a preguntarme"). CAMBIA lo que resuelve, igual que en `choice`:
+  // con casilla devuelve `{ value: true, checked }` al confirmar; cancelar sigue
+  // devolviendo `false` pelado — marcarla y arrepentirse no apaga nada. Solo tiene
+  // sentido en una pregunta REVERSIBLE: una confirmación que protege algo sin
+  // vuelta atrás no se ofrece apagar.
+  function confirm({ title, body = '', confirmLabel = 'Confirmar', cancelLabel = 'Cancelar', enterConfirms = false, checkbox = '' } = {}) {
     return new Promise(resolve => {
-      _state.value = { type: 'confirm', title, body, confirmLabel, cancelLabel, enterConfirms, resolve }
+      _state.value = { type: 'confirm', title, body, confirmLabel, cancelLabel, enterConfirms, checkbox, resolve }
     })
   }
 

@@ -904,11 +904,31 @@ async function addAdhoc(text, role = '') {
     if (title && !(existing.title || '').trim()) {
       try { await contactsStore.updateContact(existing.id, { title }) } catch (e) { /* keep the link */ }
     }
+    // Y la etiqueta CREW también acá (§9.1). Esta rama sale ANTES del alta de más
+    // abajo, así que sin esto el caso más frecuente de todos se quedaba sin marcar:
+    // se tipea a alguien que ya está en la base porque Relations lo capturó de
+    // Gmail, y esa persona nunca llegaba a Crew. Es idempotente y sólo agrega, así
+    // que si ya era crew no pasa nada y si además es cliente conserva las dos.
+    if (!(existing.badges || []).some(b => b?.key === 'crew')) {
+      try { await contactsStore.addBadge(existing.id, 'crew') } catch (e) { /* el vínculo ya quedó */ }
+    }
     return
   }
 
   try {
-    const created = await contactsStore.addContact(title ? { name, title } : { name })
+    // Nace con la etiqueta CREW, sin preguntar (§9.1, decisión de Jorge 31-ago-2026).
+    //
+    // Alguien tipeado como participante de una jornada ES crew: no hay nada que
+    // decidir y meter un selector acá interrumpiría justo el flujo que esta alta
+    // silenciosa existe para no interrumpir. Sin la etiqueta, esa persona caería en
+    // la bandeja "Por revisar" de Relations como candidato comercial a evaluar —
+    // son ~250 por organización, y ahí la bandeja deja de servir para las dos cosas
+    // (ARQUITECTURA-DECISION §9.2.1).
+    //
+    // Se puede cambiar después desde el directorio de contactos o desde Relations.
+    const created = await contactsStore.addContact(
+      title ? { name, title, badge: 'crew' } : { name, badge: 'crew' },
+    )
     if (created?.id) {
       if (!form.pickedIds.includes(created.id)) form.pickedIds.push(created.id)
       return
