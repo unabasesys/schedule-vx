@@ -217,13 +217,15 @@
 
         <!-- From / To -->
         <div class="field field--spaced" style="flex-direction:row;gap:10px;">
-          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <!-- min-width:0: sin él, cada columna medía lo que su fecha y "Hasta" se salía
+               del modal (scroll horizontal). -->
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
             <label>{{ lang === 'en' ? 'From' : 'Desde' }}</label>
-            <DatePicker v-model="evModalFrom" :lang="lang" @change="onFromChange" />
+            <DatePicker v-model="evModalFrom" :lang="lang" compact @change="onFromChange" />
           </div>
-          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
             <label>{{ lang === 'en' ? 'To' : 'Hasta' }}</label>
-            <DatePicker v-model="evModalTo" :lang="lang" :min="evModalFrom" @change="onToChange" />
+            <DatePicker v-model="evModalTo" :lang="lang" :min="evModalFrom" compact @change="onToChange" />
           </div>
         </div>
 

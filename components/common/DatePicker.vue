@@ -102,6 +102,9 @@ const props = defineProps({
   // El disparador lo dibuja quien lo usa (sin caja ni icono).
   bare:        { type: Boolean, default: false },
   disabled:    { type: Boolean, default: false },
+  // Sin día de la semana ("30 nov 2026"): para dos campos lado a lado en un modal
+  // angosto, donde la fecha completa no cabe y empujaba el modal a hacer scroll.
+  compact:     { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue', 'change'])
 
@@ -133,7 +136,9 @@ const todayIso = iso(new Date())
 const label = computed(() => {
   const d = parse(props.modelValue)
   if (!d) return props.placeholder || (isEN.value ? 'Pick a date' : 'Elegir fecha')
-  return d.toLocaleDateString(locale.value, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+  const opts = { day: 'numeric', month: 'short', year: 'numeric' }
+  if (!props.compact) opts.weekday = 'short'
+  return d.toLocaleDateString(locale.value, opts)
 })
 // "hoy" / "mañana" al lado de la fecha: confirma de un vistazo que es la correcta.
 const rel = computed(() => {
@@ -295,7 +300,7 @@ onBeforeUnmount(() => {
 
 .dp-field {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  width: 100%; padding: 8px 11px; font-family: inherit; font-size: .84rem;
+  width: 100%; min-width: 0; padding: 8px 11px; font-family: inherit; font-size: .84rem;
   background: var(--surface-2); color: var(--text); cursor: pointer;
   border: 1px solid var(--border); border-radius: 8px;
   transition: border-color .15s, box-shadow .15s;
@@ -310,10 +315,11 @@ onBeforeUnmount(() => {
 }
 .dp.bare .dp-field.active { box-shadow: none; }
 
-.dp-val { font-weight: 600; text-align: left; white-space: nowrap; }
+/* Si aun así no cabe, se corta con "…" en vez de desbordar a quien lo contiene. */
+.dp-val { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 600; text-align: left; white-space: nowrap; }
 .dp-val.empty { color: var(--muted); font-weight: 400; }
 .dp-val em { font-style: normal; font-weight: 400; color: var(--muted); }
-.dp-ico { display: inline-flex; color: var(--muted); }
+.dp-ico { display: inline-flex; flex: none; color: var(--muted); }
 .dp-field.active .dp-ico { color: var(--accent); }
 </style>
 
