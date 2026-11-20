@@ -1965,9 +1965,26 @@ export const useProjectsStore = defineStore('projects', {
       const ev1 = proj.events.find(e => e.id === evId1)
       const ev2 = proj.events.find(e => e.id === evId2)
       if (!ev1 || !ev2) return
-      const tmp = ev1.order ?? 0
-      ev1.order  = ev2.order ?? 0
-      ev2.order  = tmp
+      // Antes se INTERCAMBIABA `order` entre los dos. Pero `order` no es único: un evento
+      // nuevo nace con order = cantidad de eventos (repetible después de borrar) y los de
+      // template con su índice. Con dos órdenes iguales el intercambio no cambiaba nada y
+      // arrastrar para reordenar "no funcionaba".
+      //
+      // Ahora: los eventos de ese día, en el orden en que se VEN (order y, a igualdad, su
+      // posición en el arreglo — el mismo criterio que CalendarMonth), con el arrastrado
+      // puesto en el lugar del de destino, y numerados de nuevo sin repetir.
+      const day = proj.events
+        .map((e, i) => ({ e, i }))
+        .filter(({ e }) => e.date && e.date === ev2.date)
+        .sort((a, b) => ((a.e.order ?? 0) - (b.e.order ?? 0)) || (a.i - b.i))
+        .map(({ e }) => e)
+      const from = day.indexOf(ev1)
+      const to   = day.indexOf(ev2)
+      if (from < 0 || to < 0) return
+      day.splice(from, 1)
+      day.splice(to, 0, ev1)
+      const base = Math.min(...day.map(e => e.order ?? 0))
+      day.forEach((e, k) => { e.order = base + k })
       proj.hasChanges = true
       proj.updatedAt = proj.editedAt = new Date().toISOString()
       this.save(projId)
